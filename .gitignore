@@ -1,0 +1,13 @@
+# Contraseñas y credenciales: no se suben nunca
+.env
+.env.*
+!.env.example
+
+# Datos del torneo y copias de seguridad
+data/
+backups/
+*.db
+*.db-shm
+*.db-wal
+
+node_modules/

@@ -1,0 +1,22 @@
+# La web, solo accesible desde este ordenador. El público entra por Tailscale Funnel, que pone el HTTPS.
+# Arranque: docker compose up -d --build    Publicar: tailscale funnel --bg 3000
+services:
+  web:
+    build: .
+    env_file: .env
+    environment:
+      DB_PATH: /data/spisix.db
+      PORT: 3000
+    volumes:
+      - spisix-data:/data
+      - ./config.json:/app/config.json:ro   # tras editarlo: docker compose up -d --force-recreate web
+    ports:
+      - "127.0.0.1:3000:3000"
+    init: true
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  spisix-data:

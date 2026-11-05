@@ -1,0 +1,1710 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SpiSix: Fall Cup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Torneo 1v1 de osu! para jugadores de 6 dígitos de la comunidad SpiSix.">
+<meta property="og:title" content="SpiSix: Fall Cup">
+<meta property="og:description" content="Torneo 1v1 de osu! para jugadores de 6 dígitos de la comunidad SpiSix.">
+<meta property="og:locale" content="es_ES">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: cabecera fija, vistas por hash, columna de 1120px. Motivo: hit circle con approach circle. Paleta otoñal sobre neutros fríos. */
+:root{
+  --bg:#F1F3F6; --surface:#FFFFFF; --surface-2:#E7EAF0; --ink:#171A26; --muted:#585E70; --line:#D8DCE5;
+  --accent:#BF450F; --accent-soft:#FBE5D9; --accent-ink:#FFFFFF;
+  --lower:#1D6B86; --lower-soft:#DCEEF4;
+  --good:#1D7F46; --live:#D2372A; --warn:#9A6410;
+  --m-nm:#4A5170; --m-hd:#9A6410; --m-hr:#BF2F25; --m-dt:#7140B8; --m-fm:#1D6B86; --m-tb:#171A26;
+  --av-s:58%; --av-l:86%; --av-fg:28%;
+  --shadow:0 1px 2px rgba(23,26,38,.06),0 10px 26px -14px rgba(23,26,38,.22);
+  --f-display:'Bricolage Grotesque','Segoe UI',system-ui,sans-serif;
+  --f-body:'Figtree',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --f-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F121A; --surface:#171B26; --surface-2:#222736; --ink:#ECEEF4; --muted:#9AA1B5; --line:#2C3242;
+  --accent:#FF8A4C; --accent-soft:#3A2217; --accent-ink:#1C0B03;
+  --lower:#5CC2DF; --lower-soft:#13303A;
+  --good:#4FC57F; --live:#FF6B5B; --warn:#E8B04E;
+  --m-nm:#A9B0D0; --m-hd:#E8B04E; --m-hr:#FF7A6B; --m-dt:#B78CFF; --m-fm:#5CC2DF; --m-tb:#ECEEF4;
+  --av-s:40%; --av-l:30%; --av-fg:86%;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 28px -14px rgba(0,0,0,.6);
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F121A; --surface:#171B26; --surface-2:#222736; --ink:#ECEEF4; --muted:#9AA1B5; --line:#2C3242;
+  --accent:#FF8A4C; --accent-soft:#3A2217; --accent-ink:#1C0B03;
+  --lower:#5CC2DF; --lower-soft:#13303A;
+  --good:#4FC57F; --live:#FF6B5B; --warn:#E8B04E;
+  --m-nm:#A9B0D0; --m-hd:#E8B04E; --m-hr:#FF7A6B; --m-dt:#B78CFF; --m-fm:#5CC2DF; --m-tb:#ECEEF4;
+  --av-s:40%; --av-l:30%; --av-fg:86%;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 28px -14px rgba(0,0,0,.6);
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+img{max-width:100%}
+[hidden]{display:none!important}
+a{color:var(--accent)}
+h1,h2,h3{font-family:var(--f-display);line-height:1.1;text-wrap:balance;margin:0;letter-spacing:-.01em}
+h2{font-size:clamp(1.5rem,3.4vw,2.1rem);font-weight:800}
+h3{font-size:1.1rem;font-weight:700}
+p{margin:0}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.eyebrow{font-size:.75rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)}
+code{font-family:var(--f-mono);font-size:.85em;background:var(--surface-2);padding:1px 5px;border-radius:5px}
+
+/* Cabecera */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:16px;min-height:60px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);font-family:var(--f-display);font-weight:800;font-size:1.05rem;white-space:nowrap;flex:none}
+.logo{width:28px;height:28px;border-radius:50%;background:var(--accent);border:3px solid var(--surface);box-shadow:0 0 0 2px var(--accent);display:grid;place-items:center;color:var(--accent-ink);font-size:.8rem;font-family:var(--f-mono);font-weight:700}
+nav.main{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0;padding-block:10px}
+nav.main::-webkit-scrollbar{display:none}
+nav.main a{padding:7px 12px;border-radius:999px;text-decoration:none;color:var(--muted);font-weight:600;font-size:.92rem;white-space:nowrap}
+nav.main a:hover,nav.main a[aria-current="page"]{color:var(--ink);background:var(--surface-2)}
+.who{flex:none;display:flex;align-items:center;gap:8px;font-weight:600;font-size:.9rem}
+.who a.login{background:var(--accent);color:var(--accent-ink);padding:7px 14px;border-radius:999px;text-decoration:none;white-space:nowrap}
+.who button{font:inherit;font-size:.82rem;background:none;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:4px 10px;cursor:pointer}
+@media (max-width:700px){.brand .full,.who .uname{display:none}}
+
+main{padding-block:32px 120px;display:grid;gap:40px}
+section{display:grid;gap:18px}
+.sec-head{display:flex;justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap}
+
+/* Hero */
+.hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:32px;align-items:center;padding-block:12px}
+@media (max-width:820px){.hero{grid-template-columns:1fr}}
+.hero h1{font-size:clamp(2.5rem,7.5vw,4.8rem);font-weight:800;letter-spacing:-.035em}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero .lead{font-size:1.08rem;color:var(--muted);max-width:54ch}
+.hero-copy{display:grid;gap:18px}
+.facts{display:flex;flex-wrap:wrap;gap:8px}
+.fact{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-size:.88rem;font-weight:600}
+.btns{display:flex;flex-wrap:wrap;gap:10px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 20px;border-radius:999px;font-weight:700;font-size:.95rem;text-decoration:none;border:1px solid transparent;cursor:pointer;font-family:inherit}
+.btn-primary{background:var(--accent);color:var(--accent-ink)}
+.btn-ghost{background:var(--surface);color:var(--ink);border-color:var(--line)}
+.btn-danger{background:var(--surface);color:var(--live);border-color:color-mix(in srgb,var(--live) 45%,var(--line))}
+.btn-sm{padding:6px 12px;font-size:.82rem}
+.btn:hover{filter:brightness(1.06)}
+.btn[disabled]{opacity:.55;cursor:not-allowed}
+
+.next{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:24px;display:grid;justify-items:center;gap:16px;box-shadow:var(--shadow);text-align:center}
+.hc-stage{padding:22px}
+.hc{position:relative;width:min(210px,58vw);aspect-ratio:1;max-width:100%;border-radius:50%;background:radial-gradient(circle at 35% 28%,color-mix(in srgb,var(--accent) 60%,var(--surface)) 0%,var(--accent) 62%);border:9px solid var(--surface);box-shadow:0 0 0 3px var(--accent),0 20px 40px -16px var(--accent);display:grid;place-items:center;color:var(--accent-ink)}
+.hc::before{content:"";position:absolute;inset:-16px;border:3px solid var(--accent);border-radius:50%;animation:approach 1.6s cubic-bezier(.45,0,1,1) infinite;pointer-events:none}
+@keyframes approach{0%{transform:scale(1.75);opacity:0}25%{opacity:.85}100%{transform:scale(1);opacity:0}}
+@media (prefers-reduced-motion:reduce){.hc::before{animation:none;transform:scale(1.2);opacity:.45}}
+.cd{font-family:var(--f-mono);font-weight:700;font-size:clamp(1.4rem,5vw,1.9rem);line-height:1;font-variant-numeric:tabular-nums}
+.cd small{display:block;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;margin-top:8px;font-family:var(--f-body);opacity:.9}
+.vs{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;font-weight:700;font-size:1.05rem}
+.vs i{font-style:normal;color:var(--muted);font-size:.8rem;font-weight:600}
+
+/* Avatares y pills */
+.av{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;flex:none;background:hsl(var(--h,220) var(--av-s) var(--av-l));color:hsl(var(--h,220) 55% var(--av-fg));font-weight:700;font-size:.72rem;font-family:var(--f-mono);object-fit:cover}
+.av.lg{width:46px;height:46px;font-size:.9rem}
+.av.xl{width:64px;height:64px;font-size:1.1rem}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:.75rem;font-weight:700;white-space:nowrap;background:var(--surface-2);color:var(--muted)}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.live{color:var(--live);background:color-mix(in srgb,var(--live) 14%,var(--surface))}
+.pill.live::before{animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.pill.live::before{animation:none}}
+.pill.done,.pill.good{color:var(--good);background:color-mix(in srgb,var(--good) 13%,var(--surface))}
+.pill.tbd{color:var(--warn);background:color-mix(in srgb,var(--warn) 13%,var(--surface))}
+.pill.acc{color:var(--accent);background:var(--accent-soft)}
+.pill.low{color:var(--lower);background:var(--lower-soft)}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:20px}
+.list{display:grid;gap:10px}
+.empty{padding:22px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:14px}
+
+/* Partidos */
+.mt{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:grid;gap:10px}
+.mt.live{border-color:color-mix(in srgb,var(--live) 55%,var(--line))}
+.mt-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:.85rem;color:var(--muted)}
+.mt-top time{font-family:var(--f-mono);font-size:.82rem}
+.mt-p{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px}
+.side{display:flex;align-items:center;gap:9px;min-width:0;font-weight:600}
+.side.r{flex-direction:row-reverse;text-align:right}
+.side .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side .sd{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);flex:none}
+.side.lose{color:var(--muted);font-weight:500}
+.side.tbd .nm{color:var(--muted);font-style:italic;font-weight:500}
+.sc{font-family:var(--f-mono);font-weight:700;font-size:1.25rem;display:flex;gap:8px;align-items:center;font-variant-numeric:tabular-nums}
+.sc i{font-style:normal;color:var(--muted);font-weight:500}
+.sc .vsx{font-size:.8rem;color:var(--muted);font-weight:600}
+.mt-meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.8rem;color:var(--muted)}
+.mt-meta code{color:var(--ink);overflow-wrap:anywhere}
+.picks{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.picks .lbl{font-size:.72rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-right:2px}
+.picks .lbl+.lbl,.picks .slot+.lbl{margin-left:8px}
+.slot{--mc:var(--m-nm);display:inline-block;font-family:var(--f-mono);font-size:.72rem;font-weight:700;padding:2px 7px;border-radius:6px;color:var(--mc);background:color-mix(in srgb,var(--mc) 14%,var(--surface));border-bottom:3px solid transparent}
+.slot.HD{--mc:var(--m-hd)}.slot.HR{--mc:var(--m-hr)}.slot.DT{--mc:var(--m-dt)}.slot.FM{--mc:var(--m-fm)}.slot.TB{--mc:var(--m-tb)}
+.slot.wa{border-bottom-color:var(--accent)}.slot.wb{border-bottom-color:var(--lower)}
+.slot.ban{text-decoration:line-through;opacity:.6}
+@media (max-width:520px){.side .av{display:none}.sc{font-size:1.05rem}}
+
+.tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:thin;padding-bottom:4px}
+.tab{flex:none;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-weight:600;font-size:.88rem;cursor:pointer;font-family:inherit}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+/* Calendario */
+.tl{overflow-x:auto;padding-bottom:6px}
+.tl ol{list-style:none;margin:0;padding:0;display:flex;min-width:max-content}
+.tl li{position:relative;padding:28px 18px 0 0;min-width:132px;display:grid;gap:2px;align-content:start}
+.tl li::before{content:"";position:absolute;top:9px;left:0;right:0;height:2px;background:var(--line)}
+.tl li.past::before,.tl li.now::before{background:var(--accent)}
+.tl li::after{content:"";position:absolute;top:2px;left:0;width:16px;height:16px;border-radius:50%;background:var(--surface);border:2px solid var(--line)}
+.tl li.past::after{background:var(--accent);border-color:var(--accent)}
+.tl li.now::after{background:var(--surface);border:4px solid var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.tl b{font-size:.92rem}
+.tl span{font-family:var(--f-mono);font-size:.76rem;color:var(--muted)}
+.tl li.now b{color:var(--accent)}
+
+/* Tablas */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;background:var(--surface-2)}
+tr:last-child td{border-bottom:0}
+td.n,th.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+td .who2{display:flex;align-items:center;gap:9px;font-weight:600}
+tr.cut td{border-bottom:2px dashed var(--accent)}
+
+/* Jugadores */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:12px}
+.pc{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px;align-items:center}
+.pc .av{grid-row:span 2}
+.pc b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pc .sub{font-size:.8rem;color:var(--muted);font-family:var(--f-mono)}
+.pc .pill{grid-column:1/-1;justify-self:start;margin-top:8px}
+.tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+input[type=search],input[type=text],input[type=password],input[type=number],input[type=datetime-local],select,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 12px;min-width:0;max-width:100%}
+input[type=search]{flex:1 1 220px}
+textarea{width:100%;min-height:120px;resize:vertical;font-family:var(--f-mono);font-size:.8rem}
+.imp{font-size:.85rem;display:grid;gap:4px}
+
+.imp b{font-weight:600}
+
+/* Mappool */
+.maps{display:grid;gap:8px}
+.map{display:grid;grid-template-columns:64px 96px minmax(0,1fr) auto;gap:14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.map .slot{font-size:.85rem;padding:6px 0;text-align:center;width:64px}
+.map .cover{width:96px;aspect-ratio:3/2;border-radius:8px;background:var(--surface-2) center/cover no-repeat;max-width:100%}
+.map .t{min-width:0}
+.map .t a,.map .t b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;color:var(--ink);text-decoration:none}
+.map .t a:hover{text-decoration:underline}
+.map .t span{font-size:.82rem;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.map .st{display:flex;gap:14px;font-family:var(--f-mono);font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.map .st b{color:var(--ink)}
+.maps.nocover .map{grid-template-columns:64px minmax(0,1fr) auto}
+.maps.nocover .cover{display:none}
+@media (max-width:700px){.map,.maps.nocover .map{grid-template-columns:52px minmax(0,1fr)}.map .slot{width:52px}.map .cover{display:none}.map .st{grid-column:1/-1;flex-wrap:wrap;gap:6px 12px}}
+
+/* Cuadro */
+.bracket{overflow-x:auto;padding-bottom:10px}
+.bcols{display:flex;gap:22px;min-width:max-content;align-items:stretch}
+.bcol{display:flex;flex-direction:column;width:200px}
+.bcol h4{margin:0 0 10px;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.bcol .stack{display:flex;flex-direction:column;justify-content:space-around;gap:12px;flex:1}
+.bm{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:.86rem}
+.bm.live{border-color:var(--live)}
+.bm-row{display:grid;grid-template-columns:22px minmax(0,1fr) 22px;gap:6px;align-items:center;padding:6px 9px}
+.bm-row+.bm-row{border-top:1px solid var(--line)}
+.bm-row .s{font-family:var(--f-mono);font-size:.7rem;color:var(--muted)}
+.bm-row .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.bm-row .v{font-family:var(--f-mono);font-weight:700;text-align:right}
+.bm-row.w{background:var(--accent-soft)}
+.lowerb .bm-row.w{background:var(--lower-soft)}
+.bm-row.l .n,.bm-row.l .v{color:var(--muted);font-weight:500}
+.bm-row.t .n{color:var(--muted);font-style:italic;font-weight:500}
+.bm-f{font-size:.7rem;color:var(--muted);padding:3px 9px;background:var(--surface-2);font-family:var(--f-mono);display:flex;justify-content:space-between;gap:6px}
+
+/* Stats */
+.bars{display:grid;gap:9px}
+.bar{display:grid;grid-template-columns:minmax(0,9rem) minmax(0,1fr) 3rem;gap:10px;align-items:center;font-size:.86rem}
+.bar .k{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.bar .tr{height:10px;background:var(--surface-2);border-radius:99px;overflow:hidden}
+.bar .tr i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.bars.low .tr i{background:var(--lower)}
+.bar .v{font-family:var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}
+.kpi b{display:block;font-family:var(--f-mono);font-size:1.7rem;line-height:1.1}
+.kpi span{font-size:.82rem;color:var(--muted)}
+
+/* Info */
+.prose{display:grid;gap:12px;max-width:72ch;align-content:start}
+.prose ul{margin:0;padding-left:1.2em;display:grid;gap:6px}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:6px;align-content:start}
+.step .k{font-family:var(--f-mono);font-size:.75rem;color:var(--accent);font-weight:700}
+
+.qr-list{display:grid;gap:0;padding-block:4px}
+.qr{display:grid;grid-template-columns:72px minmax(0,1fr) auto auto;gap:6px 12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.qr:first-child{border-top:0}
+.qr.mine .qr-id b{color:var(--accent)}
+.qr-id{display:grid}
+.qr-m{font-size:.82rem}
+@media (max-width:760px){.qr{grid-template-columns:60px minmax(0,1fr)}.qr-m,.qr>.qs-r{grid-column:2}}
+.news{display:grid;gap:4px;border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:0 10px 10px 0}
+.news p{margin:0;overflow-wrap:anywhere}
+.rem{display:grid;gap:6px}
+.rem ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.rem a{display:flex;gap:10px;align-items:baseline;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:inherit;text-decoration:none}
+.rem a:hover{border-color:var(--accent)}
+.rem .k{flex:none;min-width:58px;font-size:.75rem;font-weight:700;color:var(--accent)}
+.rem .tx{min-width:0;overflow-wrap:anywhere}
+.qd{display:grid;gap:8px}
+.qd h3{margin:0;text-transform:capitalize}
+.qx{display:grid;gap:10px}
+.qx+.qx{border-top:1px solid var(--line);margin-top:6px;padding-top:16px}
+.qs-n.pend{border-style:dashed;opacity:.8}
+.qs-n small{font-size:.72rem;font-weight:500;color:var(--muted)}
+.qs-x{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:0 2px;font-size:1rem;line-height:1}
+.qs-x:hover{color:var(--ink)}
+.qs-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.qs-p{display:flex;flex-wrap:wrap;gap:6px}
+.qs-n{display:inline-flex;align-items:center;gap:6px;padding:3px 10px 3px 4px;border:1px solid var(--line);border-radius:999px;font-size:.85rem;min-width:0;overflow-wrap:anywhere}
+.qs-n.me{border-color:var(--accent);font-weight:600}
+
+/* Formularios */
+form.f{display:grid;gap:14px;max-width:560px}
+.field{display:grid;gap:6px;min-width:0}
+.field label,.field .lab{font-weight:600;font-size:.88rem}
+.field .hint{font-size:.8rem;color:var(--muted)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+.row .field{flex:1 1 140px}
+.checks{display:flex;flex-wrap:wrap;gap:8px}
+.checks label{display:inline-flex;gap:6px;align-items:center;padding:7px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-weight:500;font-size:.88rem;cursor:pointer}
+.note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 14px;border-radius:0 10px 10px 0;font-size:.9rem}
+.flash{padding:12px 14px;border-radius:10px;font-weight:600;font-size:.9rem}
+.flash.ok{background:color-mix(in srgb,var(--good) 13%,var(--surface));color:var(--good)}
+.flash.err{background:color-mix(in srgb,var(--live) 12%,var(--surface));color:var(--live)}
+.profile{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.profile .meta{display:grid;gap:2px}
+.adm{display:grid;gap:16px;align-content:start}
+.pv{display:grid;gap:10px;padding:12px;border:1px solid var(--line);border-radius:12px;min-width:0}
+.pv.ok{opacity:.75}
+.pv-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.pv-h .field{min-width:170px}
+.pv-slots{display:flex;flex-wrap:wrap;gap:4px}
+.pv>.btn{justify-self:start}
+.pv .it span{min-width:0;overflow-wrap:anywhere}
+.pv-done{color:var(--accent);font-size:.85rem}
+.note.bad{border-left-color:#d9534f;background:color-mix(in srgb,#d9534f 12%,transparent)}
+.adm h3{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.mini{display:grid;gap:6px}
+.mini .it{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;font-size:.88rem;flex-wrap:wrap}
+.mini .it span{min-width:0;overflow-wrap:anywhere}
+
+/* Barra de vista previa */
+.demo{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--ink);color:var(--bg);padding-bottom:env(safe-area-inset-bottom,0px)}
+.demo .wrap{display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap;padding-block:10px;font-size:.85rem}
+.demo b{font-family:var(--f-mono);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase}
+.demo label{display:flex;align-items:center;gap:8px}
+.demo select{background:var(--surface);color:var(--ink);border:0;padding:6px 10px}
+.demo span{opacity:.75}
+.foot{border-top:1px solid var(--line);padding-block:24px 100px;color:var(--muted);font-size:.85rem;display:flex;flex-wrap:wrap;gap:10px 20px;justify-content:space-between}
+.foot nav{display:flex;flex-wrap:wrap;gap:14px}
+/* Directo de Twitch: aviso en la cabecera y ventana flotante (el reproductor mide al menos 400×300, como pide Twitch) */
+.top .pill.live{border:0;cursor:pointer;font-family:inherit;flex:none}
+.twlive{position:fixed;right:16px;bottom:16px;z-index:25;width:300px;max-width:calc(100vw - 32px);background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.demo:not([hidden])~.twlive{bottom:76px}
+.twlive.player{width:560px}
+.lv-thumb{display:block;position:relative;aspect-ratio:16/9;background:var(--surface-2)}
+.lv-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.lv-thumb .pill{position:absolute;left:10px;top:10px}
+.lv-b{padding:10px 12px 12px;display:grid;gap:4px}
+.lv-t{font-weight:700;font-size:.9rem;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.lv-b .row{margin-top:6px;gap:8px}
+.lv-bar{display:flex;align-items:center;gap:8px;padding:8px 10px;font-size:.85rem}
+.lv-bar b{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lv-bar a{font-weight:600}
+.lv-x{position:absolute;right:8px;top:8px;z-index:1;width:28px;height:28px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:1.1rem;line-height:1;cursor:pointer}
+.lv-bar .lv-x{position:static;background:var(--surface-2);color:var(--ink);flex:none}
+.twlive iframe{display:block;width:560px;height:315px;border:0}
+/* Móvil: tira compacta a lo ancho (sin reproductor: Twitch pide 400×300 y en móvil no arranca solo) */
+@media (max-width:640px){
+  .lv-play{display:none}
+  .twlive{left:16px;width:auto;max-width:none;display:grid;grid-template-columns:120px minmax(0,1fr)}
+  .demo:not([hidden])~.twlive{bottom:150px}
+  .twlive .lv-thumb{aspect-ratio:auto;min-height:68px}
+  .lv-thumb .pill{left:6px;top:6px;padding:2px 7px;font-size:.68rem}
+  .lv-b{padding:8px 40px 8px 10px;gap:2px}
+  .lv-b .row{margin-top:4px}
+  .twlive>.lv-x{top:6px;right:6px;background:var(--surface-2);color:var(--ink)}
+}
+/* Arbitraje */
+.ref{display:grid;grid-template-columns:minmax(0,290px) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:880px){.ref{grid-template-columns:1fr}}
+.ref>div{display:grid;gap:16px;min-width:0}
+.rlist{display:grid;gap:6px;max-height:60vh;overflow:auto;padding:2px}
+.rm{display:grid;gap:3px;justify-items:start;text-align:left;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit;font-size:.86rem;cursor:pointer;width:100%}
+.rm:hover{border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+.rm[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.rm small{color:var(--muted);font-size:.76rem}
+.rm.done{opacity:.65}
+.rconn{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:12px 16px}
+.rhead{display:flex;justify-content:space-between;align-items:end;gap:10px;flex-wrap:wrap}
+.rsc{display:flex;align-items:baseline;gap:10px;font-weight:700;font-size:1.1rem;flex-wrap:wrap;margin-top:4px}
+.rsc .num{font-size:1.9rem}
+.rsc i{font-style:normal;color:var(--muted)}
+.ta{color:var(--accent)} .tb{color:var(--lower)}
+.rlob{display:grid;gap:10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.rpl{display:flex;flex-wrap:wrap;gap:6px}
+.rp{padding:3px 10px;border-radius:999px;background:var(--surface);font-size:.82rem;font-weight:600;border:1px solid var(--line)}
+.rp.t-red{border-color:var(--m-hr);color:var(--m-hr)} .rp.t-blue{border-color:var(--lower);color:var(--lower)}
+.rpool{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,140px),1fr));gap:8px}
+.rpool button{display:grid;gap:3px;justify-items:start;text-align:left;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit;font-size:.8rem;cursor:pointer;min-width:0}
+.rpool button:hover:not(:disabled){border-color:var(--accent)}
+.rpool button:disabled{opacity:.45;cursor:not-allowed}
+.rpool .t{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rpool small{color:var(--muted)}
+.rlog{height:340px;overflow:auto;background:var(--surface-2);border-radius:10px;padding:10px 12px;font-family:var(--f-mono);font-size:.76rem;line-height:1.45}
+.rlog.sm{height:auto;max-height:160px}
+.rlog p{overflow-wrap:anywhere;margin:0 0 2px}
+.rlog .tm{color:var(--muted)}
+.rlog .bb b{color:var(--lower)}
+.rlog .me b{color:var(--accent)}
+.rlog .web{color:var(--warn)}
+.rstep{display:grid;gap:12px}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#inicio"><span class="logo">6</span><span class="full">SpiSix: Fall Cup</span></a>
+    <nav class="main" id="nav" aria-label="Secciones"></nav>
+    <button class="pill live" id="livePill" type="button" hidden aria-controls="live">En directo</button>
+    <div class="who" id="who"></div>
+  </div>
+</header>
+<main class="wrap" id="app"><div class="empty">Cargando…</div></main>
+<footer class="wrap foot" id="foot"></footer>
+<div class="demo" id="demoBar" hidden role="region" aria-label="Vista previa">
+  <div class="wrap">
+    <b>Vista previa</b>
+    <label for="sim">Fecha simulada
+      <select id="sim">
+        <option value="hoy">Hoy</option>
+        <option value="qual">13 nov · clasificatorios</option>
+        <option value="cuartos">26 nov · cuartos</option>
+        <option value="gf">20 dic · torneo terminado</option>
+      </select>
+    </label>
+    <span>Datos de ejemplo. Conectada al servidor, la web usa la API de osu!.</span>
+  </div>
+</div>
+
+<aside class="twlive" id="live" hidden aria-label="Directo en Twitch"></aside>
+<script>
+'use strict';
+/* =====================================================================
+   SpiSix: Fall Cup — web pública.
+   Pide /api/state al servidor. Si no hay servidor (vista previa), usa datos de ejemplo.
+   La configuración real está en config.json; esta copia solo se usa en la vista previa.
+   ===================================================================== */
+const DEFAULT_CONFIG = {
+  nombre:'SpiSix: Fall Cup', sigla:'SPI', comunidad:'SpiSix', zona:'Europe/Madrid',
+  rango:{min:100000,max:999999,excepciones:[]}, paises:null, clasificados:16, metodoClasif:'zsum',
+  multiplicadores:{EZ:1.8,EZHD:2.0},
+  fases:[
+    {key:'registros',nombre:'Registros',inicio:'2026-10-28',fin:'2026-11-07'},
+    {key:'qualifiers',nombre:'Clasificatorios',showcase:'2026-11-08',inicio:'2026-11-09',fin:'2026-11-15',sr:5.4},
+    {key:'octavos',nombre:'Octavos',showcase:'2026-11-16',inicio:'2026-11-17',fin:'2026-11-22',sr:5.2,bo:9},
+    {key:'cuartos',nombre:'Cuartos',showcase:'2026-11-23',inicio:'2026-11-24',fin:'2026-11-29',sr:5.4,bo:9},
+    {key:'semis',nombre:'Semifinales',showcase:'2026-11-30',inicio:'2026-12-01',fin:'2026-12-06',sr:5.6,bo:11},
+    {key:'finals',nombre:'Finals',showcase:'2026-12-07',inicio:'2026-12-07',fin:'2026-12-13',sr:5.8,bo:11},
+    {key:'gf',nombre:'Grand Finals',showcase:'2026-12-14',inicio:'2026-12-15',fin:'2026-12-20',sr:6.1,bo:13}
+  ],
+  twitch:'spi6_osu',
+  enlaces:[['Discord de SpiSix',''],['Twitch','https://www.twitch.tv/spi6_osu']],
+  staff:[]
+};
+
+/* ---------------- utilidades ---------------- */
+const DAY=864e5, HOUR=36e5, MIN=6e4;
+const MODS=['NM','HD','HR','DT','FM','TB'];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nf=new Intl.NumberFormat('es-ES');
+const dec=(x,d=1)=>Number(x).toFixed(d).replace('.',',');
+function hashStr(s){let h=1779033703^s.length;for(let i=0;i<s.length;i++){h=Math.imul(h^s.charCodeAt(i),3432918353);h=h<<13|h>>>19}return h>>>0}
+function rng(seed){let a=hashStr(String(seed));return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const pick=(r,arr)=>arr[Math.floor(r()*arr.length)];
+function tzOffset(ms,tz){const p=new Intl.DateTimeFormat('en-US',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(ms);const g=t=>+p.find(x=>x.type===t).value;return Date.UTC(g('year'),g('month')-1,g('day'),g('hour'),g('minute'),g('second'))-ms}
+function zoned(str,end,tz){const [d,t]=String(str).split('T');const [Y,M,D]=d.split('-').map(Number);const [h,mi,s]=t?t.split(':').map(Number):end?[23,59,59]:[0,0,0];const g=Date.UTC(Y,M-1,D,h,mi||0,s||0);return g-tzOffset(g,tz)}
+function toLocalInput(ms,tz){if(!ms) return '';const p=new Intl.DateTimeFormat('en-CA',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).formatToParts(ms);const g=t=>p.find(x=>x.type===t).value;return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}`}
+function initials(n){const c=String(n).replace(/[^A-Za-z0-9]/g,'');return (c.slice(0,2)||'??').toUpperCase()}
+function sortSlots(a,b){return MODS.indexOf(a.slot.slice(0,2))-MODS.indexOf(b.slot.slice(0,2))||(parseInt(a.slot.slice(2))||0)-(parseInt(b.slot.slice(2))||0)}
+let F={}; // formateadores de fecha según la zona del torneo
+function makeFmt(tz){F={
+  dia:new Intl.DateTimeFormat('es-ES',{timeZone:tz,weekday:'short',day:'numeric',month:'short'}),
+  corto:new Intl.DateTimeFormat('es-ES',{timeZone:tz,day:'numeric',month:'short'}),
+  hora:new Intl.DateTimeFormat('es-ES',{timeZone:tz,hour:'2-digit',minute:'2-digit'})}}
+const dia=t=>F.dia.format(t), hora=t=>F.hora.format(t), corto=t=>F.corto.format(t);
+const rangoFechas=(a,b)=>corto(a)===corto(b)?corto(a):corto(a)+' – '+corto(b);
+
+/* ---------------- estructura del cuadro: doble eliminación de 16 ---------------- */
+const BRACKET=(()=>{
+  const so=[1,16,8,9,5,12,4,13,3,14,6,11,7,10,2,15], L=[];
+  const add=(id,fase,ronda,lado,col,a,b)=>L.push({id,fase,ronda,lado,col,srcA:a,srcB:b});
+  for(let i=1;i<=8;i++) add('u1-'+i,'octavos','Upper · Octavos','W',0,{q:so[2*i-2]},{q:so[2*i-1]});
+  for(let i=1;i<=4;i++) add('u2-'+i,'cuartos','Upper · Cuartos','W',1,{m:'u1-'+(2*i-1),r:'W'},{m:'u1-'+(2*i),r:'W'});
+  for(let i=1;i<=4;i++) add('l1-'+i,'cuartos','Lower · Ronda 1','L',0,{m:'u1-'+(2*i-1),r:'L'},{m:'u1-'+(2*i),r:'L'});
+  for(let i=1;i<=2;i++) add('u3-'+i,'semis','Upper · Semifinal','W',2,{m:'u2-'+(2*i-1),r:'W'},{m:'u2-'+(2*i),r:'W'});
+  for(let i=1;i<=4;i++) add('l2-'+i,'semis','Lower · Ronda 2','L',1,{m:'l1-'+i,r:'W'},{m:'u2-'+(5-i),r:'L'});
+  for(let i=1;i<=2;i++) add('l3-'+i,'semis','Lower · Ronda 3','L',2,{m:'l2-'+(2*i-1),r:'W'},{m:'l2-'+(2*i),r:'W'});
+  add('u4-1','finals','Upper · Final','W',3,{m:'u3-1',r:'W'},{m:'u3-2',r:'W'});
+  for(let i=1;i<=2;i++) add('l4-'+i,'finals','Lower · Ronda 4','L',3,{m:'l3-'+i,r:'W'},{m:'u3-'+(3-i),r:'L'});
+  add('l5-1','finals','Lower · Semifinal','L',4,{m:'l4-1',r:'W'},{m:'l4-2',r:'W'});
+  add('l6-1','gf','Lower · Final','L',5,{m:'l5-1',r:'W'},{m:'u4-1',r:'L'});
+  add('gf','gf','Grand Final','GF',0,{m:'u4-1',r:'W'},{m:'l6-1',r:'W'});
+  return L;
+})();
+
+/* ---------------- cálculo del torneo a partir del estado ---------------- */
+let S=null, T=null, DEMO=false, LOADED=Date.now();
+const nowMs=()=>DEMO?S.now:S.now+(Date.now()-LOADED);
+
+function computeQual(players){
+  const pool=(S.pools.qualifiers||[]);
+  const bids=pool.map(m=>String(m.beatmap_id));
+  const rows=[];
+  for(const [uid,maps] of Object.entries(S.qual.scores||{})){
+    const p=players.get(+uid); if(!p) continue; // solo inscritos
+    rows.push({player:p,scores:bids.map(b=>maps[b]||0)});
+  }
+  rows.forEach(r=>{r.total=r.scores.reduce((a,b)=>a+b,0);r.z=0});
+  bids.forEach((_,j)=>{const v=rows.map(r=>r.scores[j]);const mean=v.reduce((a,b)=>a+b,0)/(v.length||1);const sd=Math.sqrt(v.reduce((a,b)=>a+(b-mean)**2,0)/(v.length||1))||1;rows.forEach(r=>r.z+=(r.scores[j]-mean)/sd)});
+  const byZ=S.config.metodoClasif!=='suma';
+  rows.sort((a,b)=>byZ?b.z-a.z:b.total-a.total);
+  rows.forEach((r,i)=>{r.seed=i+1});
+  return {pool,rows};
+}
+
+// server/bracket.js repite este cálculo (seeds y cruces) para el bot de arbitraje: si cambias uno, cambia el otro.
+function compute(){
+  const C=S.config, NOW=nowMs();
+  makeFmt(C.zona);
+  const phases=C.fases.map(f=>({...f,start:zoned(f.inicio,false,C.zona),end:zoned(f.fin,true,C.zona),sc:f.showcase?zoned(f.showcase,false,C.zona):null}));
+  phases.forEach(p=>p.estado=NOW>p.end?'past':NOW>=p.start?'now':'future');
+  const cur=phases.find(p=>p.estado==='now')||phases.find(p=>p.estado==='future')||phases[phases.length-1];
+  const phaseBy=Object.fromEntries(phases.map(p=>[p.key,p]));
+  const players=new Map(S.players.map(p=>[p.id,{...p}]));
+  const qual=computeQual(players);
+  qual.rows.forEach(r=>r.player.qseed=r.seed);
+  const seedsFinal=NOW>phaseBy.qualifiers.end&&qual.rows.length>=C.clasificados;
+
+  const matches=BRACKET.map(b=>({...b})), byId={};
+  matches.forEach(m=>byId[m.id]=m);
+  const src=s=>{
+    if(s.q) return seedsFinal?qual.rows[s.q-1].player:null;
+    const m=byId[s.m]; if(!m||m.estado!=='done') return null;
+    return s.r==='W'?m.winner:m.loser;
+  };
+  const perPhase={};
+  matches.forEach(m=>{(perPhase[m.fase]=perPhase[m.fase]||[]).push(m)});
+  matches.forEach(m=>{
+    m.a=src(m.srcA); m.b=src(m.srcB);
+    const p=phaseBy[m.fase]; m.bo=p.bo||9; m.need=(m.bo+1)/2;
+    if(S.demo) demoFill(m,p,perPhase[m.fase].indexOf(m),perPhase[m.fase].length,NOW);
+    const rec=S.matches[m.id]||{};
+    Object.assign(m,{time:rec.time||null,ref:rec.ref||null,mp:rec.mp||null,ff:rec.ff||null,bans:rec.bans||[],protects:rec.protects||[],result:rec.result||null});
+    m.sa=m.a&&m.result?(m.result.wins?.[m.a.id]||0):0;
+    m.sb=m.b&&m.result?(m.result.wins?.[m.b.id]||0):0;
+    if(!m.a||!m.b) m.estado='tbd';
+    else if(m.ff){m.estado='done';m.winner=m.ff==='a'?m.a:m.b;m.loser=m.ff==='a'?m.b:m.a}
+    else if(m.sa>=m.need||m.sb>=m.need){m.estado='done';m.winner=m.sa>m.sb?m.a:m.b;m.loser=m.sa>m.sb?m.b:m.a}
+    else if(m.time&&NOW>=m.time&&(m.mp||m.sa+m.sb>0)) m.estado='live';
+    else if(m.time) m.estado='sched';
+    else m.estado='unset';
+  });
+
+  // estado de cada jugador
+  const status=new Map();
+  players.forEach(p=>status.set(p.id,{k:'reg',txt:'Inscrito'}));
+  qual.rows.forEach(r=>status.set(r.player.id,seedsFinal?(r.seed<=C.clasificados?{k:'in',txt:'Seed '+r.seed}:{k:'out',txt:'No clasificado'}):{k:'reg',txt:'Clasificatorios jugados'}));
+  matches.filter(m=>m.estado!=='tbd'&&m.lado==='L').forEach(m=>[m.a,m.b].forEach(p=>{if(status.get(p.id).k==='in') status.set(p.id,{k:'lower',txt:'En lower bracket'})}));
+  matches.filter(m=>m.estado==='done').forEach(m=>{
+    if(m.lado!=='W') status.set(m.loser.id,{k:'out',txt:'Eliminado · '+m.ronda.replace(' · ',' ')});
+    if(m.id==='gf') status.set(m.winner.id,{k:'champ',txt:'Campeón'});
+  });
+  return {C,NOW,phases,phaseBy,cur,players,qual,seedsFinal,matches,byId,status};
+}
+
+/* ---------------- datos de ejemplo (solo vista previa) ---------------- */
+const DEMO_NAMES=['Kaoru-','zerkalo','Mireya','tsuki_no','Brisa','Halcon','pinguinoAzul','Nekrox','Vael','sonnenblume','Kuroha','lua','Marea','Shiro_ES','dropbeat','Clicky','Oreo-','Akatsuki_99','Tanuki','Ferro','Iris','Leviatan','noctua','Rayo','Sakura-','bolt','Gaviota','Dunas','Kotetsu','mint','Pixel','Arrecife','Yuzu','Ventisca','Kumo','Ambar','Orca','Neon','Poniente','Salitre'];
+const DEMO_ART=['Lumen Drive','Kagerou Unit','Neon Tide','Sora Kanata','Velvet Static','Hikari Engine','Coral Bloom','Tidal Echo','Nanairo','Glass Comet'];
+const DEMO_TIT=['Starlight Runway','Midnight Current','Kaleidoscope','Afterglow','Paper Moon','Overdrive','Hanabi','Signal Lost','Undertow','Crystal Rain','Polaris','Wavelength','Firefly','Gravity','Mirage','Levante'];
+const DEMO_COMP={qualifiers:{NM:4,HD:2,HR:2,DT:2},octavos:{NM:4,HD:2,HR:2,DT:2,FM:2,TB:1},cuartos:{NM:4,HD:2,HR:2,DT:2,FM:2,TB:1},semis:{NM:5,HD:3,HR:3,DT:3,FM:2,TB:1},finals:{NM:5,HD:3,HR:3,DT:3,FM:2,TB:1},gf:{NM:6,HD:3,HR:3,DT:4,FM:2,TB:1}};
+const SIMS={qual:'2026-11-13T22:00',cuartos:'2026-11-26T18:40',gf:'2026-12-20T23:00'};
+let DEMO_SKILL=new Map(), SIM='hoy';
+
+function demoState(){
+  const C=DEFAULT_CONFIG, r=rng('spisix-demo');
+  const sim=SIM==='hoy'?Date.now():zoned(SIMS[SIM],false,C.zona);
+  const ph=Object.fromEntries(C.fases.map(f=>[f.key,{start:zoned(f.inicio,false,C.zona),end:zoned(f.fin,true,C.zona),sc:f.showcase?zoned(f.showcase,false,C.zona):0,sr:f.sr}]));
+  const all=DEMO_NAMES.map((n,i)=>{const rank=Math.round(100000+Math.pow(r(),1.25)*899000);const p={id:5000000+i*7919,username:n,avatar_url:null,country:'ES',rank,registered_at:Math.round(ph.registros.start+r()*(ph.registros.end-ph.registros.start))};DEMO_SKILL.set(p.id,1.5-(rank-100000)/900000*.8+(r()-.5)*.35);return p});
+  const players=all.filter(p=>p.registered_at<=sim).sort((a,b)=>a.registered_at-b.registered_at);
+  const pools={};
+  for(const [k,comp] of Object.entries(DEMO_COMP)){
+    if(!(ph[k].sc&&ph[k].sc<=sim)) continue;
+    const rp=rng('pool'+k);pools[k]=[];
+    for(const mod of MODS) for(let i=1;i<=(comp[mod]||0);i++){
+      const bid=1000000+Math.floor(rp()*3000000);
+      const bpm=Math.round(mod==='DT'?(130+rp()*50)*1.5:160+rp()*80), len=Math.round(mod==='DT'?(130+rp()*150)/1.5:90+rp()*140);
+      pools[k].push({slot:mod==='TB'?'TB':mod+i,beatmap_id:bid,data:{artist:pick(rp,DEMO_ART),title:pick(rp,DEMO_TIT),version:pick(rp,['Insane','Extra','Expert','Hard']),creator:pick(rp,['Kanoko','Rivet','sylvie','Marejada','Ryuu']),sr:+(ph[k].sr+(rp()-.5)*.4+(mod==='TB'?.3:0)).toFixed(2),bpm,length:len,cs:+(3.6+rp()*.9).toFixed(1),ar:+(8.6+rp()*1.2).toFixed(1),od:+(7.8+rp()*1.4).toFixed(1),cover:null,url:null}});
+    }
+  }
+  const scores={};
+  if(sim>=ph.qualifiers.start&&pools.qualifiers){
+    const frac=Math.min(1,(sim-ph.qualifiers.start)/(ph.qualifiers.end-ph.qualifiers.start));
+    const rq=rng('qual');
+    players.slice(0,Math.ceil(players.length*frac)).forEach(p=>{const sk=DEMO_SKILL.get(p.id);scores[p.id]={};pools.qualifiers.forEach(m=>{scores[p.id][m.beatmap_id]=Math.max(150000,Math.min(990000,Math.round(300000+sk*400000+(rq()-.5)*280000)))})});
+  }
+  return {demo:true,now:sim,configured:true,config:C,practice:{},twitch:{channel:C.twitch,live:null},
+    me:{id:999,username:'TuUsuario',avatar_url:null,country:'ES',rank:345678,registered:false,admin:true,host:true},
+    players,pools,matches:{},qual:{scores,lobbies:Object.keys(scores).length?[{mp:120000001,name:'SPI: (Clasificatorios) Lobby A'},{mp:120000002,name:'SPI: (Clasificatorios) Lobby B'}]:[]}};
+}
+
+function demoFill(m,p,k,n,NOW){
+  if(S.matches[m.id]) return;
+  const days=Math.max(1,Math.round((p.end-p.start)/DAY));
+  const t=p.start+Math.floor(k*days/n)*DAY+(18+(k%3)*1.5)*HOUR;
+  const rec={time:t,ref:pick(rng(m.id),['Gofio','Kestrel','Marlín','Nerea_ref']),mp:null,ff:null,bans:[],result:null};
+  S.matches[m.id]=rec;
+  if(!m.a||!m.b||NOW<t) return;
+  const r=rng('res'+m.id), sa=DEMO_SKILL.get(m.a.id)||1, sb=DEMO_SKILL.get(m.b.id)||1, pA=sa**4/(sa**4+sb**4);
+  const need=((p.bo||9)+1)/2, pool=(S.pools[m.fase]||[]).filter(x=>x.slot!=='TB');
+  const used=new Set(), take=()=>{const av=pool.filter(x=>!used.has(x.slot));if(!av.length) return null;const x=pick(r,av);used.add(x.slot);return x};
+  for(let i=0;i<4;i++){const x=take();if(x) rec.bans.push(x.slot)}
+  const maps=[], wins={[m.a.id]:0,[m.b.id]:0};
+  while(wins[m.a.id]<need&&wins[m.b.id]<need){
+    const tb=wins[m.a.id]===need-1&&wins[m.b.id]===need-1;
+    const x=tb?(S.pools[m.fase]||[]).find(y=>y.slot==='TB'):take(); if(!x) break;
+    const w=r()<pA?m.a.id:m.b.id; wins[w]++; maps.push({bid:x.beatmap_id,slot:x.slot,w,scores:{}});
+  }
+  const live=NOW<t+95*MIN;
+  const shown=live?maps.slice(0,Math.max(1,Math.floor(maps.length*(NOW-t)/(95*MIN)))):maps;
+  const w2={[m.a.id]:0,[m.b.id]:0}; shown.forEach(x=>w2[x.w]++);
+  rec.mp=127000000+(hashStr(m.id)%900000);
+  rec.result={wins:w2,maps:shown,updated:NOW};
+}
+
+/* ---------------- componentes ---------------- */
+function av(p,cls=''){
+  if(!p) return `<span class="av ${cls}" aria-hidden="true">?</span>`;
+  if(p.avatar_url&&!DEMO) return `<img class="av ${cls}" src="${esc(p.avatar_url)}" alt="" loading="lazy" width="30" height="30">`;
+  return `<span class="av ${cls}" style="--h:${hashStr(p.username)%360}" aria-hidden="true">${esc(initials(p.username))}</span>`;
+}
+const PILL={done:'<span class="pill done">Finalizado</span>',live:'<span class="pill live">En directo</span>',sched:'<span class="pill">Programado</span>',unset:'<span class="pill">Sin fecha</span>',tbd:'<span class="pill tbd">Por decidir</span>'};
+const srcLabel=s=>s.q?`Seed ${s.q}`:`${s.r==='W'?'Ganador':'Perdedor'} ${s.m.toUpperCase()}`;
+const mpUrl=id=>`https://osu.ppy.sh/community/matches/${id}`;
+
+// Recordatorios de Inicio: salen solos de los datos del torneo y desaparecen cuando dejan de ser actuales.
+function reminders(){
+  const {NOW,matches,phases}=T;
+  const when=t=>{const d=dia(t);return `${d===dia(NOW)?'Hoy':d===dia(NOW+DAY)?'Mañana':d} a las ${hora(t)}`};
+  const name=p=>`<b>${esc(p.username)}</b>`;
+  const row=(k,href,html)=>`<li><a href="${href}"><span class="k">${k}</span><span class="tx">${html}</span></a></li>`;
+  const next=matches.filter(m=>m.estado==='sched'&&m.time>NOW&&m.time-NOW<=DAY).sort((a,b)=>a.time-b.time).slice(0,5)
+    .map(m=>row('Partido','#partidos',`${when(m.time)}: ${name(m.a)} vs ${name(m.b)} · ${esc(m.ronda)}`));
+  const pools=phases.flatMap(p=>{
+    const r=S.releases?.[p.key];
+    if(!r) return [];
+    if(r.at<=NOW&&NOW-r.at<=3*DAY&&(S.pools[p.key]||[]).length) return [row('Mappool','#mappool',`Ya está publicada la mappool de ${esc(p.nombre)}.`)];
+    if(r.set&&r.at>NOW&&r.at-NOW<=3*DAY) return [row('Mappool','#mappool',`${when(r.at)} se publica la mappool de ${esc(p.nombre)}.`)];
+    return [];
+  });
+  const results=matches.filter(m=>m.estado==='done'&&m.time&&m.time<=NOW&&NOW-m.time<=DAY).sort((a,b)=>b.time-a.time).slice(0,5)
+    .map(m=>row('Resultado','#partidos',m.ff?`${name(m.winner)} gana por forfeit a ${name(m.loser)} · ${esc(m.ronda)}`:`${name(m.a)} ${m.sa} – ${m.sb} ${name(m.b)} · ${esc(m.ronda)}`));
+  const items=[...next,...pools,...results];
+  return items.length?`<section class="rem" aria-label="Recordatorios"><span class="eyebrow">Recordatorios</span><ul>${items.join('')}</ul></section>`:'';
+}
+
+function matchCard(m){
+  const side=(p,s,right,mine,other)=>{
+    const cls=!p?'tbd':m.estado==='done'&&m.loser===p?'lose':'';
+    return `<div class="side ${right?'r':''} ${cls}">${av(p)}<span class="nm">${p?esc(p.username):esc(srcLabel(s))}</span>${p&&p.qseed?`<span class="sd">#${p.qseed}</span>`:''}</div>`;
+  };
+  const hasScore=(m.estado==='done'||m.estado==='live')&&!m.ff;
+  const maps=m.result?.maps||[];
+  const picks=(m.bans.length||maps.length||m.protects.length)&&m.a&&m.b?`<div class="picks">${m.protects.length?`<span class="lbl">Protects</span>${m.protects.map(s=>`<span class="slot ${esc(s.slice(0,2))}">${esc(s)}</span>`).join('')}`:''}${m.bans.length?`<span class="lbl">Bans</span>${m.bans.map(s=>`<span class="slot ${esc(s.slice(0,2))} ban">${esc(s)}</span>`).join('')}`:''}${maps.length?`<span class="lbl">Mapas</span>${maps.map(x=>`<span class="slot ${esc(x.slot.slice(0,2))} ${x.w===m.a.id?'wa':'wb'}" title="Gana ${esc(x.w===m.a.id?m.a.username:m.b.username)}">${esc(x.slot)}</span>`).join('')}`:''}</div>`:'';
+  return `<article class="mt ${m.estado}">
+    <div class="mt-top"><span>${PILL[m.estado]} <span style="margin-left:6px">${esc(m.ronda)}</span></span>${m.time?`<time datetime="${new Date(m.time).toISOString()}">${dia(m.time)} · ${hora(m.time)}</time>`:'<span>Hora por acordar</span>'}</div>
+    <div class="mt-p">${side(m.a,m.srcA,false,m.sa,m.sb)}
+      <div class="sc">${hasScore?`<b>${m.sa}</b><i>–</i><b>${m.sb}</b>`:m.ff?'<span class="vsx">FF</span>':'<span class="vsx">vs</span>'}</div>
+      ${side(m.b,m.srcB,true,m.sb,m.sa)}</div>
+    <div class="mt-meta"><span>Bo${m.bo}</span>${m.ref?`<span>Árbitro: ${esc(m.ref)}</span>`:''}${m.a&&m.b?`<code>${esc(T.C.sigla)}: (${esc(m.a.username)}) vs (${esc(m.b.username)})</code>`:''}${m.mp?(DEMO?`<span>MP #${m.mp}</span>`:`<a href="${mpUrl(m.mp)}" target="_blank" rel="noopener">MP #${m.mp}</a>`):''}</div>
+    ${picks}
+  </article>`;
+}
+
+function bracketCard(m){
+  const row=(p,s,score,isW)=>{
+    const st=!p?'t':m.estado==='done'?(isW?'w':'l'):'';
+    return `<div class="bm-row ${st}"><span class="s">${p&&p.qseed?p.qseed:''}</span><span class="n">${p?esc(p.username):esc(srcLabel(s))}</span><span class="v">${(m.estado==='done'||m.estado==='live')?(m.ff?(isW?'W':'FF'):score):''}</span></div>`;
+  };
+  const foot=m.estado==='live'?'EN DIRECTO':m.time?`${corto(m.time)} ${hora(m.time)}`:'sin fecha';
+  return `<div class="bm ${m.estado}">${row(m.a,m.srcA,m.sa,m.winner&&m.winner===m.a)}${row(m.b,m.srcB,m.sb,m.winner&&m.winner===m.b)}<div class="bm-f"><span>${m.id.toUpperCase()}</span><span>${foot}</span></div></div>`;
+}
+
+/* ---------------- vistas ---------------- */
+const UI={fase:null,pool:null,jug:'lista',q:'',flash:null,admMatch:'u1-1',busy:false,imp:null,impText:'',admRound:null,poolText:'',poolRead:null,poolBusy:null,slotEdit:null,slotDel:null,slotEmpty:null,qday:null,normasReset:false,textReset:null,fasesReset:false,live:null,liveId:null,ref:null,refForce:false};
+
+// Resultado de la última importación del formulario, con lo que hay que revisar a mano.
+function importReport(){
+  const r=UI.imp; if(!r) return '';
+  const list=(t,xs)=>xs.length?`<div><b>${t} (${xs.length}):</b> ${xs.map(esc).join(', ')}</div>`:'';
+  return `<div class="imp">${list('Inscritos ahora',r.imported)}${list('Ya estaban inscritos',r.already)}
+    ${list('No encontrados en osu! (revisa el nombre o pega el enlace del perfil en su fila)',r.notFound)}
+    ${list('Fuera de rango (añade una excepción si pueden jugar y vuelve a importar)',r.rejected.map(x=>`${x.name} (#${x.rank?nf.format(x.rank):'sin rango'})`))}
+    ${list('No se añaden porque se borraron o los quitó la organización',r.removed)}</div>`;
+}
+const flashHtml=()=>UI.flash?`<div class="flash ${UI.flash.ok?'ok':'err'}" role="status">${esc(UI.flash.text)}</div>`:'';
+
+const VIEWS={
+  arbitrar(){
+    const head='<span class="eyebrow">Árbitros</span><h2>Arbitrar</h2>';
+    if(DEMO) return `<section>${head}<div class="empty">La página de arbitraje necesita el servidor.</div></section>`;
+    if(!R) return `<section>${head}<div class="empty">${esc(refErr||'Cargando…')}</div></section>`;
+    const order=id=>T.matches.findIndex(m=>m.id===id);
+    const flows=Object.values(R.flows).sort((x,y)=>(x.step==='done')-(y.step==='done')||(x.time||9e15)-(y.time||9e15)||order(x.id)-order(y.id));
+    const mine=R.lobbies.filter(l=>!l.closed), on=R.irc.status==='connected';
+    const inLobby=k=>mine.some(l=>l.key===k);
+    const quals=mine.filter(l=>l.kind==='qual');
+    if(!UI.ref||!(R.flows[UI.ref]||quals.some(l=>l.key===UI.ref))) UI.ref=flows.find(f=>inLobby(f.id))?.id||quals[0]?.key||flows.find(f=>f.step!=='done')?.id||null;
+    const item=f=>`<button type="button" class="rm ${f.step==='done'?'done':''}" data-ref="${f.id}" aria-current="${UI.ref===f.id}"><span><b>${f.id.toUpperCase()}</b> · ${esc(f.a.username)} vs ${esc(f.b.username)}</span><small>${esc(f.label.split(' · ').slice(1).join(' · '))} · ${f.score.a}–${f.score.b}${f.time?` · ${corto(f.time)} ${hora(f.time)}`:''}</small>${inLobby(f.id)?'<span class="pill live">En tu lobby</span>':f.step==='done'?'<span class="pill done">Terminado</span>':''}</button>`;
+    const linked=new Set(R.slots.map(x=>String(x.mp)));
+    const others=R.quals.filter(x=>!linked.has(String(x.mp))&&!mine.some(l=>String(l.mp)===String(x.mp)));
+    // Solo los que necesitan árbitro ahora: con jugadores o con este árbitro, y que no sean de hace más de 6 horas. Los suyos, primero.
+    const myId=S.me?.id;
+    const slotRows=R.slots.filter(x=>!mine.some(l=>String(l.mp)===String(x.mp))&&(x.signed||x.pending||x.mp||x.ref_id===myId)&&x.time>T.NOW-6*3600e3).sort((x,y)=>(y.ref_id===myId)-(x.ref_id===myId)||x.time-y.time);
+    const side=`<aside class="card adm"><h3>Partidos</h3>
+        <div class="rlist">${flows.map(item).join('')||'<p class="muted" style="font-size:.85rem">Aún no hay partidos con los dos jugadores decididos: hacen falta las seeds de los clasificatorios.</p>'}</div>
+        <h3>Clasificatorios</h3>
+        ${quals.length?`<div class="rlist">${quals.map(l=>`<button type="button" class="rm" data-ref="${esc(l.key)}" aria-current="${UI.ref===l.key}"><span><b>${esc(l.name)}</b></span><small>MP #${esc(l.mp)} · ${l.players.length} en el lobby</small></button>`).join('')}</div>`:''}
+        ${on&&slotRows.length?`<div class="mini">${slotRows.map(x=>`<div class="it"><span><b>${esc(x.name)}</b> · ${corto(x.time)} ${hora(x.time)} · ${x.signed}/${x.size}${x.pending?` · ${x.pending} sin aprobar`:''} · ${x.ref_id===myId?'<b>tuyo</b>':x.ref_name?esc(x.ref_name):'sin árbitro'}${x.mp?` · MP #${x.mp}`:''}</span><span class="qs-r">${x.mp?`<button class="btn btn-ghost btn-sm" type="button" data-act="ref-attach" data-key="qual:${x.mp}">Entrar</button><button class="btn btn-ghost btn-sm" type="button" data-act="ref-slot" data-id="${x.id}" data-replace="1">Crear otro</button>`:`<button class="btn btn-primary btn-sm" type="button" data-act="ref-slot" data-id="${x.id}">Crear lobby</button>`}</span></div>`).join('')}</div>`:''}
+        ${on?`<form class="row" data-form="ref-qual"><div class="field" style="flex:1 1 140px"><label for="r-qname">Otro lobby</label><input type="text" id="r-qname" maxlength="30" placeholder="Lobby A"></div><button class="btn btn-ghost btn-sm" type="submit">Crear</button></form>`:''}
+        ${on&&others.length?`<div class="mini">${others.map(x=>`<div class="it"><span>MP #${x.mp}${x.name?' · '+esc(x.name):''}</span><button class="btn btn-ghost btn-sm" type="button" data-act="ref-attach" data-key="qual:${x.mp}">Entrar</button></div>`).join('')}</div>`:''}
+        ${!on&&!quals.length?'<p class="muted" style="font-size:.85rem">Conecta con Bancho para crear lobbies de clasificatorios.</p>':''}
+      </aside>`;
+    const sel=R.flows[UI.ref], ql=quals.find(l=>l.key===UI.ref);
+    const main=sel?refMatch(sel):ql?refQual(ql):`${flashHtml()}<div class="empty">Elige un partido de la lista.</div>`;
+    return `<section>${head}${refErr?`<div class="flash err">${esc(refErr)}</div>`:''}${refConn()}<div class="ref">${side}<div>${main}</div></div></section>`;
+  },
+  inicio(){
+    const {cur,NOW,C}=T, reg=T.phaseBy.registros;
+    const regOpen=NOW>=reg.start&&NOW<=reg.end;
+    const live=T.matches.filter(m=>m.estado==='live');
+    const nx=T.matches.filter(m=>m.estado==='sched'&&m.time>NOW).sort((a,b)=>a.time-b.time)[0];
+    const done=T.matches.filter(m=>m.estado==='done').sort((a,b)=>(b.time||0)-(a.time||0)).slice(0,4);
+    const upcoming=T.matches.filter(m=>m.estado==='sched'&&m.time>NOW&&m!==nx).sort((a,b)=>a.time-b.time).slice(0,3);
+    let target,label,eyebrow,extra='';
+    if(regOpen){target=reg.end;label='para cerrar registros';eyebrow='Registros abiertos';extra=`<span class="muted num">Cierran el ${dia(reg.end)} a las ${hora(reg.end)}</span>`}
+    else if(nx){target=nx.time;label='para el próximo partido';eyebrow='Próximo partido · '+nx.ronda;extra=`<div class="vs">${av(nx.a)} ${esc(nx.a.username)} <i>vs</i> ${esc(nx.b.username)} ${av(nx.b)}</div><span class="muted num">${dia(nx.time)} · ${hora(nx.time)} (hora de Madrid)</span>`}
+    else{const nextP=T.phases.find(p=>p.start>NOW);if(nextP){target=nextP.start;label='para '+nextP.nombre.toLowerCase();eyebrow='Siguiente fase';extra=`<span class="muted num">${esc(nextP.nombre)} empieza el ${dia(nextP.start)}</span>`}}
+    const champ=T.byId.gf.estado==='done'?T.byId.gf.winner:null;
+    return `
+    ${S.anuncio?`<section class="news" aria-label="Novedades"><span class="eyebrow">Novedades · ${corto(S.anuncio.at)}</span><p>${linesHtml(S.anuncio.text)}</p></section>`:''}
+    ${reminders()}
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow">osu! standard · 1v1 · ${esc(C.comunidad)}</span>
+        <h1>${titleHtml(C.nombre)}</h1>
+        <p class="lead">${linesHtml(txt('lead',defaultLead()))}</p>
+        <div class="facts"><span class="fact">${champ?'Campeón: '+esc(champ.username):esc(cur.nombre)+(cur.estado==='now'?' en curso':' próximamente')}</span><span class="fact">${S.players.length} inscritos</span><span class="fact">${C.clasificados} plazas</span><span class="fact">ScoreV2 · NF</span></div>
+        <div class="btns">${regOpen&&!S.me?.registered?'<a class="btn btn-primary" href="#registro">Inscribirme</a>':'<a class="btn btn-primary" href="#partidos">Ver partidos</a>'}<a class="btn btn-ghost" href="#info">Formato y normas</a></div>
+      </div>
+      ${target?`<div class="next"><span class="eyebrow">${esc(eyebrow)}</span>
+        <div class="hc-stage"><div class="hc"><div class="cd" id="cd" data-t="${target}" data-l="${esc(label)}">--:--:--</div></div></div>${extra}</div>`:''}
+    </section>
+    ${live.length?`<section><div class="sec-head"><h2>En directo</h2>${S.twitch?.channel?`<a href="https://www.twitch.tv/${encodeURIComponent(S.twitch.channel)}" target="_blank" rel="noopener">Abrir Twitch</a>`:''}</div><div class="list">${live.map(matchCard).join('')}</div></section>`:''}
+    <section><div class="sec-head"><h2>Calendario</h2><span class="muted">Cada ronda tiene su showcase el día antes de empezar.</span></div>
+      <div class="tl"><ol>${T.phases.map(p=>`<li class="${p.estado}"><b>${esc(p.nombre)}</b><span>${rangoFechas(p.start,p.end)}</span>${p.sc?`<span>Showcase ${corto(p.sc)}</span>`:''}</li>`).join('')}</ol></div>
+    </section>
+    ${done.length||upcoming.length?`<div class="grid2">
+      <section><div class="sec-head"><h2>Últimos resultados</h2><a href="#partidos">Todos</a></div><div class="list">${done.length?done.map(matchCard).join(''):'<div class="empty">Todavía no se ha jugado ningún partido.</div>'}</div></section>
+      <section><div class="sec-head"><h2>Más partidos</h2></div><div class="list">${upcoming.length?upcoming.map(matchCard).join(''):'<div class="empty">No hay más partidos programados.</div>'}</div></section>
+    </div>`:''}`;
+  },
+
+  info(){
+    const C=T.C;
+    return `
+    <section><span class="eyebrow">Formato</span><h2>Cómo funciona</h2>
+      ${stepsHtml(txt('formato',defaultFormato()))}
+    </section>
+    <section><h2>Rondas y mappools</h2>
+      <div class="tbl-wrap"><table><thead><tr><th>Ronda</th><th>Showcase</th><th>Fechas</th><th class="n">SR</th><th class="n">Best of</th><th class="n">Mapas</th></tr></thead>
+      <tbody>${T.phases.filter(p=>p.key!=='registros').map(p=>{const pool=S.pools[p.key]||[];return `<tr><td><b>${esc(p.nombre)}</b></td><td>${p.sc?corto(p.sc):'–'}</td><td>${rangoFechas(p.start,p.end)}</td><td class="n">${dec(p.sr)}★</td><td class="n">${p.bo?'Bo'+p.bo:'–'}</td><td class="n">${pool.length||'–'}</td></tr>`}).join('')}</tbody></table></div>
+    </section>
+    ${normasHtml(S.normas?.text||defaultNormas())}
+    ${(()=>{const roles=['host','admin','referee','staff'].map(r=>[r==='host'?'Host':r==='admin'?'Admins':r==='referee'?'Árbitros':'Staff',(S.team||[]).filter(x=>x.role===r).map(x=>x.username||'')]).filter(([,ps])=>ps.length);
+      const all=[...roles,...(C.staff||[])];
+      return all.length?`<section><h2>Equipo</h2><div class="steps">${all.map(([rol,ps])=>`<div class="step"><span class="eyebrow">${esc(rol)}</span><b>${ps.map(esc).join(', ')}</b></div>`).join('')}</div></section>`:''})()}`;
+  },
+
+  jugadores(){
+    const {qual,C}=T;
+    const head=`<section><div class="sec-head"><div><span class="eyebrow">${S.players.length} inscritos · ${C.clasificados} plazas</span><h2>Jugadores</h2></div>
+      <div class="tabs" role="tablist"><button class="tab" role="tab" data-jug="lista" aria-selected="${UI.jug==='lista'}">Inscritos</button><button class="tab" role="tab" data-jug="clasif" aria-selected="${UI.jug==='clasif'}">Clasificatorios</button></div></div>`;
+    if(UI.jug==='clasif'){
+      if(!qual.rows.length) return head+`<div class="empty">Los clasificatorios se juegan del ${corto(T.phaseBy.qualifiers.start)} al ${corto(T.phaseBy.qualifiers.end)}. Los resultados aparecen aquí en cuanto se sincroniza cada lobby.</div></section>`;
+      const zs=C.metodoClasif!=='suma';
+      return head+`<p class="muted">${zs?`Orden por Z-sum: en cada mapa se mide cuántas desviaciones típicas se aleja tu score de la media, y se suman los ${qual.pool.length} mapas.`:'Orden por la suma de scores de todos los mapas.'} ${T.seedsFinal?'La línea discontinua marca el corte.':'Clasificación provisional.'}</p>
+      <div class="tbl-wrap"><table><thead><tr><th class="n">Seed</th><th>Jugador</th><th class="n">Rango</th><th class="n">${zs?'Z-sum':'Total'}</th>${qual.pool.map(m=>`<th class="n">${esc(m.slot)}</th>`).join('')}</tr></thead><tbody>
+      ${qual.rows.map(r=>`<tr class="${r.seed===C.clasificados?'cut':''}"><td class="n">${r.seed}</td><td><span class="who2">${av(r.player)}${esc(r.player.username)}</span></td><td class="n">#${nf.format(r.player.rank||0)}</td><td class="n"><b>${zs?dec(r.z,2):nf.format(r.total)}</b></td>${r.scores.map(s=>`<td class="n">${s?nf.format(s):'–'}</td>`).join('')}</tr>`).join('')}
+      </tbody></table></div></section>`;
+    }
+    const q=UI.q.trim().toLowerCase();
+    const list=[...T.players.values()].filter(p=>!q||p.username.toLowerCase().includes(q)).sort((a,b)=>(a.qseed||999)-(b.qseed||999)||a.rank-b.rank);
+    const cls={reg:'',in:'acc',lower:'low',out:'',champ:'acc'};
+    return head+`<div class="tools"><label class="eyebrow" for="q">Buscar</label><input type="search" id="q" placeholder="Nombre de usuario" value="${esc(UI.q)}"></div>
+      ${S.players.length?`<div class="pgrid">${list.map(p=>{const s=T.status.get(p.id);return `<div class="pc">${av(p,'lg')}<b>${esc(p.username)}</b><span class="sub">#${nf.format(p.rank||0)}${p.country?' · '+esc(p.country):''}</span><span class="sub" style="grid-column:2">Inscrito el ${corto(p.registered_at)}</span><span class="pill ${cls[s.k]}">${esc(s.txt)}</span></div>`}).join('')||'<div class="empty">Nadie coincide con la búsqueda.</div>'}</div>`:'<div class="empty">Todavía no hay nadie inscrito.</div>'}</section>`;
+  },
+
+  mappool(){
+    const ps=T.phases.filter(p=>p.key!=='registros');
+    if(!UI.pool||!ps.some(p=>p.key===UI.pool)){const withPool=ps.filter(p=>S.pools[p.key]?.length);UI.pool=(withPool[withPool.length-1]||ps[0]).key}
+    const p=T.phaseBy[UI.pool], maps=(S.pools[p.key]||[]).slice().sort(sortSlots);
+    const mm=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+    const covers=maps.some(m=>m.data.cover)&&!DEMO;
+    // Publicación: hora programada en el panel o, si no hay, el día del showcase. Antes solo la ve la organización.
+    const rel=S.releases?.[p.key], hidden=Boolean(rel&&rel.at>T.NOW);
+    const when=rel?.set?`el ${dia(rel.at)} a las ${hora(rel.at)} (hora de Madrid)`:p.sc?`en el showcase del ${dia(p.sc)}`:'';
+    const waitTxt=hidden&&rel.set?`<div class="empty">La mappool de ${esc(p.nombre)} se publica ${when}.<p class="num" id="cd" data-t="${rel.at}" data-l=" para la publicación" style="margin:8px 0 0;font-weight:700"></p></div>`
+      :`<div class="empty">Esta mappool se publica en el showcase${p.sc?' del '+dia(p.sc):''}.</div>`;
+    return `<section><div class="sec-head"><div><span class="eyebrow">${dec(p.sr)}★ · ${p.bo?'Bo'+p.bo:'Run única'}${p.sc?' · Showcase '+corto(p.sc):''}</span><h2>Mappool · ${esc(p.nombre)}</h2></div></div>
+      <div class="tabs" role="tablist">${ps.map(x=>`<button class="tab" role="tab" data-pool="${x.key}" aria-selected="${x.key===p.key}">${esc(x.nombre)}</button>`).join('')}</div>
+      ${hidden&&maps.length?`<p class="note">Solo los admins y el staff ven esta mappool. Se publica ${when}.${S.me?.admin?' Se cambia en Admin → Publicación de mappools.':''}</p>`:''}
+      ${maps.length?`<div class="maps ${covers?'':'nocover'}">${maps.map(({slot,beatmap_id,data:d})=>{const mod=slot.slice(0,2);const name=`${esc(d.artist)} – ${esc(d.title)}`;return `<div class="map"><span class="slot ${mod}">${esc(slot)}</span><span class="cover" ${d.cover&&covers?`style="background-image:url('${esc(d.cover)}')"`:''}></span><div class="t">${d.url&&!DEMO?`<a href="${esc(d.url)}" target="_blank" rel="noopener">${name}</a>`:`<b>${name}</b>`}<span>[${esc(d.version)}] · mapeado por ${esc(d.creator)}</span></div><div class="st"><span><b>${dec(d.sr,2)}</b>★</span><span><b>${d.bpm}</b> BPM</span><span><b>${mm(d.length)}</b></span><span>CS ${dec(d.cs)}</span><span>AR ${dec(d.ar)}</span><span>OD ${dec(d.od)}</span></div></div>`}).join('')}</div>
+      <p class="muted" style="font-size:.85rem">BPM, duración, CS, AR y OD ya incluyen el efecto de HR y DT.${p.key==='qualifiers'?' En clasificatorios se juegan en este orden.':''}</p>`
+      :waitTxt}</section>`;
+  },
+
+  partidos(){
+    const ps=T.phases.filter(p=>T.matches.some(m=>m.fase===p.key));
+    if(!UI.fase||!ps.some(p=>p.key===UI.fase)){const c=ps.find(p=>p.estado==='now')||ps.find(p=>p.estado==='future')||ps[ps.length-1];UI.fase=c.key}
+    const p=T.phaseBy[UI.fase];
+    const list=T.matches.filter(m=>m.fase===UI.fase).sort((a,b)=>(a.time||9e15)-(b.time||9e15));
+    return `<section><div class="sec-head"><div><span class="eyebrow">${rangoFechas(p.start,p.end)} · ${list.length} partidos · Bo${p.bo}</span><h2>Partidos</h2></div>
+      <span class="muted" style="font-size:.85rem"><span class="slot wa">A</span> mapa del jugador de la izquierda · <span class="slot wb">B</span> del de la derecha</span></div>
+      <div class="tabs" role="tablist">${ps.map(x=>`<button class="tab" role="tab" data-fase="${x.key}" aria-selected="${x.key===p.key}">${esc(x.nombre)}</button>`).join('')}</div>
+      ${T.seedsFinal?'':`<p class="note">Los cruces se completan cuando terminen los clasificatorios (${corto(T.phaseBy.qualifiers.end)}).</p>`}
+      <div class="list">${list.map(matchCard).join('')}</div></section>`;
+  },
+
+  cuadro(){
+    const col=(title,ms,lower)=>`<div class="bcol ${lower?'lowerb':''}"><h4>${title}</h4><div class="stack">${ms.map(bracketCard).join('')}</div></div>`;
+    const W=[0,1,2,3].map(i=>T.matches.filter(m=>m.lado==='W'&&m.col===i));
+    const L=[0,1,2,3,4,5].map(i=>T.matches.filter(m=>m.lado==='L'&&m.col===i));
+    return `<section><div class="sec-head"><div><span class="eyebrow">Doble eliminación · ${T.C.clasificados} jugadores</span><h2>Cuadro</h2></div><span class="muted">El número es la seed de clasificatorios.</span></div>
+      <h3><span class="pill acc">Upper bracket</span></h3>
+      <div class="bracket"><div class="bcols">${['Octavos','Cuartos','Semifinal','Final upper'].map((l,i)=>col(l,W[i])).join('')}${col('Grand Final',[T.byId.gf])}</div></div>
+      <h3><span class="pill low">Lower bracket</span></h3>
+      <div class="bracket"><div class="bcols">${['Ronda 1','Ronda 2','Ronda 3','Ronda 4','Semifinal','Final lower'].map((l,i)=>col(l,L[i],true)).join('')}</div></div>
+    </section>`;
+  },
+
+  stats(){
+    const played=T.matches.filter(m=>(m.estado==='done'||m.estado==='live')&&m.result?.maps?.length);
+    if(!played.length) return `<section><h2>Estadísticas</h2><div class="empty">Las estadísticas aparecen cuando se juegan los primeros partidos del cuadro.</div></section>`;
+    const pickC={},banC={},pw={};
+    played.forEach(m=>{
+      const ph=T.phaseBy[m.fase].nombre;
+      m.result.maps.forEach(x=>{const k=ph+' '+x.slot;pickC[k]=(pickC[k]||0)+1;const w=x.w===m.a.id?m.a:m.b,l=w===m.a?m.b:m.a;[w,l].forEach(p=>pw[p.id]=pw[p.id]||{p,w:0,n:0});pw[w.id].w++;pw[w.id].n++;pw[l.id].n++});
+      m.bans.forEach(s=>{const k=ph+' '+s;banC[k]=(banC[k]||0)+1});
+    });
+    const top=(o,n)=>Object.entries(o).sort((a,b)=>b[1]-a[1]).slice(0,n);
+    const bars=(rows,max,fmt,low)=>rows.length?`<div class="bars ${low?'low':''}">${rows.map(([k,v])=>`<div class="bar"><span class="k" title="${esc(k)}">${esc(k)}</span><span class="tr"><i style="width:${Math.max(4,v/max*100)}%"></i></span><span class="v">${fmt(v)}</span></div>`).join('')}</div>`:'<p class="muted">Sin datos todavía.</p>';
+    const tp=top(pickC,8),tb=top(banC,8);
+    const wr=Object.values(pw).filter(x=>x.n>=6).map(x=>[x.p.username,x.w/x.n]).sort((a,b)=>b[1]-a[1]).slice(0,8);
+    const maps=played.reduce((a,m)=>a+m.result.maps.length,0);
+    return `<section><span class="eyebrow">Cuadro</span><h2>Estadísticas</h2>
+      <div class="kpis"><div class="kpi"><b>${played.length}</b><span>partidos jugados</span></div><div class="kpi"><b>${maps}</b><span>mapas jugados</span></div><div class="kpi"><b>${dec(maps/played.length)}</b><span>mapas por partido</span></div><div class="kpi"><b>${T.matches.filter(m=>m.estado!=='done').length}</b><span>partidos por jugar</span></div></div></section>
+      <div class="grid2">
+        <section class="card"><h3>Mapas más elegidos</h3>${bars(tp,tp[0]?.[1]||1,v=>v)}</section>
+        <section class="card"><h3>Mapas más baneados</h3>${bars(tb,tb[0]?.[1]||1,v=>v,true)}</section>
+        <section class="card"><h3>Mejor % de mapas ganados</h3><p class="muted" style="font-size:.85rem">Mínimo 6 mapas jugados.</p>${bars(wr,1,v=>Math.round(v*100)+'%')}</section>
+      </div>`;
+  },
+
+  registro(){
+    const reg=T.phaseBy.registros, NOW=T.NOW, me=S.me, open=NOW>=reg.start&&NOW<=reg.end, url=T.C.formulario;
+    const head=`<section><span class="eyebrow">${rangoFechas(reg.start,reg.end)}</span><h2>Registro</h2>${flashHtml()}`;
+    const loginErr=new URLSearchParams(location.search).get('login');
+    const errNote=loginErr?`<p class="flash err">${loginErr==='cancelado'?'Has cancelado el inicio de sesión en osu!.':'El inicio de sesión ha caducado. Vuelve a intentarlo.'}</p>`:'';
+    const form=!open?`<p class="note">Los registros están cerrados${NOW<reg.start?`; abren el ${dia(reg.start)}`:''}.</p>`
+      :/^https:\/\//.test(url||'')?`<p><a class="btn btn-primary" href="${esc(url)}" target="_blank" rel="noopener">Ir al formulario</a></p>`
+      :'<p class="note">Pide el enlace al formulario a la organización.</p>';
+    if(!me) return head+errNote+`<div class="card prose"><p>${linesHtml(txt('registro',DEFAULT_REGISTRO))}</p>${form}
+      <p>¿Ya estás inscrito? Inicia sesión con osu! para apuntarte a un lobby de clasificatorios.</p>${S.configured?'<p><a class="btn btn-ghost" href="/auth/osu">Iniciar sesión con osu!</a></p>':''}</div></section>`;
+    const profile=`<div class="profile">${av(me,'xl')}<div class="meta"><b style="font-size:1.15rem">${esc(me.username)}</b><span class="muted num">Rango #${me.rank?nf.format(me.rank):'—'}${me.country?' · '+esc(me.country):''}</span></div></div>`;
+    if(me.registered) return head+`<div class="card prose">${profile}<p class="flash ok">Estás inscrito${me.availability?' · Disponibilidad: '+esc(me.availability):''}.</p>
+      <p><a class="btn btn-primary" href="#qualis">Apuntarme a un lobby de clasificatorios</a></p>
+      <p class="muted" style="font-size:.85rem">Para retirarte, habla con la organización.</p></div></section>`;
+    return head+`<div class="card prose">${profile}<p>Todavía no apareces como inscrito. Si ya has rellenado el formulario, la organización te añadirá en cuanto importe las respuestas.</p>${form}</div></section>`;
+  },
+
+  qualis(){
+    const fase=T.phaseBy.qualifiers, NOW=T.NOW, me=S.me, all=S.qual.slots||[], names=new Map(S.players.map(p=>[p.id,p]));
+    const mine=me?all.find(x=>x.players.includes(me.id)):null, minePending=Boolean(mine?.pending.includes(me.id)), mineStarted=mine&&!minePending&&NOW>=mine.time;
+    // Los que ya han pasado sin nadie no le sirven a nadie.
+    const slots=all.filter(x=>NOW<x.time||x.players.length||x.mp);
+    const head=`<section><span class="eyebrow">${rangoFechas(fase.start,fase.end)}</span><h2>Lobbies de clasificatorios</h2>${flashHtml()}
+      <p class="muted">${linesHtml(txt('qualis',DEFAULT_QUALIS))}</p>`;
+    const notice=!me?`<p class="note">Inicia sesión con osu! para apuntarte.${S.configured?' <a href="/auth/osu">Iniciar sesión</a>':''}</p>`
+      :!me.registered&&me.referee?'<p class="muted">Pulsa Arbitrar en los lobbies que vayas a llevar.</p>'
+      :!me.registered?'<p class="note">Solo pueden apuntarse los inscritos. Si ya has rellenado el formulario, la organización te añadirá en cuanto importe las respuestas.</p>'
+      :minePending&&NOW>=mine.time?`<p class="note bad">${esc(mine.name)} ya ha empezado y tu plaza no llegó a aprobarse. Apúntate a otro lobby.</p>`
+      :minePending?`<p class="note">Has pedido plaza en <b>${esc(mine.name)}</b>, el ${dia(mine.time)} a las ${hora(mine.time)}. Falta que un árbitro o admin la apruebe.</p>`
+      :mine?`<p class="flash ok">Estás en <b>${esc(mine.name)}</b>, el ${dia(mine.time)} a las ${hora(mine.time)}.</p>`
+      :slots.length?'<p class="note">Todavía no estás en ningún lobby.</p>':'';
+    const no=me?.qualRejection;
+    const refused=no?`<p class="note bad">Han rechazado tu plaza en ${esc(no.lobby)}, el ${dia(no.time)} a las ${hora(no.time)}.${no.reason?` Motivo: ${esc(no.reason)}.`:''} Puedes apuntarte a otro lobby.</p>`:'';
+    const extra=extraBlock(mineStarted), asks=refused+seatRequests()+extraRequests();
+    if(!slots.length) return head+notice+asks+`<div class="empty">${all.length?'Ya no quedan lobbies disponibles: todos han empezado.':'La organización todavía no ha abierto los lobbies.'}</div>`+extra+'</section>';
+    // Todos a la vista, por días: primero los que aún se pueden elegir y al final los que ya han empezado.
+    const byDay=(list,title=d=>d)=>[...new Set(list.map(x=>dayOf(x.time)))].map(d=>{
+      const rows=list.filter(x=>dayOf(x.time)===d);
+      return `<div class="qd"><h3>${esc(title(dia(rows[0].time)))}</h3><div class="qr-list card">${rows.map(row).join('')}</div></div>`;
+    }).join('');
+    const row=x=>{
+      const started=NOW>=x.time, isMine=mine?.id===x.id, full=x.players.length>=x.size, isRef=me&&x.ref_id===me.id;
+      const play=!me?.registered||started||isRef||(mineStarted&&!isMine)?'':isMine
+        ?'<button class="btn btn-ghost btn-sm" type="button" data-act="qs-leave">Salir</button>'
+        :full?'':`<button class="btn ${mine?'btn-ghost':'btn-primary'} btn-sm" type="button" data-act="qs-join" data-id="${x.id}">${mine?'Cambiarme':'Apuntarme'}</button>`;
+      const ref=!me?.referee||started||isMine?'':isRef
+        ?`<button class="btn btn-ghost btn-sm" type="button" data-act="qs-claim" data-id="${x.id}" data-on="0">Dejar de arbitrar</button>`
+        :x.ref_id?'':`<button class="btn btn-ghost btn-sm" type="button" data-act="qs-claim" data-id="${x.id}" data-on="1">Arbitrar</button>`;
+      return `<div class="qr ${isMine?'mine':''}"><div class="qr-id"><b>${esc(x.name)}</b><span class="muted num">${hora(x.time)}</span></div>
+        <div class="qs-p">${x.players.map(id=>{const p=names.get(id),wait=x.pending.includes(id);return p?`<span class="qs-n ${id===me?.id?'me':''} ${wait?'pend':''}">${av(p)}${esc(p.username)}${wait?' <small>pendiente</small>':''}</span>`:''}).join('')||`<span class="muted" style="font-size:.85rem">${started?'Sin jugadores':'Libre'}</span>`}</div>
+        <div class="qr-m muted"><span class="num">${x.players.length}/${x.size}</span> · ${x.ref_name?'Árbitro: '+esc(x.ref_name):'Sin árbitro'}${x.mp?` · <a href="${mpUrl(x.mp)}" target="_blank" rel="noopener">MP</a>`:''}</div>
+        <div class="qs-r">${started?'<span class="pill">Empezado</span>':full&&!isMine?'<span class="pill">Lleno</span>':''}${play}${ref}</div></div>`;
+    };
+    const go=extra?'<div><button class="btn btn-ghost btn-sm" type="button" data-act="qx-go">¿No te viene bien ninguna hora?</button></div>':'';
+    return head+notice+asks+go+byDay(slots.filter(x=>NOW<x.time))+byDay(slots.filter(x=>NOW>=x.time),d=>'Ya empezados · '+d)+extra+'</section>';
+  },
+
+  admin(){
+    if(!S.me?.admin) return '<div class="empty">Esta sección es solo para la organización.</div>';
+    const C=T.C, rounds=T.phases.filter(p=>p.key!=='registros');
+    const m=T.byId[UI.admMatch]||T.matches[0], rec=S.matches[m.id]||{};
+    const label=x=>`${x.id.toUpperCase()} · ${x.ronda} · ${x.a?x.a.username:'?'} vs ${x.b?x.b.username:'?'}`;
+    const roundOpts=rounds.map(p=>`<option value="${p.key}" ${p.key===UI.admRound?'selected':''}>${esc(p.nombre)}</option>`).join('');
+    const poolRows=rounds.flatMap(p=>(S.pools[p.key]||[]).map(x=>({...x,round:p.key,rn:p.nombre})));
+    return `<section><span class="eyebrow">Solo organización</span><h2>Administración</h2>${flashHtml()}
+      ${DEMO?'<p class="note">En la vista previa los botones no guardan nada. Conectada al servidor, cada acción llama a la API de osu!.</p>':''}
+      <div class="grid2">
+        <section class="card adm" style="grid-column:1/-1"><h3>Publicación de mappools</h3>
+          ${relAdmin()}
+        </section>
+        ${textAdmin()}
+        ${pageTexts()}
+        ${roundsAdmin()}
+        <section class="card adm"><h3>Mappool</h3>
+          <form class="f" data-form="pool">
+            <div class="row"><div class="field"><label for="a-round">Ronda</label><select id="a-round">${roundOpts}</select></div>
+            <div class="field"><label for="a-slot">Slot</label><input type="text" id="a-slot" placeholder="NM1" maxlength="4"></div></div>
+            <div class="field"><label for="a-bm">Mapa</label><input type="text" id="a-bm" placeholder="ID o enlace del beatmap"><span class="hint">Se piden a la API el nombre, la dificultad y el SR con el mod del slot.</span></div>
+            <div><button class="btn btn-primary btn-sm" type="submit">Añadir o reemplazar</button></div>
+          </form>
+          <div class="mini">${poolRows.length?poolRows.map(x=>`<div class="it"><span><span class="slot ${x.slot.slice(0,2)}">${esc(x.slot)}</span> ${esc(x.rn)} · ${esc(x.data.title)} [${esc(x.data.version)}]</span><button class="btn btn-ghost btn-sm" type="button" data-act="pool-del" data-round="${x.round}" data-slot="${esc(x.slot)}">Quitar</button></div>`).join(''):'<p class="muted">Todavía no hay mapas.</p>'}</div>
+        </section>
+        <section class="card adm"><h3>Importar mappools desde una hoja</h3>
+          <p class="muted" style="font-size:.85rem">Sube la hoja entera o pega sus filas. Da igual cómo esté organizada: primero verás lo que se ha entendido, y no se guarda nada hasta que lo confirmes.</p>
+          ${UI.poolRead?poolPreview(rounds):`<form class="f" data-form="pool-read">
+            <div class="field"><label for="a-pfile">Archivo</label><input type="file" id="a-pfile" data-keep="no" accept=".xlsx,.ods,.csv,.tsv,.txt" ${UI.poolBusy?'disabled':''}><span class="hint">.xlsx, .ods o .csv. En Google Sheets: Archivo → Descargar → Microsoft Excel (.xlsx).</span></div>
+            <div class="field"><label for="a-ptext">O pega las filas</label><textarea id="a-ptext" spellcheck="false" placeholder="NM1&#9;Artista - Título [Dificultad]&#9;5894468">${esc(UI.poolText)}</textarea></div>
+            <div><button class="btn btn-primary btn-sm" type="submit" ${UI.poolBusy?'disabled':''}>${UI.poolBusy?'Leyendo…':'Leer lo pegado'}</button></div>
+          </form>`}
+        </section>
+        <section class="card adm"><h3>Partido</h3>
+          <form class="f" data-form="match">
+            <div class="field"><label for="a-mid">Partido</label><select id="a-mid">${T.matches.map(x=>`<option value="${x.id}" ${x.id===m.id?'selected':''}>${esc(label(x))}</option>`).join('')}</select></div>
+            <div class="row"><div class="field"><label for="a-time">Fecha y hora (Madrid)</label><input type="datetime-local" id="a-time" value="${toLocalInput(rec.time,C.zona)}"></div>
+            <div class="field"><label for="a-ref">Árbitro</label><input type="text" id="a-ref" value="${esc(rec.ref||'')}" maxlength="40"></div></div>
+            <div class="field"><label for="a-mp">Multiplayer</label><input type="text" id="a-mp" value="${rec.mp?mpUrl(rec.mp):''}" placeholder="Enlace o ID del MP"><span class="hint">Al guardar se lee el MP de la API y se cuentan solo los mapas del pool de la ronda (los warmups no cuentan). Se actualiza solo cada 5 minutos mientras se juega.</span></div>
+            <div class="row"><div class="field"><label for="a-bans">Bans</label><input type="text" id="a-bans" value="${esc((rec.bans||[]).join(', '))}" placeholder="NM2, HD1"></div>
+            <div class="field"><label for="a-ff">Forfeit</label><select id="a-ff"><option value="">No</option><option value="a" ${rec.ff==='a'?'selected':''}>Gana ${esc(m.a?.username||'A')}</option><option value="b" ${rec.ff==='b'?'selected':''}>Gana ${esc(m.b?.username||'B')}</option></select></div></div>
+            <div class="row"><button class="btn btn-primary btn-sm" type="submit">Guardar</button>${rec.mp?`<button class="btn btn-ghost btn-sm" type="button" data-act="sync" data-id="${m.id}">Releer el MP ahora</button>`:''}</div>
+          </form>
+          ${m.result?`<p class="muted" style="font-size:.85rem">Último resultado leído: ${m.sa}–${m.sb} (${m.result.maps.length} mapas).</p>`:''}
+        </section>
+        ${slotAdmin()}
+        <section class="card adm"><h3>MP de clasificatorios jugados</h3>
+          <p class="muted" style="font-size:.85rem">Los lobbies creados desde Arbitrar se añaden solos. Solo cuentan los mapas jugados en head to head.</p>
+          <form class="f" data-form="qual"><div class="row"><div class="field"><label for="a-qmp">Multiplayer</label><input type="text" id="a-qmp" placeholder="Enlace o ID del MP"></div><button class="btn btn-primary btn-sm" type="submit">Añadir</button></div></form>
+          <div class="mini">${(S.qual.lobbies||[]).length?S.qual.lobbies.map(l=>`<div class="it"><span>MP #${l.mp}${l.name?' · '+esc(l.name):''}${l.skipped?` · <b>${l.skipped} ${l.skipped===1?'mapa':'mapas'} sin contar: no eran head to head</b>`:''}</span><button class="btn btn-ghost btn-sm" type="button" data-act="qual-del" data-mp="${l.mp}">Quitar</button></div>`).join(''):'<p class="muted">Sin lobbies todavía.</p>'}</div>
+          ${(S.qual.lobbies||[]).length?'<div><button class="btn btn-ghost btn-sm" type="button" data-act="qual-sync">Releer todos</button></div>':''}
+        </section>
+        <section class="card adm"><h3>Excepciones de rango</h3>
+          <p class="muted" style="font-size:.85rem">Jugadores fuera de #${nf.format(C.rango.min)} – #${nf.format(C.rango.max)} que pueden inscribirse igualmente.</p>
+          <form class="f" data-form="exc"><div class="row"><div class="field"><label for="a-exc">Jugador</label><input type="text" id="a-exc" placeholder="ID o enlace del perfil de osu!"></div><button class="btn btn-primary btn-sm" type="submit">Añadir</button></div></form>
+          <div class="mini">${(S.exceptions||[]).length?S.exceptions.map(x=>`<div class="it"><span>${esc(x.username||'')} · ID ${x.id}</span><button class="btn btn-ghost btn-sm" type="button" data-act="exc-del" data-id="${x.id}">Quitar</button></div>`).join(''):'<p class="muted">Ninguna todavía.</p>'}</div>
+        </section>
+        <section class="card adm"><h3>Importar del formulario de Google</h3>
+          <p class="muted" style="font-size:.85rem">En la hoja de respuestas del formulario pulsa Ctrl+A y Ctrl+C, y pégalo aquí (con la fila de títulos). Se puede repetir cuantas veces haga falta: nadie se duplica.</p>
+          <form class="f" data-form="imp"><div class="field"><label for="a-imp">Respuestas</label><textarea id="a-imp" spellcheck="false" placeholder="Marca temporal&#9;osu In game name&#9;Disponibilidad…">${esc(UI.impText)}</textarea><span class="hint">Cada jugador se busca en osu! y pasa la misma comprobación de rango que en la web. Puede tardar unos segundos.</span></div>
+            <div><button class="btn btn-primary btn-sm" type="submit">Importar</button></div></form>
+          ${importReport()}
+        </section>
+        ${S.me.host?roleAdmin():''}
+        <section class="card adm" style="grid-column:1/-1"><h3>Reglas de arbitraje por ronda</h3>
+          ${rulesAdmin()}
+        </section>
+        <section class="card adm" style="grid-column:1/-1"><h3>Inscritos <button class="btn btn-ghost btn-sm" type="button" data-act="refresh">Actualizar rangos</button></h3>
+          <div class="tbl-wrap"><table><thead><tr><th>Jugador</th><th class="n">Rango</th><th>Disponibilidad</th><th></th></tr></thead><tbody>
+          ${S.players.map(p=>`<tr><td>${esc(p.username)}</td><td class="n">#${nf.format(p.rank||0)}</td><td>${esc(p.availability||'—')}</td><td><button class="btn btn-ghost btn-sm" type="button" data-act="player-del" data-id="${p.id}" data-name="${esc(p.username)}">Quitar</button></td></tr>`).join('')||'<tr><td colspan="5" class="muted">Nadie inscrito.</td></tr>'}
+          </tbody></table></div>
+        </section>
+      </div></section>`;
+  }
+};
+const RULES_DEF={bans:2,protects:1,banEvery:4,pickTimer:90};
+const rulesOf=k=>S.rules?.[k]||RULES_DEF;
+function banLines(){
+  const rs=T.phases.filter(p=>p.bo).map(p=>({p,r:rulesOf(p.key)})), every=[...new Set(rs.map(x=>x.r.banEvery))];
+  return [`- Los bans van por tandas, uno cada jugador en cada tanda: la primera al empezar y otra cada ${every.length===1?every[0]+' mapas jugados':'pocos mapas (según la ronda)'}, hasta completar los bans de la ronda.`,
+    `- Bans y protects de cada jugador: ${rs.map(x=>`${x.p.nombre}, ${x.r.bans} ${x.r.bans===1?'ban':'bans'} y ${x.r.protects} protect${x.r.protects===1?'':'s'}${every.length>1?` (tanda cada ${x.r.banEvery} mapas)`:''}`).join(' · ')}.`];
+}
+// Las normas de Info, en el mismo formato en que las escriben los admins. Mientras no las reescriban, las cifras salen de la configuración.
+function defaultNormas(){
+  const C=T.C;
+  return [
+    '## Clasificatorios',
+    '- Formato head to head con ScoreV2.',
+    '- Una run única: todos los mapas en el orden en que se presentan (NM1, NM2, NM3…).',
+    '- Si te desconectas, podrás repetir ese mapa al terminar el resto.',
+    '- Cada lobby tiene un tiempo extra de 30 segundos por jugador.',
+    '- Puedes elegir cualquier lobby disponible, o pedir una extra si hay árbitro libre.',
+    '',
+    '## Protects, bans y picks',
+    '- Al empezar, ambos jugadores hacen `!roll` cuando lo diga el árbitro. Si empatan, se repite.',
+    '- Quien gana el roll decide el orden de protects, bans y picks.',
+    '- Un mapa protegido no se puede banear, y cualquiera puede elegirlo en su turno de pick.',
+    '- No se puede banear ni elegir el mismo mod dos veces seguidas (por ejemplo, banear NM1 y NM2, o elegir HR1 y HR3).',
+    ...banLines(),
+    '- Orden de bans ABBA(AB): quien banea primero en la primera tanda banea segundo en la siguiente.',
+    '- Los picks se alternan empezando por quien tiene el First Pick, hasta que alguien gana los mapas necesarios.',
+    '',
+    '## FreeMod y multiplicadores',
+    '- Jugador 1: HD, EZ o EZHD.',
+    '- Jugador 2: HR o HDHR.',
+    `Multiplicadores por defecto del juego, salvo EZ, que cuenta ×${dec(C.multiplicadores.EZ)}, y EZHD, que cuenta ×${dec(C.multiplicadores.EZHD)}. La web los aplica al calcular cada mapa de los partidos. En clasificatorios no hay multiplicadores: cuenta el score tal cual.`,
+    '',
+    '## Normas generales',
+    `- Pueden jugar jugadores de rango #${nf.format(C.rango.min)} a #${nf.format(C.rango.max)}, salvo las excepciones que apruebe la organización.`,
+    '- Partidos en TeamVS, ScoreV2 y NF obligatorio.',
+    '- Cheating o multicuentas se reportan directamente a la organización.',
+    '- Los ataques personales o un comportamiento irrespetuoso constante suponen el veto de la comunidad.',
+    '- Todos los horarios están en hora de Madrid (ahora UTC+1).'
+  ].join('\n');
+}
+// Texto de los admins: siempre se escapa, y solo admite **negrita**, `código` y enlaces http(s).
+function inlineText(t){
+  return esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/https?:\/\/(?:(?!&quot;|&#39;|&lt;|&gt;)[^\s<])+/g,u=>{const end=u.match(/[.,;:)]+$/)?.[0]||'',h=u.slice(0,u.length-end.length);return `<a href="${h}" target="_blank" rel="noopener">${h}</a>${end}`});
+}
+function parseSections(text){
+  const secs=[];let cur=null,list=null;
+  const open=title=>{cur={title,body:[]};list=null;secs.push(cur)};
+  for(const raw of text.split('\n')){
+    const l=raw.trim();
+    if(!l){list=null;continue}
+    if(l.startsWith('## ')){open(l.slice(3).trim());continue}
+    if(!cur) open('');
+    if(/^[-•*] /.test(l)){if(!list){list=[];cur.body.push(list)}list.push(l.slice(2).trim())}
+    else{list=null;cur.body.push(l)}
+  }
+  return secs;
+}
+const bodyHtml=(x,cls='')=>x.body.map(b=>Array.isArray(b)?`<ul>${b.map(i=>`<li>${inlineText(i)}</li>`).join('')}</ul>`:`<p ${cls?`class="${cls}"`:''}>${inlineText(b)}</p>`).join('');
+const normasHtml=text=>`<div class="grid2">${parseSections(text).map(x=>`<section class="prose">${x.title?`<h3>${inlineText(x.title)}</h3>`:''}${bodyHtml(x)}</section>`).join('')}</div>`;
+const stepsHtml=text=>`<div class="steps">${parseSections(text).map((x,i)=>`<div class="step"><span class="k">Fase ${i+1}</span>${x.title?`<h3>${inlineText(x.title)}</h3>`:''}${bodyHtml(x,'muted')}</div>`).join('')}</div>`;
+const linesHtml=t=>String(t).split('\n').map(inlineText).join('<br>');
+const txt=(k,def)=>S.textos?.[k]?.text??def;
+function titleHtml(n){const i=n.indexOf(': ');return i<0?`<em>${esc(n)}</em>`:`${esc(n.slice(0,i))}: <em>${esc(n.slice(i+2))}</em>`}
+const defaultLead=()=>`Torneo de eliminatorias para jugadores de #${nf.format(T.C.rango.min)} a #${nf.format(T.C.rango.max)}. Preparación para los torneos oficiales del año, como la 6 Digit European Cup. Horarios en hora de Madrid.`;
+const defaultFormato=()=>['## Clasificatorios',`Lobbies head to head con ScoreV2. Cada jugador hace una única run de la pool, en orden. Pasan los ${T.C.clasificados} mejores.`,'','## Upper bracket','Cruces por seed: 1 vs 16, 8 vs 9… Quien pierde baja al lower bracket.','','## Lower bracket','Segunda oportunidad. Una derrota aquí elimina del torneo.','','## Grand Finals','Ganador del upper contra ganador del lower.'].join('\n');
+const DEFAULT_QUALIS='Lobbies head to head con ScoreV2. Apúntate al que te venga bien y un árbitro o admin aprobará tu plaza. Solo puedes estar en uno, y puedes cambiarte hasta la hora a la que empiece, aunque al cambiarte hay que aprobarla de nuevo. Las horas son de Madrid.';
+const DEFAULT_REGISTRO='La inscripción se hace en el formulario de Google. La organización añade después a la web a quienes lo rellenan.';
+const TEXT_FIELDS=[
+  ['nombre','Nombre del torneo',1,'Sale en el título, en el pie y en los mensajes del bot. Lo que va tras «: » se resalta en Inicio.',()=>T.C.nombre,60],
+  ['comunidad','Comunidad',1,'Sale en Inicio y en el pie.',()=>T.C.comunidad,60],
+  ['lead','Presentación de Inicio',3,'El texto bajo el título.',defaultLead,800],
+  ['formato','Cómo funciona (Info)',12,'## Título de cada fase y debajo su texto.',defaultFormato,4000],
+  ['qualis','Explicación de Qualis',4,'',()=>DEFAULT_QUALIS,800],
+  ['registro','Explicación de Registro',2,'La ven quienes no han iniciado sesión.',()=>DEFAULT_REGISTRO,800],
+  ['enlaces','Enlaces del pie',3,'Una línea por enlace: Nombre | https://… Sin enlace, esa línea no se muestra.',()=>T.C.enlaces.map(([n,u])=>`${n} | ${u}`).join('\n'),1500]
+];
+function pageTexts(){
+  return `<section class="card adm" style="grid-column:1/-1"><h3>Textos de la web</h3>
+    <p class="muted" style="font-size:.85rem">Cada texto se guarda por separado. También admiten **negrita** y enlaces con https://.</p>
+    ${TEXT_FIELDS.map(([k,label,rows,hint,def,max])=>`<form class="f" style="max-width:none" data-form="site" data-key="${k}"><div class="field"><label for="a-tx-${k}">${esc(label)}</label><textarea id="a-tx-${k}" rows="${rows}" maxlength="${max}" style="min-height:0">${esc(txt(k,def()))}</textarea>${hint?`<span class="hint">${esc(hint)}</span>`:''}</div>
+      <div class="qs-r"><button class="btn btn-ghost btn-sm" type="submit">Guardar</button>${S.textos?.[k]?`<button class="btn ${UI.textReset===k?'btn-danger':'btn-ghost'} btn-sm" type="button" data-act="tx-reset" data-key="${k}">${UI.textReset===k?'¿Seguro? Se pierde tu texto':'Volver al original'}</button>`:''}</div></form>`).join('')}
+  </section>`;
+}
+function roundsAdmin(){
+  const inp=(p,k,type,extra='')=>`<input type="${type}" id="a-f-${p.key}-${k}" value="${esc(p[k]??'')}" aria-label="${k} de ${esc(p.nombre)}" ${extra}>`;
+  return `<section class="card adm" style="grid-column:1/-1"><h3>Rondas</h3>
+    <p class="note">Esto cambia el torneo de verdad, no solo la tabla de Info: cuándo empieza cada fase, cuándo se publican las mappools sin hora programada, cuándo se fijan las seeds y cuántos mapas hay que ganar. Cámbialo con cuidado si la ronda ya ha empezado.</p>
+    <form class="f" style="max-width:none" data-form="fases"><div class="tbl-wrap"><table><thead><tr><th>Ronda</th><th>Showcase</th><th>Inicio</th><th>Fin</th><th>SR</th><th>Best of</th></tr></thead><tbody>
+      ${T.phases.map(p=>`<tr><td>${inp(p,'nombre','text','maxlength="40" style="min-width:130px"')}</td><td>${p.showcase!=null?inp(p,'showcase','date'):'–'}</td><td>${inp(p,'inicio','date')}</td><td>${inp(p,'fin','date')}</td><td>${p.sr!=null?inp(p,'sr','number','step="0.1" min="0.1" max="15" style="width:84px"'):'–'}</td><td>${p.bo!=null?inp(p,'bo','number','step="2" min="1" max="25" style="width:84px"'):'–'}</td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="qs-r"><button class="btn btn-primary btn-sm" type="submit">Guardar rondas</button>${S.fasesEditadas?`<button class="btn ${UI.fasesReset?'btn-danger':'btn-ghost'} btn-sm" type="button" data-act="fa-reset">${UI.fasesReset?'¿Seguro? Se pierden tus cambios':'Volver a los datos originales'}</button>`:''}</div></form>
+  </section>`;
+}
+function textAdmin(){
+  const a=S.anuncio, n=S.normas;
+  return `<section class="card adm"><h3>Anuncio de novedades</h3>
+      <p class="muted" style="font-size:.85rem">Sale arriba de todo en Inicio, con la fecha en que lo publiques. Hasta 500 caracteres.</p>
+      <form class="f" data-form="anuncio"><div class="field"><label for="a-an">Texto</label><textarea id="a-an" maxlength="500" rows="4" style="min-height:0">${esc(a?.text||'')}</textarea></div>
+        <div class="qs-r"><button class="btn btn-primary btn-sm" type="submit">Publicar</button>${a?'<button class="btn btn-ghost btn-sm" type="button" data-act="an-del">Quitar el anuncio</button>':''}</div></form>
+    </section>
+    <section class="card adm"><h3>Normas</h3>
+      <p class="muted" style="font-size:.85rem">Son las normas de la pestaña Info. ${n?`Las reescribisteis el ${dia(n.at)} a las ${hora(n.at)}.`:'Todavía son las originales.'} Si cambias los bans de una ronda, cámbialos también aquí: al reescribirlas, el texto ya no se actualiza solo.</p>
+      <form class="f" data-form="normas"><div class="field"><label for="a-no">Texto</label><textarea id="a-no" rows="16" maxlength="20000">${esc(n?.text||defaultNormas())}</textarea>
+        <span class="hint">## Título de sección · - Punto de una lista · **negrita** · \`código\`. Los enlaces con https:// se activan solos.</span></div>
+        <div class="qs-r"><button class="btn btn-primary btn-sm" type="submit">Guardar normas</button>${n?`<button class="btn ${UI.normasReset?'btn-danger':'btn-ghost'} btn-sm" type="button" data-act="no-reset">${UI.normasReset?'¿Seguro? Se pierde tu texto':'Volver a las originales'}</button>`:''}<a class="btn btn-ghost btn-sm" href="#info">Ver en Info</a></div></form>
+    </section>`;
+}
+function rulesAdmin(){
+  const rows=T.phases.filter(p=>p.bo).map(p=>{
+    const r=rulesOf(p.key), n=(k,min,max,lab)=>`<input type="number" id="a-ru-${p.key}-${k}" value="${r[k]}" min="${min}" max="${max}" style="width:84px" aria-label="${lab} en ${esc(p.nombre)}">`;
+    return `<tr><td>${esc(p.nombre)} <span class="muted">Bo${p.bo}</span></td><td>${n('bans',0,4,'Bans por jugador')}</td><td>${n('protects',0,2,'Protects por jugador')}</td><td>${n('banEvery',1,10,'Mapas entre tandas de bans')}</td><td>${n('pickTimer',0,300,'Segundos para elegir')}</td><td><button class="btn btn-ghost btn-sm" type="button" data-act="rules-set" data-round="${p.key}">Guardar</button></td></tr>`;
+  }).join('');
+  return `<p class="muted" style="font-size:.85rem">La página Arbitrar sigue estas reglas en cada ronda. Los bans van por tandas de uno por jugador en orden ABBA: la primera al empezar y cada siguiente tras jugarse los mapas indicados. Con 0 segundos no se pone temporizador para elegir. ${S.normas?'Las normas de Info están reescritas: si cambias algo aquí, cámbialo también allí.':'La pestaña Info se actualiza sola.'}</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Ronda</th><th>Bans por jugador</th><th>Protects por jugador</th><th>Mapas entre tandas</th><th>Segundos para elegir</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+/* ---------------- arbitraje ---------------- */
+// El estado llega por Server-Sent Events: el servidor lo manda cada vez que algo cambia (chat, roll, picks, resultado).
+const REF_STEP={roll:'Roll',order:'Orden de protects, bans y picks',protect:'Protects',ban:'Bans',pick:'Picks',play:'Jugando',tb:'Tiebreaker',done:'Partido terminado'};
+const REF_VERB={protect:'protege',ban:'banea',pick:'elige'};
+const IRC_URL='https://osu.ppy.sh/home/account/edit#legacy-api';
+let ES=null, R=null, lastRef='', refPending=false, refErr='';
+function refStream(on){
+  if(on&&!ES&&!DEMO&&S.me?.referee){
+    ES=new EventSource('/api/ref/events');
+    ES.onmessage=e=>{
+      const was=refErr; refErr='';
+      if(e.data===lastRef&&!was) return;
+      lastRef=e.data; R=JSON.parse(e.data);
+      if(currentView()!=='arbitrar') return;
+      const a=document.activeElement;
+      if(a?.tagName==='SELECT'&&app.contains(a)){refPending=true;return} // no cerrar un desplegable abierto
+      keepRender();
+    };
+    ES.onerror=()=>{
+      if(ES?.readyState===2){ES=null;refErr='Se ha cortado la conexión con la web. Recarga la página.'}else refErr='Reconectando con la web…';
+      if(currentView()==='arbitrar') keepRender();
+    };
+  }else if(!on&&ES){ES.close();ES=null;R=null;lastRef=''}
+}
+// Vuelve a dibujar la vista sin perder lo que se está escribiendo, el foco ni la posición del chat.
+// Vista previa de lo leído de una hoja: cada pool con su ronda de destino. Nada se guarda hasta pulsar Importar.
+function slotAdmin(){
+  const slots=S.qual.slots||[], edit=slots.find(x=>x.id===UI.slotEdit), names=new Map(S.players.map(p=>[p.id,p])), fase=T.phaseBy.qualifiers;
+  const taken=new Set(slots.flatMap(x=>x.players)), free=S.players.filter(p=>!taken.has(p.id));
+  const refs=(S.team||[]).filter(x=>x.role!=='staff');
+  const days=slots.length?qualDayTabs(slots,dayOf((slots.find(x=>T.NOW<x.time)||slots[0]).time)):null;
+  const row=x=>`<div class="qr"><div class="qr-id"><b>${esc(x.name)}</b><span class="muted num">${hora(x.time)}</span></div>
+      <div class="qs-p">${x.players.map(id=>`<span class="qs-n ${x.pending.includes(id)?'pend':''}">${esc(names.get(id)?.username||'ID '+id)}${x.pending.includes(id)?' <small>pendiente</small>':''}<button class="qs-x" type="button" data-act="qs-out" data-user="${id}" aria-label="Quitar del lobby">×</button></span>`).join('')||'<span class="muted" style="font-size:.85rem">Libre</span>'}</div>
+      <div class="qr-m muted"><span class="num">${x.players.length}/${x.size}</span>${x.mp?` · MP #${x.mp}`:''}</div>
+      <div class="qs-r"><select data-slot-ref="${x.id}" aria-label="Árbitro de ${esc(x.name)}"><option value="">Sin árbitro</option>${refs.map(r=>`<option value="${r.id}" ${r.id===x.ref_id?'selected':''}>${esc(r.username||'')}</option>`).join('')}</select>
+        <button class="btn btn-ghost btn-sm" type="button" data-act="qs-edit" data-id="${x.id}">Editar</button><button class="btn ${UI.slotDel===x.id?'btn-danger':'btn-ghost'} btn-sm" type="button" data-act="qs-del" data-id="${x.id}">${UI.slotDel===x.id?(x.players.length?`¿Quitar con ${x.players.length}?`:'¿Seguro?'):'Quitar'}</button></div></div>`;
+  const open=days?days.list.filter(x=>x.players.length<x.size):[];
+  return `<section class="card adm"><h3>Lobbies de clasificatorios</h3>
+    <p class="muted" style="font-size:.85rem">Crea la rejilla de lobbies y los jugadores se apuntan en la pestaña Qualis hasta la hora de cada uno. Allí los árbitros y admins aprueban o rechazan cada plaza, y los árbitros se piden sus lobbies, o se los asignas aquí. A quien añadas desde aquí ya queda aprobado. A la hora del lobby, el árbitro lo abre desde Arbitrar y la web invita a los aprobados.</p>
+    ${toReview()?`<p class="note">Hay ${toReview()} por revisar entre plazas y lobbies extraordinarios. <a href="#qualis">Revisar en Qualis</a></p>`:''}
+    <form class="f" data-form="qs-grid"><h4 style="margin:0">Crear la rejilla</h4>
+      <div class="row"><div class="field"><label for="a-gf">Primer día</label><input type="date" id="a-gf" value="${dayOf(fase.start)}"></div><div class="field"><label for="a-gt">Último día</label><input type="date" id="a-gt" value="${dayOf(fase.end)}"></div></div>
+      <div class="checks" role="group" aria-label="Días de la semana">${[['1','L'],['2','M'],['3','X'],['4','J'],['5','V'],['6','S'],['0','D']].map(([v,l])=>`<label><input type="checkbox" class="a-gw" value="${v}" checked>${l}</label>`).join('')}</div>
+      <div class="row"><div class="field" style="flex:1 1 260px"><label for="a-gh">Horas</label><input type="text" id="a-gh" value="15:00, 16:00, 17:00, 18:00, 19:00, 20:00, 21:00, 22:00, 23:00, 23:59"><span class="hint">Cada día es una letra y cada hora un número: A1, A2… B1, B2…</span></div>
+      <div class="field" style="flex:0 1 90px"><label for="a-gz">Plazas</label><input type="number" id="a-gz" min="1" max="16" value="8"></div></div>
+      <div><button class="btn btn-primary btn-sm" type="submit">Crear lobbies</button></div></form>
+    <form class="f" data-form="qs-save"><h4 style="margin:0">${edit?`Editar ${esc(edit.name)}`:'Un lobby suelto'}</h4><div class="row"><div class="field"><label for="a-sn">Nombre</label><input type="text" id="a-sn" data-keep="no" maxlength="30" placeholder="X1" value="${edit?esc(edit.name):''}"></div>
+      <div class="field"><label for="a-st">Fecha y hora (Madrid)</label><input type="datetime-local" id="a-st" data-keep="no" value="${edit?toLocalInput(edit.time,T.C.zona):''}"></div>
+      <div class="field" style="flex:0 1 90px"><label for="a-sz">Plazas</label><input type="number" id="a-sz" data-keep="no" min="1" max="16" value="${edit?edit.size:8}"></div></div>
+      <div class="qs-r"><button class="btn btn-ghost btn-sm" type="submit">${edit?'Guardar cambios':'Crear lobby'}</button>${edit?'<button class="btn btn-ghost btn-sm" type="button" data-act="qs-edit">Cancelar</button>':''}</div></form>
+    ${days?days.tabs+`<div class="qr-list">${days.list.map(row).join('')}</div>
+      <div><button class="btn btn-ghost btn-sm" type="button" data-act="qs-empty" data-day="${days.day}">${UI.slotEmpty===days.day?'¿Quitar los vacíos de este día?':'Quitar los vacíos de este día'}</button></div>
+      ${open.length&&free.length?`<form class="row" data-form="qs-add"><div class="field" style="flex:1 1 160px"><label for="a-qap">Añadir jugador</label><select id="a-qap">${free.map(p=>`<option value="${p.id}">${esc(p.username)}</option>`).join('')}</select></div><div class="field" style="flex:0 1 110px"><label for="a-qal">al lobby</label><select id="a-qal">${open.map(x=>`<option value="${x.id}">${esc(x.name)} · ${hora(x.time)}</option>`).join('')}</select></div><button class="btn btn-ghost btn-sm" type="submit">Añadir</button></form>`:''}
+      <p class="muted" style="font-size:.85rem">${free.length?`Sin lobby (${free.length}): ${free.map(p=>esc(p.username)).join(', ')}.`:'Todos los inscritos tienen lobby.'}</p>`:'<p class="muted">Ninguno todavía.</p>'}
+  </section>`;
+}
+const dayOf=ms=>toLocalInput(ms,T.C.zona).slice(0,10);
+// Pestañas por día de una lista de lobbies; devuelve las pestañas y los lobbies del día elegido.
+function qualDayTabs(slots,fallback){
+  const days=[...new Set(slots.map(x=>dayOf(x.time)))];
+  const day=days.includes(UI.qday)?UI.qday:days.includes(fallback)?fallback:days[0];
+  const list=slots.filter(x=>dayOf(x.time)===day);
+  const label=d=>dia(slots.find(x=>dayOf(x.time)===d).time);
+  return {day,list,tabs:`<div class="tabs" role="tablist">${days.map(d=>`<button class="tab" role="tab" type="button" data-qday="${d}" aria-selected="${d===day}">${esc(label(d))}</button>`).join('')}</div>`};
+}
+// Lobby extraordinario: lo que ve quien lo pide.
+function extraBlock(mineStarted){
+  const me=S.me, r=me?.qualRequest, fase=T.phaseBy.qualifiers, last=fase.end-30*60e3;
+  if(!me?.registered||mineStarted||T.NOW>last) return '';
+  const note=r?.note?` <span class="muted">Motivo: ${esc(r.note)}</span>`:'';
+  if(r?.status==='pending') return `<div class="card f" id="qx-card"><h3>Lobby extraordinario</h3><p>Has pedido un lobby el <b>${dia(r.time)} a las ${hora(r.time)}</b>. Un árbitro o admin tiene que aceptarlo.${note}</p><div><button class="btn btn-ghost btn-sm" type="button" data-act="qx-cancel">Cancelar la solicitud</button></div></div>`;
+  return `<form class="card f" id="qx-card" style="max-width:none" data-form="qx-ask"><h3>Lobby extraordinario</h3>
+    <p class="muted">Si no te viene bien ninguna hora, propón otra. Un árbitro o admin lo revisará. Si lo acepta y ya estabas en un lobby, pasas al nuevo.</p>
+    ${r?.status==='rejected'?`<p class="note bad">Han rechazado tu solicitud para el ${dia(r.time)} a las ${hora(r.time)}.${r.reason?` Motivo: ${esc(r.reason)}.`:''} Puedes proponer otra hora.</p>`:''}
+    <div class="row"><div class="field"><label for="q-xt">Fecha y hora (Madrid)</label><input type="datetime-local" id="q-xt" min="${toLocalInput(Math.max(T.NOW,fase.start),T.C.zona)}" max="${toLocalInput(last,T.C.zona)}"></div>
+    <div class="field" style="flex:1 1 240px"><label for="q-xn">Motivo (opcional)</label><input type="text" id="q-xn" maxlength="200"></div></div>
+    <div><button class="btn btn-ghost btn-sm" type="submit">Solicitar lobby extraordinario</button></div></form>`;
+}
+// Plazas por aprobar de los lobbies que aún no han empezado.
+const pendingSeats=()=>S.me?.referee?(S.qual.slots||[]).filter(x=>T.NOW<x.time).flatMap(x=>x.pending.map(id=>({id,slot:x}))):[];
+const toReview=()=>pendingSeats().filter(x=>x.id!==S.me.id).length+(S.qualRequests||[]).filter(r=>r.user_id!==S.me?.id).length;
+function seatRequests(){
+  const list=pendingSeats(), names=new Map(S.players.map(p=>[p.id,p]));
+  if(!list.length) return '';
+  const row=({id,slot:x})=>`<div class="qx"><div><b>${esc(names.get(id)?.username||'ID '+id)}</b> pide plaza en <b>${esc(x.name)}</b>, el ${dia(x.time)} a las ${hora(x.time)} <span class="muted num">· ${x.players.length}/${x.size}</span></div>
+    ${id===S.me.id?'<p class="muted">Es tu plaza: la aprueba otra persona.</p>':`<div class="row"><div class="field" style="flex:1 1 200px"><label for="qa-r${id}">Motivo, si la rechazas</label><input type="text" id="qa-r${id}" maxlength="200"></div></div>
+      <div class="qs-r"><button class="btn btn-primary btn-sm" type="button" data-act="qa-approve" data-user="${id}">Aprobar</button><button class="btn btn-ghost btn-sm" type="button" data-act="qa-reject" data-user="${id}">Rechazar</button></div>`}</div>`;
+  return `<div class="card f"><h3>Plazas por aprobar (${list.length})</h3>${list.map(row).join('')}</div>`;
+}
+// Y lo que ven los árbitros y admins para responder.
+function extraRequests(){
+  const list=S.qualRequests||[];
+  if(!list.length) return '';
+  const row=r=>`<div class="qx"><div><b>${esc(r.username)}</b> propone el <b>${dia(r.time)} a las ${hora(r.time)}</b>${r.lobby?` <span class="muted">· ahora en ${esc(r.lobby)}</span>`:''}${r.note?`<p class="muted" style="margin:4px 0 0">${esc(r.note)}</p>`:''}</div>
+    ${r.user_id===S.me.id?'<p class="muted">Es tu solicitud: la responde otra persona.</p>':`<div class="row"><div class="field" style="flex:0 1 220px"><label for="qx-t${r.user_id}">Hora del lobby</label><input type="datetime-local" id="qx-t${r.user_id}" value="${toLocalInput(r.time,T.C.zona)}"></div>
+      <div class="field" style="flex:1 1 200px"><label for="qx-r${r.user_id}">Motivo, si la rechazas</label><input type="text" id="qx-r${r.user_id}" maxlength="200"></div></div>
+      <div class="qs-r"><button class="btn btn-primary btn-sm" type="button" data-act="qx-accept" data-user="${r.user_id}" data-arb="1">Aceptar y arbitrar</button><button class="btn btn-ghost btn-sm" type="button" data-act="qx-accept" data-user="${r.user_id}">Aceptar sin arbitrar</button><button class="btn btn-ghost btn-sm" type="button" data-act="qx-reject" data-user="${r.user_id}">Rechazar</button></div>`}</div>`;
+  return `<div class="card f"><h3>Solicitudes de lobby extraordinario (${list.length})</h3>${list.map(row).join('')}</div>`;
+}
+const ROLE_TXT={host:'Host',admin:'Admin',referee:'Árbitro',staff:'Staff'};
+function roleAdmin(){
+  const opts=sel=>['admin','referee','staff'].map(r=>`<option value="${r}" ${r===sel?'selected':''}>${ROLE_TXT[r]}</option>`).join('');
+  return `<section class="card adm"><h3>Roles</h3>
+    <p class="muted" style="font-size:.85rem"><b>Admin:</b> todo este panel y Arbitrar; ve las mappools antes de publicarse, así que no conviene que juegue. <b>Árbitro:</b> la página Arbitrar. <b>Staff:</b> sale en el equipo del torneo, en Info, y ve las mappools antes de publicarse, así que tampoco conviene que juegue. Solo el host cambia los roles.</p>
+    <form class="f" data-form="role"><div class="row"><div class="field"><label for="a-ru">Usuario</label><input type="text" id="a-ru" placeholder="Nombre, ID o enlace de osu!"></div>
+      <div class="field" style="flex:0 1 130px"><label for="a-rr">Rol</label><select id="a-rr">${opts('referee')}</select></div><button class="btn btn-primary btn-sm" type="submit">Guardar</button></div></form>
+    <div class="mini">${(S.team||[]).map(x=>`<div class="it"><span>${esc(x.username||'')} · ID ${x.id}</span>${x.role==='host'?'<b style="font-size:.85rem">Host</b>':`<span class="qs-r"><select data-role-id="${x.id}" aria-label="Rol de ${esc(x.username||'')}">${opts(x.role)}</select><button class="btn btn-ghost btn-sm" type="button" data-act="role-del" data-id="${x.id}">Quitar</button></span>`}</div>`).join('')}</div>
+  </section>`;
+}
+function poolPreview(rounds){
+  const R=UI.poolRead, busy=UI.poolBusy, chosen=R.groups.filter(g=>g.round&&g.status!=='ok');
+  const roundName=k=>rounds.find(p=>p.key===k)?.nombre||k;
+  const list=(items,cls)=>items.length?`<div class="note ${cls}" style="font-size:.85rem">${items.map(esc).join('<br>')}</div>`:'';
+  const cards=R.groups.map((g,i)=>{
+    const has=g.round&&g.status!=='ok'?(S.pools[g.round]||[]).length:0;
+    const opts=rounds.map(p=>{const other=R.groups.some((o,j)=>j!==i&&o.round===p.key&&o.status!=='ok');return `<option value="${p.key}" ${p.key===g.round?'selected':''} ${other?'disabled':''}>${esc(p.nombre)}${other?' (ya elegida)':''}</option>`}).join('');
+    return `<div class="pv ${g.status==='ok'?'ok':''}">
+      <div class="pv-h"><div><b>${esc(g.name)}</b><div class="muted" style="font-size:.8rem">${g.sheet?`Pestaña ${esc(g.sheet)} · `:''}${g.maps.length} mapas</div></div>
+        ${g.status==='ok'?`<b class="pv-done">Importada en ${esc(roundName(g.round))}</b>`:`<div class="field"><label for="a-pv${i}">Importar en</label><select id="a-pv${i}" data-pv="${i}" data-keep="no" ${busy?'disabled':''}><option value="">No importar</option>${opts}</select></div>`}</div>
+      <div class="pv-slots">${g.maps.map(m=>`<span class="slot ${m.slot.slice(0,2)}">${esc(m.slot)}</span>`).join(' ')}</div>
+      ${has?`<div class="muted" style="font-size:.82rem">${esc(roundName(g.round))} ya tiene ${has} mapas: se sustituirán.</div>`:''}
+      ${list(g.error?[g.error]:[],'bad')}${list(g.errors,'bad')}${list(g.warnings,'')}${list(g.result||[],'')}
+      <button class="btn btn-ghost btn-sm" type="button" data-act="pv-open" data-i="${i}">${g.open?'Ocultar mapas':'Ver mapas'}</button>
+      ${g.open?`<div class="mini">${g.maps.map(m=>`<div class="it"><span><span class="slot ${m.slot.slice(0,2)}">${esc(m.slot)}</span> ${esc(m.text||'(sin título en la hoja)')}</span><a class="mono" href="https://osu.ppy.sh/b/${m.beatmap}" target="_blank" rel="noopener">${m.beatmap}</a></div>`).join('')}</div>`:''}
+    </div>`}).join('');
+  const done=R.groups.some(g=>g.status==='ok');
+  return `<div class="adm">
+    ${R.file?`<div class="muted" style="font-size:.85rem">Leído de <b>${esc(R.file)}</b>.</div>`:''}
+    ${list(R.notes,'')}
+    ${cards}
+    ${busy?`<div class="note" style="font-size:.85rem">${esc(busy)} Se pide cada mapa a osu!: puede tardar hasta un minuto por ronda.</div>`:''}
+    <div class="row" style="display:flex;gap:8px;flex-wrap:wrap">
+      ${chosen.length||!done?`<button class="btn btn-primary btn-sm" type="button" data-act="pv-import" ${busy||!chosen.length?'disabled':''}>${chosen.length?`Importar ${chosen.length} ${chosen.length===1?'ronda':'rondas'}`:'Elige una ronda'}</button>`:''}
+      <button class="btn btn-ghost btn-sm" type="button" data-act="pv-close" ${busy?'disabled':''}>${done?'Terminar':'Descartar'}</button>
+    </div></div>`;
+}
+async function poolRead(data,file){
+  UI.poolBusy='Leyendo…';UI.flash=null;keepRender();
+  try{
+    const r=await post('/api/admin/pool/read',data);
+    r.groups.forEach(g=>{g.round=g.suggest||'';g.status=''});
+    r.file=file||'';UI.poolRead=r;UI.poolText='';
+  }catch(e){UI.flash={ok:false,text:e.message}}
+  UI.poolBusy=null;keepRender();
+}
+async function poolImport(){
+  const R=UI.poolRead, todo=R.groups.filter(g=>g.round&&g.status!=='ok');
+  let n=0,failed=0;
+  for(const g of todo){
+    UI.poolBusy=`Importando ${g.name} (${++n} de ${todo.length})…`;g.error=null;g.result=null;keepRender();
+    try{
+      const r=await post('/api/admin/pool/import',{round:g.round,maps:g.maps.map(({slot,beatmap,text})=>({slot,beatmap,text}))});
+      g.status='ok';g.result=r.warnings;
+    }catch(e){g.error=e.message;failed++}
+  }
+  UI.poolBusy=null;
+  UI.flash={ok:!failed,text:failed?`Se importaron ${todo.length-failed} de ${todo.length} rondas. Las demás se han quedado como estaban: mira el motivo en cada una.`:`Importadas ${todo.length} ${todo.length===1?'ronda':'rondas'}. Revisa los avisos, si los hay.`};
+  await load();
+}
+
+function keepRender(){
+  const ae=document.activeElement, fid=ae&&app.contains(ae)?ae.id:null;
+  let sel=null; try{if(fid&&ae.selectionStart!=null) sel=[ae.selectionStart,ae.selectionEnd]}catch(_){}
+  const vals={}; app.querySelectorAll('input[id],select[id],textarea[id]').forEach(e=>{if(e.dataset.keep!=='no') vals[e.id]=e.type==='checkbox'?e.checked:e.value});
+  const logs=[...app.querySelectorAll('.rlog[id]')].map(e=>({id:e.id,end:e.scrollHeight-e.scrollTop-e.clientHeight<30,top:e.scrollTop}));
+  const y=scrollY;
+  render();
+  for(const [id,v] of Object.entries(vals)){const e=document.getElementById(id);if(!e) continue;if(e.type==='checkbox') e.checked=v;else if(e.tagName!=='SELECT'||[...e.options].some(o=>o.value===v)) e.value=v}
+  logs.forEach(l=>{const e=document.getElementById(l.id);if(e) e.scrollTop=l.end?e.scrollHeight:l.top});
+  if(fid){const e=document.getElementById(fid);if(e){e.focus({preventScroll:true});if(sel) try{e.setSelectionRange(...sel)}catch(_){}}}
+  scrollTo(0,y);
+}
+async function refAct(path,data,okText,then){
+  UI.flash=null;
+  let ok=true;
+  try{const r=await post(path,data);if(then) then(r);UI.flash=okText?{ok:true,text:typeof okText==='function'?okText(r):okText}:null}
+  catch(e){ok=false;UI.flash={ok:false,text:e.message}}
+  keepRender();
+  return ok;
+}
+const logLine=x=>`<p class="${x.own?'me':x.from==='BanchoBot'?'bb':x.from==='web'?'web':''}"><span class="tm">${hora(x.at)}</span> <b>${esc(x.from)}</b> ${esc(x.text)}</p>`;
+function refConn(){
+  const I=R.irc;
+  if(I.status==='connected') return `<div class="card rconn"><span class="pill good">Conectado a Bancho como ${esc(I.nick)}</span><span class="muted" style="font-size:.85rem">La web manda los comandos !mp desde tu cuenta.</span><button class="btn btn-ghost btn-sm" type="button" data-act="ref-off">Desconectar</button>
+    ${R.log.length?`<details style="flex-basis:100%"><summary class="muted" style="font-size:.85rem;cursor:pointer">Mensajes privados (${R.log.length})</summary><div class="rlog sm">${R.log.map(logLine).join('')}</div></details>`:''}</div>`;
+  if(I.status==='connecting'||I.status==='reconnecting') return `<div class="card rconn"><span class="pill tbd">${I.status==='connecting'?'Conectando con Bancho…':'Reconectando con Bancho…'}</span></div>`;
+  return `<div class="card adm"><h3>Conectar con Bancho</h3>
+    ${I.error?`<div class="flash err">${esc(I.error)}</div>`:''}
+    <p class="muted" style="font-size:.88rem">Para que la web cree el lobby y mande los comandos <code>!mp</code> por ti, conecta tu cuenta de osu! (${esc(S.me.username)}) al chat de osu! con tu <b>contraseña IRC</b>. No es la contraseña de tu cuenta: está en <a href="${IRC_URL}" target="_blank" rel="noopener">osu! → Ajustes de la cuenta → Legacy API → IRC</a>.</p>
+    <form class="row" data-form="ref-conn"><div class="field"><label for="r-pass">Contraseña IRC</label><input type="password" id="r-pass" autocomplete="off" spellcheck="false"></div><button class="btn btn-primary btn-sm" type="submit">Conectar</button></form>
+    <p class="muted" style="font-size:.8rem">La contraseña solo está en la memoria del servidor mientras estás conectado (ni en la base de datos ni en los registros) y se olvida al desconectar, al cerrar sesión o tras 3 horas sin usar esta página. Sin conectar puedes apuntar igualmente el roll, los protects, los bans y los picks; los comandos los escribes tú en osu!.</p>
+  </div>`;
+}
+function lobbyBar(l){
+  const pl=[...l.players].sort((a,b)=>a.slot-b.slot).map(p=>`<span class="rp ${p.team?'t-'+p.team:''}" title="Slot ${p.slot}${p.team?' · '+(p.team==='red'?'rojo':'azul'):''}">${esc(p.name)}</span>`).join('')||'<span class="muted" style="font-size:.85rem">Nadie en el lobby todavía</span>';
+  const map=l.map?`${l.map.slot?`<span class="slot ${esc(l.map.slot.slice(0,2))}">${esc(l.map.slot)}</span>`:'<span class="pill">Warmup</span>'} <a href="https://osu.ppy.sh/b/${l.map.bid}" target="_blank" rel="noopener">b/${l.map.bid}</a>`:'<span class="muted">Sin mapa</span>';
+  const st=l.playing?'<span class="pill live">Jugando</span>':l.waiting?'<span class="pill tbd">Esperando el resultado de osu!…</span>':'';
+  const f=l.kind==='match'?R.flows[l.key]:null;
+  return `<div class="rlob"><div class="row" style="align-items:center"><b>Lobby <a href="${mpUrl(l.mp)}" target="_blank" rel="noopener">#${esc(l.mp)}</a></b>${st}<span>${map}</span></div>
+    <div class="rpl">${pl}</div>
+    ${l.scores.length?`<div class="mt-meta">${l.scores.map(x=>`<span>${esc(x.name)}: <b class="num">${nf.format(x.score)}</b>${x.passed?'':' (fail)'}</span>`).join('')}</div>`:''}
+    <div class="row">
+      <button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="start">Empezar (5 s)</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="abort">Abortar</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="timer" data-seconds="90">Temporizador 90 s</button>
+      ${f?`<button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="invite" data-names="${esc(f.a.username)},${esc(f.b.username)}">Invitar otra vez</button>`:''}
+      <button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="settings">!mp settings</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="resync">Releer el MP</button>
+      <button class="btn btn-danger btn-sm" type="button" data-act="ref-close">Cerrar lobby</button>
+    </div>
+    ${f?`<span class="checks"><label><input type="checkbox" id="r-cp" data-keep="no" ${l.chatPicks?'checked':''}>Aceptar los mapas que escriben los jugadores en el chat (NM2, HD1…)</label></span>`:''}
+  </div>`;
+}
+function logCard(l){
+  return `<div class="card adm"><h3>Chat del lobby</h3>
+    <div class="rlog" id="rlog-${esc(l.mp)}" aria-live="polite">${l.log.map(logLine).join('')}</div>
+    <form class="row" data-form="ref-chat"><input type="text" id="r-chat" maxlength="300" placeholder="Mensaje o comando (!mp …)" style="flex:1 1 240px" autocomplete="off" aria-label="Mensaje para el lobby"><button class="btn btn-primary btn-sm" type="submit">Enviar</button></form>
+    <form class="row" data-form="ref-wu"><input type="text" id="r-wu" placeholder="Warmup: enlace o ID de la dificultad" style="flex:1 1 240px" aria-label="Warmup"><button class="btn btn-ghost btn-sm" type="submit">Poner warmup</button></form>
+  </div>`;
+}
+function refMatch(f){
+  const l=R.lobbies.find(x=>x.key===f.id&&!x.closed), on=R.irc.status==='connected', pool=R.pools[f.round];
+  const n=s=>esc(f[s]?.username||String(s).toUpperCase());
+  const mapsBy=Object.fromEntries(f.maps.map(x=>[x.slot,x]));
+  const head=`<div class="rhead"><div><span class="eyebrow">${esc(f.label)} · Bo${f.need*2-1}</span><div class="rsc"><span class="ta">${n('a')}</span><span class="num">${f.score.a}</span><i>–</i><span class="num">${f.score.b}</span><span class="tb">${n('b')}</span></div></div>
+    <div class="mt-meta">${f.mp?`<a href="${mpUrl(f.mp)}" target="_blank" rel="noopener">MP #${f.mp}</a>`:'<span>Sin MP todavía</span>'}${f.ref?`<span>Árbitro: ${esc(f.ref)}</span>`:''}${f.time?`<span>${dia(f.time)} · ${hora(f.time)}</span>`:''}</div></div>`;
+  let lob;
+  if(!on) lob=`<p class="muted" style="font-size:.85rem">Sin conexión a Bancho: los botones solo apuntan cada paso.${f.mp?'':` Crea el lobby en osu! con <code>!mp make ${esc(T.C.sigla)}: (${n('a')}) vs (${n('b')})</code> y pega el MP en Admin.`}</p>`;
+  else if(!l) lob=`<div class="row" style="align-items:center">${f.step==='done'?'':`<button class="btn btn-primary btn-sm" type="button" data-act="ref-lobby">Crear el lobby</button>`}${f.mp?`<button class="btn btn-ghost btn-sm" type="button" data-act="ref-attach" data-key="${f.id}">Volver a entrar al MP #${f.mp}</button>`:''}${f.mp&&f.maps.length&&f.step!=='done'?'<span class="checks"><label><input type="checkbox" id="r-replace">Sustituir el MP anterior</label></span>':''}</div>
+    ${f.step==='done'?'':`<p class="muted" style="font-size:.8rem">Al crearlo, la web pone TeamVS y ScoreV2, invita a los dos jugadores y los coloca en rojo (${n('a')}) y azul (${n('b')}).</p>`}`;
+  else lob=lobbyBar(l);
+
+  const turn=['protect','ban','pick'].includes(f.step), force=UI.refForce;
+  let step='';
+  if(f.noPool) step='<p class="note">Esta ronda aún no tiene mappool en la web: añádela en Admin.</p>';
+  else if(pool===null) step='<p class="note">La mappool de esta ronda todavía no es pública.</p>';
+  else if(f.step==='roll') step=`<p>${l?'Esperando el <code>!roll</code> de los dos jugadores: la web lo lee sola y repite si empatan. Si lo prefieres, apúntalo a mano:':'¿Quién ha ganado el roll?'}</p><div class="row"><button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="roll" data-winner="a">Gana ${n('a')}</button><button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="roll" data-winner="b">Gana ${n('b')}</button></div>`;
+  else if(f.step==='order') step=`<p>${f.roll?.a!=null?`Roll: ${n('a')} ${f.roll.a} – ${f.roll.b} ${n('b')}. `:''}<b class="${f.by==='a'?'ta':'tb'}">${n(f.by)}</b> ha ganado el roll y elige el orden.</p>
+    <form class="row" data-form="ref-order">${[['protect','Protege primero'],['ban','Banea primero'],['pick','Elige primero (First Pick)']].map(([k,t])=>`<div class="field"><label for="r-o-${k}">${t}</label><select id="r-o-${k}"><option value="a" ${f.by==='a'?'selected':''}>${n('a')}</option><option value="b" ${f.by==='b'?'selected':''}>${n('b')}</option></select></div>`).join('')}<button class="btn btn-primary btn-sm" type="submit">Guardar el orden</button></form>`;
+  else if(turn) step=`<p>Turno de <b class="${f.by==='a'?'ta':'tb'}">${n(f.by)}</b>: ${REF_VERB[f.step]} un mapa${f.step==='ban'?` (tanda ${Math.floor(f.bans.length/2)+1} de ${f.rules.bans})`:''}. ${l&&l.chatPicks?'Puede escribirlo en el chat del lobby, o púlsalo aquí.':'Púlsalo aquí.'}</p>`;
+  else if(f.step==='play') step=`<p>Se está jugando <span class="slot ${esc(f.current.slice(0,2))}">${esc(f.current)}</span>${f.by?` (elige ${n(f.by)})`:''}. ${l?'El mapa empieza solo cuando los dos están listos. Al terminar, la web lee el resultado de osu! y sigue sola.':'Cuando acabe, pulsa «Releer el MP» en Admin o espera a la actualización automática.'}</p>`;
+  else if(f.step==='tb') step=`<p><b>Empate a ${f.score.a}.</b> Toca el tiebreaker (FreeMod).</p><div><button class="btn btn-primary btn-sm" type="button" data-act="ref-do" data-type="tb">Poner el TB</button></div>`;
+  else if(f.step==='done') step=`<p><b class="${f.winner==='a'?'ta':'tb'}">${n(f.winner)}</b> gana ${f.ff?'por forfeit':`${f.score[f.winner]} – ${f.score[f.winner==='a'?'b':'a']}`}.${l?' Cierra el lobby cuando acabéis.':''}</p>`;
+
+  const grid=pool&&(turn||force)?`<div class="rpool">${pool.filter(p=>p.slot!=='TB').map(p=>{
+    const why=turn?f.allowed?.[p.slot]||'':'';
+    const r=mapsBy[p.slot], tag=f.protects.some(x=>x.slot===p.slot)?'Protegido':f.bans.some(x=>x.slot===p.slot)?'Baneado':r?`Gana ${n(r.w)}`:f.picks.some(x=>x.slot===p.slot)?'Elegido':'';
+    return `<button type="button" data-act="ref-do" data-type="${turn?f.step:'pick'}" data-slot="${esc(p.slot)}" ${why&&!force?'disabled':''} title="${esc(why||p.title)}"><span class="slot ${esc(p.slot.slice(0,2))}">${esc(p.slot)}</span><span class="t">${esc(p.title)}</span><small>${esc(why||tag||p.sr+'★')}</small></button>`;
+  }).join('')}</div>`:'';
+  const forceSel=force?`<div class="row"><div class="field"><label for="r-ftype">Apuntar</label><select id="r-ftype">${[['protect','Protect'],['ban','Ban'],['pick','Pick']].map(([k,t])=>`<option value="${k}" ${k===(turn?f.step:'pick')?'selected':''}>${t}</option>`).join('')}</select></div><div class="field"><label for="r-by">Jugador</label><select id="r-by"><option value="a" ${f.by!=='b'?'selected':''}>${n('a')}</option><option value="b" ${f.by==='b'?'selected':''}>${n('b')}</option></select></div></div><p class="muted" style="font-size:.8rem">Así se apunta cualquier mapa sin comprobar el turno ni las reglas. Úsalo solo para corregir.</p>`:'';
+  const any=f.roll||f.order||f.protects.length||f.bans.length||f.picks.length;
+  const tools=f.noPool||pool===null?'':`<div class="row" style="align-items:center"><button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="undo" ${any?'':'disabled'}>Deshacer el último paso</button>${f.step!=='done'?`<span class="checks"><label><input type="checkbox" id="r-force" data-keep="no" ${force?'checked':''}>Apuntar a mano (saltarse las reglas)</label></span>`:''}</div>`;
+
+  const side=x=>x.by==='a'?'wa':x.by==='b'?'wb':'';
+  const chips=(list,cls)=>list.map(x=>`<span class="slot ${esc(x.slot.slice(0,2))} ${cls} ${side(x)}" title="${n(x.by)}">${esc(x.slot)}</span>`).join('');
+  const tl=`<div class="picks">${f.roll?`<span class="lbl">Roll</span><span style="font-size:.85rem">${f.roll.a!=null?`${f.roll.a} – ${f.roll.b} · `:''}gana ${n(f.roll.winner)}</span>`:''}${f.protects.length?`<span class="lbl">Protects</span>${chips(f.protects,'')}`:''}${f.bans.length?`<span class="lbl">Bans</span>${chips(f.bans,'ban')}`:''}${f.picks.length?`<span class="lbl">Picks</span>${chips(f.picks,'')}`:''}</div>`;
+  const table=f.maps.length?`<div class="tbl-wrap"><table><thead><tr><th>Mapa</th><th class="n">${n('a')}</th><th class="n">${n('b')}</th><th>Gana</th></tr></thead><tbody>${f.maps.map(x=>`<tr><td><span class="slot ${esc(x.slot.slice(0,2))}">${esc(x.slot)}</span></td><td class="n">${x.a!=null?nf.format(x.a):'—'}</td><td class="n">${x.b!=null?nf.format(x.b):'—'}</td><td class="${x.w==='a'?'ta':'tb'}">${n(x.w)}</td></tr>`).join('')}</tbody></table></div>`:'';
+  return `<div class="card adm">${head}${lob}</div>
+    <div class="card adm rstep"><h3>${REF_STEP[f.step]||''}</h3>${flashHtml()}${step}${forceSel}${grid}${tools}</div>
+    ${any||f.maps.length?`<div class="card adm"><h3>Resumen <span class="muted" style="font-size:.8rem;font-weight:500">Subrayado: <span class="ta">${n('a')}</span> · <span class="tb">${n('b')}</span></span></h3>${tl}${table}</div>`:''}
+    ${l?logCard(l):''}`;
+}
+function refQual(l){
+  const pool=R.pools.qualifiers||[], played=new Set(l.played||[]), next=pool.find(p=>!played.has(p.slot));
+  return `<div class="card adm"><div class="rhead"><div><span class="eyebrow">Clasificatorios</span><h3>${esc(l.name)}</h3></div><div class="mt-meta"><a href="${mpUrl(l.mp)}" target="_blank" rel="noopener">MP #${esc(l.mp)}</a><span>${l.players.length} en el lobby</span></div></div>
+      ${flashHtml()}${lobbyBar(l)}
+      <form class="row" data-form="ref-inv"><div class="field" style="flex:1 1 260px"><label for="r-inv">Invitar</label><input type="text" id="r-inv" placeholder="nombre1, nombre2, …"></div><button class="btn btn-ghost btn-sm" type="submit">Invitar</button></form>
+      ${R.slots.some(x=>String(x.mp)===String(l.mp))?'<div><button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="qinvite">Invitar a los aprobados que falten</button></div>':''}
+    </div>
+    <div class="card adm rstep"><h3>Mappool</h3>
+      <p>${next?`Siguiente: <b>${esc(next.slot)}</b>. Al terminar cada mapa, la web pone el siguiente; para repetir uno, púlsalo.`:'Ya se han jugado todos los mapas.'}</p>
+      ${next?`<div><button class="btn btn-primary btn-sm" type="button" data-act="ref-do" data-type="qmap" data-slot="${esc(next.slot)}">${played.size?'Poner '+esc(next.slot):'Empezar la mappool ('+esc(next.slot)+')'}</button></div>`:''}
+      <div class="rpool">${pool.map(p=>`<button type="button" data-act="ref-do" data-type="qmap" data-slot="${esc(p.slot)}" title="${esc(p.title)}"><span class="slot ${esc(p.slot.slice(0,2))}">${esc(p.slot)}</span><span class="t">${esc(p.title)}</span><small>${played.has(p.slot)?'Jugado · poner otra vez':'Poner'}</small></button>`).join('')}</div>
+    </div>
+    ${logCard(l)}`;
+}
+
+function relAdmin(){
+  const rows=T.phases.filter(p=>p.key!=='registros').map(p=>{
+    const r=S.releases?.[p.key]||{at:0,set:false}, n=(S.pools[p.key]||[]).length, pub=r.at<=T.NOW;
+    const st=pub?'<span class="pill good">Pública</span>':`<span class="pill tbd">Oculta hasta el ${dia(r.at)} · ${hora(r.at)}</span>${r.set?'':' <span class="muted">(día del showcase)</span>'}`;
+    return `<tr><td>${esc(p.nombre)}</td><td class="n">${n}</td><td>${st}</td><td><div class="row" style="flex-wrap:nowrap"><input type="datetime-local" id="a-rel-${p.key}" value="${toLocalInput(r.at,T.C.zona)}" aria-label="Publicar ${esc(p.nombre)} el"><button class="btn btn-ghost btn-sm" type="button" data-act="rel-set" data-round="${p.key}">Programar</button>${pub?'':`<button class="btn btn-ghost btn-sm" type="button" data-act="rel-now" data-round="${p.key}" data-name="${esc(p.nombre)}">Publicar ya</button>`}</div></td></tr>`;
+  }).join('');
+  return `<p class="muted" style="font-size:.85rem">Sube las mappools cuando quieras: hasta la hora de publicación solo las ve la organización. Sin hora programada, se publican a las 00:00 del día del showcase. La web las muestra sola a la hora indicada.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Ronda</th><th class="n">Mapas</th><th>Estado</th><th>Publicar el (hora de Madrid)</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+// Directo en Twitch. La ventana está fuera de #app para que el reproductor no se recargue con cada actualización:
+// solo se vuelve a dibujar si cambia el directo o lo que se muestra (tarjeta, reproductor o cerrada).
+let liveKey='';
+const liveClosed=id=>{try{return sessionStorage.getItem('spisix-live-closed')===id}catch(_){return false}};
+function renderLive(){
+  const L=S.twitch?.live, box=document.getElementById('live'), pill=document.getElementById('livePill');
+  pill.hidden=!L;
+  if(!L){box.hidden=true;box.innerHTML='';liveKey='';UI.liveId=null;return}
+  if(UI.liveId!==L.id){UI.liveId=L.id;UI.live=liveClosed(L.id)?'closed':'card'}
+  if(UI.live==='player'&&innerWidth<=640) UI.live='card';
+  const ch=S.twitch.channel, url='https://www.twitch.tv/'+encodeURIComponent(ch);
+  const key=UI.live==='player'?`player|${L.id}`:`${UI.live}|${L.id}|${L.viewers}|${L.title}|${Math.floor(nowMs()/300e3)}`;
+  pill.title=L.title; pill.setAttribute('aria-expanded',String(UI.live!=='closed'));
+  if(key===liveKey) return;
+  liveKey=key;
+  box.hidden=UI.live==='closed';
+  box.classList.toggle('player',UI.live==='player');
+  if(UI.live==='closed'){box.innerHTML='';return}
+  const viewers=`${nf.format(L.viewers)} ${L.viewers===1?'espectador':'espectadores'}`;
+  if(UI.live==='player'){
+    box.innerHTML=`<div class="lv-bar"><span class="pill live">En directo</span><b title="${esc(L.title)}">${esc(L.title||ch)}</b><a href="${url}" target="_blank" rel="noopener">Twitch ↗</a><button class="lv-x" type="button" data-live="card" aria-label="Minimizar">–</button><button class="lv-x" type="button" data-live="close" aria-label="Cerrar">×</button></div>
+      <iframe src="https://player.twitch.tv/?channel=${encodeURIComponent(ch)}&parent=${encodeURIComponent(location.hostname)}&muted=true&autoplay=true" allowfullscreen title="Directo de ${esc(ch)} en Twitch"></iframe>`;
+    return;
+  }
+  // La miniatura de Twitch se renueva cada pocos minutos: se pide otra cada 5.
+  const thumb=L.thumbnail?`<img src="${esc(L.thumbnail)}?t=${Math.floor(nowMs()/300e3)}" alt="" loading="lazy">`:'';
+  box.innerHTML=`<button class="lv-x" type="button" data-live="close" aria-label="Cerrar">×</button>
+    <a class="lv-thumb" href="${url}" target="_blank" rel="noopener" aria-label="Abrir el directo en Twitch">${thumb}<span class="pill live">En directo</span></a>
+    <div class="lv-b"><span class="lv-t">${esc(L.title||'Directo de '+ch)}</span><span class="muted" style="font-size:.8rem">${esc(ch)}${L.game?' · '+esc(L.game):''} · ${viewers}</span>
+      <div class="row"><button class="btn btn-primary btn-sm lv-play" type="button" data-live="player">Ver aquí</button><a class="btn btn-ghost btn-sm" href="${url}" target="_blank" rel="noopener">Abrir en Twitch</a></div></div>`;
+}
+function liveAction(to){
+  if(to==='close'){try{sessionStorage.setItem('spisix-live-closed',UI.liveId)}catch(_){}}
+  else{try{sessionStorage.removeItem('spisix-live-closed')}catch(_){}}
+  UI.live=to==='close'?'closed':to; renderLive();
+}
+document.getElementById('live').addEventListener('click',e=>{const b=e.target.closest('[data-live]');if(b) liveAction(b.dataset.live)});
+document.getElementById('livePill').addEventListener('click',()=>liveAction(UI.live==='closed'?'card':'close'));
+const NAV=[['inicio','Inicio'],['info','Info'],['jugadores','Jugadores'],['mappool','Mappool'],['partidos','Partidos'],['cuadro','Cuadro'],['stats','Stats'],['qualis','Qualis'],['registro','Registro'],['arbitrar','Arbitrar'],['admin','Admin']];
+
+/* ---------------- render ---------------- */
+const app=document.getElementById('app');
+let timer=null, relTimer=null;
+function currentView(){const h=location.hash.slice(1);if(h==='admin'&&!S.me?.admin||h==='arbitrar'&&!S.me?.referee) return 'inicio';return VIEWS[h]?h:'inicio'}
+function render(){
+  T=compute();
+  document.title=T.C.nombre;
+  document.querySelector('.brand .full').textContent=T.C.nombre;
+  const v=currentView();
+  document.getElementById('nav').innerHTML=NAV.filter(([k])=>(k!=='admin'||S.me?.admin)&&(k!=='arbitrar'||S.me?.referee)).map(([k,l])=>`<a href="#${k}" ${k===v?'aria-current="page"':''}>${l}${k==='qualis'&&toReview()?` (${toReview()})`:''}</a>`).join('');
+  // Con muchas pestañas la barra se desplaza: que se vea la activa.
+  const showTab=()=>{const nav=document.getElementById('nav'), cur=nav.querySelector('[aria-current]');if(!cur) return;
+    const r=cur.getBoundingClientRect(), nr=nav.getBoundingClientRect();if(r.right>nr.right) nav.scrollLeft+=r.right-nr.right+8;else if(r.left<nr.left) nav.scrollLeft-=nr.left-r.left+8};
+  showTab(); document.fonts?.ready.then(showTab);
+  document.getElementById('who').innerHTML=S.me?`${av(S.me)}<span class="uname">${esc(S.me.username)}</span>${DEMO?'':'<button type="button" data-act="logout">Salir</button>'}`:(S.configured?'<a class="login" href="/auth/osu">Iniciar sesión</a>':'');
+  app.innerHTML=VIEWS[v]();
+  if(v==='arbitrar') app.querySelectorAll('.rlog').forEach(e=>e.scrollTop=e.scrollHeight);
+  refStream(v==='arbitrar');
+  document.getElementById('foot').innerHTML=`<span>${esc(T.C.nombre)} · ${esc(T.C.comunidad)} · Datos de osu! obtenidos con su API pública</span><nav>${T.C.enlaces.filter(([,u])=>u).map(([n,u])=>`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(n)}</a>`).join('')}</nav>`;
+  renderLive();
+  // Si una mappool se publica en la próxima hora, se recargan los datos justo entonces (salvo en vistas con formularios).
+  clearTimeout(relTimer);
+  const nextRel=Object.values(S.releases||{}).map(r=>r.at-nowMs()).filter(d=>d>0&&d<3600e3).sort((a,b)=>a-b)[0];
+  if(nextRel&&!DEMO) relTimer=setTimeout(()=>{if(!['admin','arbitrar'].includes(currentView())) load()},nextRel+1500);
+  clearInterval(timer);
+  const cd=document.getElementById('cd');
+  if(cd){const t=+cd.dataset.t,l=cd.dataset.l;const tick=()=>{const s=Math.max(0,Math.floor((t-nowMs())/1000));const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),ss=s%60;cd.innerHTML=`${d?d+'d ':''}${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}<small>${esc(l)}</small>`};tick();if(!DEMO) timer=setInterval(tick,1000)}
+}
+
+// Datos de ejemplo solo sin servidor (archivo abierto en local, hosting estático o ?demo). Si el servidor
+// existe pero falla, no se inventa nada: se avisa y se reintenta, o se mantienen los últimos datos cargados.
+async function load(){
+  let r=null, data=null;
+  try{
+    r=await fetch('/api/state',{credentials:'same-origin',headers:{Accept:'application/json'}});
+    if(r.ok&&(r.headers.get('content-type')||'').includes('json')) data=await r.json();
+  }catch(e){}
+  if(data){S=data;DEMO=false;LOADED=Date.now();return render()}
+  if(DEMO) return;
+  const noServer=location.protocol==='file:'||new URLSearchParams(location.search).has('demo')||!r||r.status===404;
+  if(!S&&noServer){
+    DEMO=true; S=demoState();
+    document.getElementById('demoBar').hidden=false;
+    return render();
+  }
+  if(!S) app.innerHTML='<div class="empty">No se ha podido conectar con el servidor. Se volverá a intentar en unos segundos.</div>';
+  setTimeout(load,15e3);
+}
+// Cada minuto se recargan los datos (resultados en directo, nuevos inscritos), salvo en Admin y Registro
+// para no borrar lo que se está escribiendo. Se conserva el desplazamiento horizontal del cuadro y las tablas.
+setInterval(async()=>{
+  if(!S||DEMO||document.hidden||UI.busy||['admin','arbitrar'].includes(currentView())||document.activeElement?.id==='q'||(currentView()==='qualis'&&(app.querySelector('input:focus')||[...app.querySelectorAll('#q-xn,#q-xt,[id^=qa-r],[id^=qx-r]')].some(e=>e.value)))) return;
+  const sel='.bracket,.tbl-wrap', pos=[...document.querySelectorAll(sel)].map(e=>e.scrollLeft);
+  await load();
+  document.querySelectorAll(sel).forEach((e,i)=>{if(pos[i]) e.scrollLeft=pos[i]});
+},60e3);
+
+async function post(path,data){
+  if(DEMO) throw new Error('En la vista previa no se guarda nada.');
+  const r=await fetch(path,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(data||{})});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.error||'Error '+r.status);
+  return j;
+}
+async function act(fn,okText){
+  UI.busy=true;UI.flash=null;
+  try{const res=await fn();UI.flash={ok:!res?.warning,text:res?.warning||(typeof okText==='function'?okText(res):okText)};if(!DEMO) await load();else render()}
+  catch(e){UI.flash={ok:false,text:e.message};render()}
+  finally{UI.busy=false}
+}
+const val=id=>document.getElementById(id)?.value??'';
+const mpId=v=>{const m=String(v).match(/(\d+)\D*$/);return m?m[1]:''};
+
+app.addEventListener('click',e=>{
+  const b=e.target.closest('[data-fase],[data-pool],[data-jug],[data-ref],[data-qday],[data-act]'); if(!b) return;
+  if(b.dataset.qday){UI.qday=b.dataset.qday;UI.slotDel=null;UI.slotEmpty=null;return keepRender()}
+  if(b.dataset.ref){UI.ref=b.dataset.ref;UI.flash=null;UI.refForce=false;render();return scrollTo(0,0)}
+  if(b.dataset.fase){UI.fase=b.dataset.fase;return render()}
+  if(b.dataset.pool){UI.pool=b.dataset.pool;return render()}
+  if(b.dataset.jug){UI.jug=b.dataset.jug;return render()}
+  const a=b.dataset.act;
+  if(a==='pool-del') return act(()=>post('/api/admin/pool/delete',{round:b.dataset.round,slot:b.dataset.slot}),'Mapa quitado.');
+  if(a==='sync') return act(()=>post('/api/admin/sync',{id:b.dataset.id}),'Resultado actualizado desde osu!.');
+  if(a==='qual-del') return act(()=>post('/api/admin/qual/delete',{mp:b.dataset.mp}),'Lobby quitado.');
+  if(a==='qual-sync') return act(()=>post('/api/admin/qual/sync'),'Clasificatorios actualizados desde osu!.');
+  if(a==='refresh') return act(()=>post('/api/admin/refresh'),'Rangos actualizados.');
+  if(a==='player-del'){
+    // Tras los clasificatorios, quitar a alguien cambia las seeds y los cruces: se pide confirmación.
+    if(!confirm(`¿Quitar a ${b.dataset.name} de la lista de inscritos?${T.seedsFinal?'\n\nLos clasificatorios ya han terminado: las seeds y los cruces se recalcularán.':''}`)) return;
+    return act(()=>post('/api/admin/player/delete',{id:+b.dataset.id}),'Jugador quitado de la lista.');
+  }
+  if(a==='rel-set'){
+    const v=val('a-rel-'+b.dataset.round);
+    if(!v){UI.flash={ok:false,text:'Elige la fecha y la hora de publicación.'};return render()}
+    const at=zoned(v,false,T.C.zona);
+    return act(()=>post('/api/admin/pool/release',{round:b.dataset.round,at}),at<=nowMs()?'Hora guardada: la mappool ya es pública.':`Publicación programada para el ${dia(at)} a las ${hora(at)}.`);
+  }
+  if(a==='rel-now'){
+    if(!confirm(`¿Publicar ya la mappool de ${b.dataset.name}? La verá todo el mundo.`)) return;
+    return act(()=>post('/api/admin/pool/release',{round:b.dataset.round,now:true}),'Mappool publicada.');
+  }
+  if(a==='pv-open'){const g=UI.poolRead.groups[+b.dataset.i];g.open=!g.open;return keepRender()}
+  if(a==='pv-close'){UI.poolRead=null;UI.flash=null;return keepRender()}
+  if(a==='pv-import') return poolImport();
+  if(a==='exc-del') return act(()=>post('/api/admin/exception/delete',{id:+b.dataset.id}),'Excepción quitada.');
+  if(a==='role-del') return act(()=>post('/api/admin/role',{id:+b.dataset.id,role:''}),'Rol quitado.');
+  if(a==='qs-join') return act(()=>post('/api/qual/signup',{slot:+b.dataset.id}),'Plaza pedida: falta que la aprueben.');
+  if(a==='qs-leave') return act(()=>post('/api/qual/leave'),'Ya no estás en ese lobby.');
+  if(a==='qs-out') return act(()=>post('/api/admin/qual-slot/remove',{user:+b.dataset.user}),'Jugador quitado del lobby.');
+  if(a==='qs-edit'){UI.slotEdit=+b.dataset.id||null;UI.flash=null;return keepRender()}
+  if(a==='qa-approve') return act(()=>post('/api/ref/qual-signup/approve',{user:+b.dataset.user}),'Plaza aprobada.');
+  if(a==='qa-reject'){const user=+b.dataset.user;return act(()=>post('/api/ref/qual-signup/reject',{user,reason:val('qa-r'+user)}),'Plaza rechazada.')}
+  if(a==='tx-reset'){
+    const key=b.dataset.key;
+    if(UI.textReset!==key){UI.textReset=key;return keepRender()}
+    UI.textReset=null;
+    return act(()=>post('/api/admin/site-text',{key,text:''}),'Texto original recuperado.');
+  }
+  if(a==='fa-reset'){
+    if(!UI.fasesReset){UI.fasesReset=true;return keepRender()}
+    UI.fasesReset=false;
+    return act(()=>post('/api/admin/fases',{reset:true}),'Rondas originales recuperadas.');
+  }
+  if(a==='an-del') return act(()=>post('/api/admin/site-text',{key:'anuncio',text:''}),'Anuncio quitado.');
+  if(a==='no-reset'){
+    if(!UI.normasReset){UI.normasReset=true;return keepRender()}
+    UI.normasReset=false;
+    return act(()=>post('/api/admin/site-text',{key:'normas',text:''}),'Las normas vuelven a ser las originales.');
+  }
+  if(a==='qx-go') return document.getElementById('qx-card')?.scrollIntoView({block:'center'});
+  if(a==='qx-cancel') return act(()=>post('/api/qual/request/cancel',{}),'Solicitud cancelada.');
+  if(a==='qx-accept'){
+    const user=+b.dataset.user, t=val('qx-t'+user);
+    return act(()=>post('/api/ref/qual-request/accept',{user,time:t?zoned(t,false,T.C.zona):null,referee:b.dataset.arb==='1'}),r=>`Lobby ${r.name} creado.`);
+  }
+  if(a==='qx-reject'){const user=+b.dataset.user;return act(()=>post('/api/ref/qual-request/reject',{user,reason:val('qx-r'+user)}),'Solicitud rechazada.')}
+  if(a==='qs-claim'){const on=b.dataset.on==='1';return act(()=>post('/api/ref/qual-claim',{id:+b.dataset.id,on}),on?'Arbitras este lobby.':'Ya no arbitras este lobby.')}
+  if(a==='qs-empty'){
+    const day=b.dataset.day;
+    if(UI.slotEmpty!==day){UI.slotEmpty=day;return keepRender()}
+    UI.slotEmpty=null;
+    return act(()=>post('/api/admin/qual-slot/delete-empty',{day}),r=>`Quitados ${r.removed} lobbies vacíos.`);
+  }
+  if(a==='qs-del'){
+    const id=+b.dataset.id;
+    if(UI.slotDel!==id){UI.slotDel=id;return keepRender()}
+    UI.slotDel=null;if(UI.slotEdit===id) UI.slotEdit=null;
+    return act(()=>post('/api/admin/qual-slot/delete',{id}),'Lobby quitado.');
+  }
+  if(a==='ref-slot'){b.disabled=true;return refAct('/api/ref/lobby',{slot:+b.dataset.id,replace:b.dataset.replace==='1'},r=>`Lobby creado (MP #${r.mp}). Se ha invitado a los aprobados.${r.pending?` ${r.pending} sin aprobar: apruébalos en Qualis y pulsa Invitar a los aprobados que falten.`:''}`,r=>{UI.ref=r.key})}
+  if(a==='rules-set'){
+    const k=b.dataset.round, g=x=>val(`a-ru-${k}-${x}`);
+    return act(()=>post('/api/admin/rules',{round:k,bans:g('bans'),protects:g('protects'),banEvery:g('banEvery'),pickTimer:g('pickTimer')}),'Reglas guardadas.');
+  }
+  // Arbitraje
+  if(a==='ref-off') return refAct('/api/ref/disconnect',{},'Desconectado de Bancho. La web ya no guarda tu contraseña IRC.');
+  if(a==='ref-lobby'){b.disabled=true;b.textContent='Creando…';return refAct('/api/ref/lobby',{match:UI.ref,replace:Boolean(document.getElementById('r-replace')?.checked)},r=>`Lobby creado (MP #${r.mp}). Los jugadores ya tienen la invitación.`)}
+  if(a==='ref-attach'){const k=b.dataset.key;b.disabled=true;return refAct('/api/ref/attach',{key:k},null,()=>{UI.ref=k})}
+  if(a==='ref-close'){if(!confirm('¿Cerrar el lobby? Bancho lo cierra para todos los jugadores.')) return;return refAct('/api/ref/act',{key:UI.ref,type:'close'})}
+  if(a==='ref-do'){
+    const d=b.dataset, body={key:UI.ref,type:d.type};
+    if(d.slot){body.slot=d.slot;if(UI.refForce&&d.type!=='qmap'){body.type=val('r-ftype')||d.type;body.by=val('r-by');body.force=true}}
+    if(d.winner) body.winner=d.winner;
+    if(d.seconds) body.seconds=+d.seconds;
+    if(d.names) body.names=d.names;
+    b.disabled=true;
+    return refAct('/api/ref/act',body);
+  }
+});
+app.addEventListener('focusout',e=>{
+  if(refPending&&e.target.tagName==='SELECT') setTimeout(()=>{if(refPending&&document.activeElement?.tagName!=='SELECT'){refPending=false;keepRender()}},0);
+});
+document.getElementById('who').addEventListener('click',async e=>{
+  if(!e.target.closest('[data-act="logout"]')) return;
+  try{await post('/auth/logout')}catch(_){}
+  load();
+});
+app.addEventListener('input',e=>{
+  if(e.target.id==='q'){UI.q=e.target.value;const pos=e.target.selectionStart;render();const i=document.getElementById('q');if(i){i.focus();try{i.setSelectionRange(pos,pos)}catch(_){}}}
+});
+app.addEventListener('change',e=>{
+  if(e.target.id==='a-mid'){UI.admMatch=e.target.value;UI.flash=null;render()}
+  if(e.target.dataset.slotRef) return act(()=>post('/api/admin/qual-slot/ref',{id:+e.target.dataset.slotRef,ref:e.target.value?+e.target.value:null}),'Árbitro guardado.');
+  if(e.target.dataset.roleId) return act(()=>post('/api/admin/role',{id:+e.target.dataset.roleId,role:e.target.value}),'Rol cambiado.');
+  if(e.target.dataset.pv!==undefined){UI.poolRead.groups[+e.target.dataset.pv].round=e.target.value;return keepRender()}
+  if(e.target.id==='a-pfile'){
+    const file=e.target.files[0]; if(!file) return;
+    UI.poolText=val('a-ptext');
+    if(file.size>20*1024*1024){UI.flash={ok:false,text:'El archivo pesa más de 20 MB. Copia solo la pestaña de las mappools.'};return keepRender()}
+    return file.arrayBuffer().then(buf=>{
+      const bytes=new Uint8Array(buf);let bin='';
+      for(let i=0;i<bytes.length;i+=32768) bin+=String.fromCharCode(...bytes.subarray(i,i+32768));
+      return poolRead({file:btoa(bin)},file.name);
+    },()=>{UI.flash={ok:false,text:'No puedo leer ese archivo. Vuelve a elegirlo.'};keepRender()});
+  }
+  if(e.target.id==='r-force'){UI.refForce=e.target.checked;return keepRender()}
+  if(e.target.id==='r-cp') return refAct('/api/ref/act',{key:UI.ref,type:'chatpicks',on:e.target.checked});
+  if(refPending&&e.target.tagName==='SELECT'){refPending=false;keepRender()}
+  if(e.target.id==='a-round'||e.target.id==='a-pround') UI.admRound=e.target.value;
+});
+app.addEventListener('submit',e=>{
+  e.preventDefault();
+  const f=e.target;
+  const kind=f.dataset.form;
+  if(kind==='pool-read'){
+    UI.poolText=val('a-ptext');
+    if(!UI.poolText.trim()){UI.flash={ok:false,text:'Elige un archivo o pega las filas de la hoja.'};return render()}
+    return poolRead({text:UI.poolText});
+  }
+  if(kind==='pool') UI.admRound=val('a-round');
+  if(kind==='pool') return act(()=>post('/api/admin/pool',{round:val('a-round'),slot:val('a-slot'),beatmap:val('a-bm')}),'Mapa añadido con los datos de osu!.');
+  if(kind==='qual') return act(()=>post('/api/admin/qual',{mp:mpId(val('a-qmp'))}),'Lobby añadido y leído desde osu!.');
+  if(kind==='imp'){
+    UI.impText=val('a-imp');
+    const btn=f.querySelector('button'); btn.disabled=true; btn.textContent='Importando…';
+    return act(async()=>{const r=await post('/api/admin/import',{text:UI.impText});UI.imp=r;UI.impText='';return r},
+      r=>`Importación terminada: ${r.imported.length} inscritos nuevos.`+(r.notFound.length||r.rejected.length?' Revisa abajo los que faltan.':''));
+  }
+  if(kind==='exc') return act(()=>post('/api/admin/exception',{user:val('a-exc')}),'Excepción añadida: ya puede inscribirse aunque su rango esté fuera del límite.');
+  if(kind==='role') return act(()=>post('/api/admin/role',{user:val('a-ru'),role:val('a-rr')}),r=>`${r.username} ya es ${ROLE_TXT[r.role].toLowerCase()}.`);
+  if(kind==='qs-add') return act(()=>post('/api/admin/qual-slot/assign',{id:+val('a-qal'),user:+val('a-qap')}),'Jugador añadido al lobby.');
+  if(kind==='site'){
+    const key=f.dataset.key, text=val('a-tx-'+key).trim();
+    if(!text){UI.flash={ok:false,text:'Escribe el texto, o pulsa Volver al original.'};return keepRender()}
+    UI.textReset=null;
+    return act(()=>post('/api/admin/site-text',{key,text}),'Texto guardado.');
+  }
+  if(kind==='fases'){
+    UI.fasesReset=false;
+    const fases=T.phases.map(p=>{
+      const g=k=>val(`a-f-${p.key}-${k}`), x={key:p.key,nombre:g('nombre'),inicio:g('inicio'),fin:g('fin')};
+      if(p.showcase!=null) x.showcase=g('showcase');
+      if(p.sr!=null) x.sr=+g('sr');
+      if(p.bo!=null) x.bo=+g('bo');
+      return x;
+    });
+    return act(()=>post('/api/admin/fases',{fases}),'Rondas guardadas.');
+  }
+  if(kind==='anuncio'){
+    const text=val('a-an').trim();
+    if(!text){UI.flash={ok:false,text:'Escribe el anuncio, o pulsa Quitar el anuncio.'};return keepRender()}
+    return act(()=>post('/api/admin/site-text',{key:'anuncio',text}),'Anuncio publicado en Inicio.');
+  }
+  if(kind==='normas'){
+    const text=val('a-no').trim();
+    if(!text){UI.flash={ok:false,text:'Escribe las normas, o pulsa Volver a las originales.'};return keepRender()}
+    UI.normasReset=false;
+    return act(()=>post('/api/admin/site-text',{key:'normas',text}),'Normas guardadas.');
+  }
+  if(kind==='qx-ask'){
+    const t=val('q-xt');
+    return act(()=>post('/api/qual/request',{time:t?zoned(t,false,T.C.zona):null,note:val('q-xn')}),'Solicitud enviada.');
+  }
+  if(kind==='qs-grid'){
+    const from=val('a-gf'), to=val('a-gt'), week=new Set([...document.querySelectorAll('.a-gw:checked')].map(x=>+x.value)), days=[];
+    if(!from||!to||from>to){UI.flash={ok:false,text:'Elige bien el primer y el último día.'};return keepRender()}
+    for(let d=new Date(from+'T12:00:00Z');d.toISOString().slice(0,10)<=to&&days.length<=26;d.setUTCDate(d.getUTCDate()+1)) if(week.has(d.getUTCDay())) days.push(d.toISOString().slice(0,10));
+    const times=val('a-gh').split(/[\s,;]+/).filter(Boolean).map(t=>t.replace(/^(\d):/,'0$1:'));
+    return act(()=>post('/api/admin/qual-slot/generate',{days,times,size:+val('a-gz')}),r=>`Creados ${r.created} lobbies en ${days.length} ${days.length===1?'día':'días'}.${r.skipped?` ${r.skipped} ya existían a esa hora y se han dejado.`:''}${r.past?` ${r.past} ya han pasado y no se han creado.`:''}${r.late?` ${r.late===1?'Uno empezaría':r.late+' empezarían'} justo cuando se fijan las seeds, y no se ${r.late===1?'ha creado':'han creado'}.`:''}`);
+  }
+  if(kind==='qs-save'){
+    const t=val('a-st');
+    if(!t){UI.flash={ok:false,text:'Elige la fecha y la hora del lobby.'};return keepRender()}
+    const id=UI.slotEdit;
+    return act(async()=>{const r=await post('/api/admin/qual-slot',{...(id?{id}:{}),name:val('a-sn'),time:zoned(t,false,T.C.zona),size:+val('a-sz')});UI.slotEdit=null;return r},id?'Lobby guardado.':'Lobby creado: los jugadores ya pueden apuntarse.');
+  }
+  // Arbitraje. La contraseña se borra del formulario antes de enviarla: si falla, hay que volver a pegarla.
+  if(kind==='ref-conn'){
+    const el=document.getElementById('r-pass'), pw=el.value; el.value='';
+    if(!pw.trim()){UI.flash={ok:false,text:'Pega tu contraseña IRC.'};return keepRender()}
+    const btn=f.querySelector('button'); btn.disabled=true; btn.textContent='Conectando…';
+    return refAct('/api/ref/connect',{password:pw},'Conectado a Bancho.');
+  }
+  if(kind==='ref-order') return refAct('/api/ref/act',{key:UI.ref,type:'order',protect:val('r-o-protect'),ban:val('r-o-ban'),pick:val('r-o-pick')});
+  const refText=(id,send)=>{const el=document.getElementById(id), t=el.value.trim(); if(!t) return; el.value=''; return send(t).then(ok=>{if(!ok){const x=document.getElementById(id);if(x&&!x.value) x.value=t}})};
+  if(kind==='ref-chat') return refText('r-chat',t=>refAct('/api/ref/chat',{key:UI.ref,text:t}));
+  if(kind==='ref-wu') return refText('r-wu',t=>refAct('/api/ref/act',{key:UI.ref,type:'warmup',beatmap:t}));
+  if(kind==='ref-inv') return refText('r-inv',t=>refAct('/api/ref/act',{key:UI.ref,type:'invite',names:t}));
+  if(kind==='ref-qual') return refText('r-qname',t=>refAct('/api/ref/lobby',{qual:t},r=>`Lobby creado (MP #${r.mp}). Invita a los jugadores.`,r=>{UI.ref=r.key}));
+  if(kind==='match'){
+    const t=val('a-time');
+    return act(()=>post('/api/admin/match',{id:val('a-mid'),time:t?zoned(t,false,T.C.zona):null,ref:val('a-ref'),mp:mpId(val('a-mp'))||null,ff:val('a-ff')||null,bans:val('a-bans').split(/[,\s]+/).filter(Boolean)}),'Partido guardado.');
+  }
+});
+document.getElementById('sim').addEventListener('change',e=>{SIM=e.target.value;S=demoState();UI.fase=null;UI.pool=null;render()});
+window.addEventListener('hashchange',()=>{UI.flash=null;render();window.scrollTo(0,0)});
+load();
+</script>
+</body>
+</html>

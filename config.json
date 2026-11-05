@@ -1,0 +1,27 @@
+{
+  "nombre": "SpiSix: Fall Cup",
+  "sigla": "SPI6",
+  "comunidad": "SpiSix",
+  "zona": "Europe/Madrid",
+  "rango": { "min": 100000, "max": 999999, "excepciones": [] },
+  "paises": null,
+  "clasificados": 16,
+  "metodoClasif": "zsum",
+  "multiplicadores": { "EZ": 1.8, "EZHD": 2.0 },
+  "fases": [
+    { "key": "registros",  "nombre": "Registros",       "inicio": "2026-10-28", "fin": "2026-11-07" },
+    { "key": "qualifiers", "nombre": "Clasificatorios", "showcase": "2026-11-08", "inicio": "2026-11-09", "fin": "2026-11-15", "sr": 5.4 },
+    { "key": "octavos",    "nombre": "Octavos",         "showcase": "2026-11-16", "inicio": "2026-11-17", "fin": "2026-11-22", "sr": 5.2, "bo": 9 },
+    { "key": "cuartos",    "nombre": "Cuartos",         "showcase": "2026-11-23", "inicio": "2026-11-24", "fin": "2026-11-29", "sr": 5.4, "bo": 9 },
+    { "key": "semis",      "nombre": "Semifinales",     "showcase": "2026-11-30", "inicio": "2026-12-01", "fin": "2026-12-06", "sr": 5.6, "bo": 11 },
+    { "key": "finals",     "nombre": "Finals",          "showcase": "2026-12-07", "inicio": "2026-12-07", "fin": "2026-12-13", "sr": 5.8, "bo": 11 },
+    { "key": "gf",         "nombre": "Grand Finals",    "showcase": "2026-12-14", "inicio": "2026-12-15", "fin": "2026-12-20", "sr": 6.1, "bo": 13 }
+  ],
+  "formulario": "https://docs.google.com/forms/d/e/1FAIpQLSeXr1nUgF48ImDJcVh6gPVOwF6c-tJaJq8MmA2rU5HIUyvKoA/viewform?usp=header",
+  "twitch": "spi6_osu",
+  "enlaces": [
+    ["Discord de SpiSix", ""],
+    ["Twitch", "https://www.twitch.tv/spi6_osu"]
+  ],
+  "staff": []
+}

@@ -1,0 +1,13 @@
+{
+  "name": "spisix-fall",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Web del torneo SpiSix: Fall Cup (osu! 1v1) con la API v2 de osu!",
+  "type": "module",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning server.js",
+    "test": "node --disable-warning=ExperimentalWarning test/e2e.js",
+    "backup": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning scripts/backup.js"
+  }
+}
