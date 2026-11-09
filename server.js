@@ -231,14 +231,25 @@ function pendingRequest(b, u) {
   if (r.user_id === u.id) throw new HttpError(403, 'No puedes responder a tu propia solicitud.');
   return r;
 }
+// Estado de un lobby que ya ha empezado: terminado si osu! lo ha cerrado o ya se ha jugado toda la mappool,
+// jugándose si tiene MP y aún no, y empezado a secas si llegó la hora y nadie lo ha abierto desde la web.
+function slotState(slot, now, poolSize) {
+  if (now < slot.time) return null;
+  if (!slot.mp) return 'started';
+  const row = q.getQual.get(slot.mp);
+  const d = row?.data ? JSON.parse(row.data) : {};
+  const played = new Set(Object.values(d.scores || {}).flatMap((m) => Object.keys(m))).size;
+  return d.ended || (poolSize && played >= poolSize) ? 'done' : 'live';
+}
 function qualSlots() {
+  const now = Date.now(), poolSize = poolBySlot('qualifiers').size;
   const bySlot = new Map();
   const pending = new Map();
   for (const x of q.signups.all()) {
     bySlot.set(x.slot_id, [...(bySlot.get(x.slot_id) || []), x.user_id]);
     if (!x.approved) pending.set(x.slot_id, [...(pending.get(x.slot_id) || []), x.user_id]);
   }
-  return q.qualSlots.all().map((x) => ({ ...x, players: bySlot.get(x.id) || [], pending: pending.get(x.id) || [] }));
+  return q.qualSlots.all().map((x) => ({ ...x, players: bySlot.get(x.id) || [], pending: pending.get(x.id) || [], state: slotState(x, now, poolSize) }));
 }
 
 // Quién lleva el torneo, para la página de información y para el panel del host.

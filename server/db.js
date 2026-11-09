@@ -155,6 +155,7 @@ const st = {
       bans = excluded.bans, result = excluded.result, updated_at = excluded.updated_at`),
   setResult: db.prepare('UPDATE matches SET result = ?, updated_at = ? WHERE id = ?'),
   quals: db.prepare('SELECT * FROM qual_lobbies'),
+  getQual: db.prepare('SELECT * FROM qual_lobbies WHERE mp = ?'),
   upsertQual: db.prepare(`INSERT INTO qual_lobbies (mp, data, updated_at) VALUES (?, ?, ?)
     ON CONFLICT(mp) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`),
   delQual: db.prepare('DELETE FROM qual_lobbies WHERE mp = ?'),

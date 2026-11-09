@@ -885,7 +885,7 @@ const VIEWS={
     const refused=no?`<p class="note bad">Han rechazado tu plaza en ${esc(no.lobby)}, el ${dia(no.time)} a las ${hora(no.time)}.${no.reason?` Motivo: ${esc(no.reason)}.`:''} Puedes apuntarte a otro lobby.</p>`:'';
     const extra=extraBlock(mineStarted), asks=refused+seatRequests()+extraRequests();
     if(!slots.length) return head+notice+asks+`<div class="empty">${all.length?'Ya no quedan lobbies disponibles: todos han empezado.':'La organización todavía no ha abierto los lobbies.'}</div>`+extra+'</section>';
-    // Todos a la vista, por días: primero los que aún se pueden elegir y al final los que ya han empezado.
+    // Todos a la vista, por días: primero los que se están jugando, luego los que aún se pueden elegir y al final los que ya han empezado o terminado.
     const byDay=(list,title=d=>d)=>[...new Set(list.map(x=>dayOf(x.time)))].map(d=>{
       const rows=list.filter(x=>dayOf(x.time)===d);
       return `<div class="qd"><h3>${esc(title(dia(rows[0].time)))}</h3><div class="qr-list card">${rows.map(row).join('')}</div></div>`;
@@ -901,10 +901,12 @@ const VIEWS={
       return `<div class="qr ${isMine?'mine':''}"><div class="qr-id"><b>${esc(x.name)}</b><span class="muted num">${hora(x.time)}</span></div>
         <div class="qs-p">${x.players.map(id=>{const p=names.get(id),wait=x.pending.includes(id);return p?`<span class="qs-n ${id===me?.id?'me':''} ${wait?'pend':''}">${av(p)}${esc(p.username)}${wait?' <small>pendiente</small>':''}</span>`:''}).join('')||`<span class="muted" style="font-size:.85rem">${started?'Sin jugadores':'Libre'}</span>`}</div>
         <div class="qr-m muted"><span class="num">${x.players.length}/${x.size}</span> · ${x.ref_name?'Árbitro: '+esc(x.ref_name):'Sin árbitro'}${x.mp?` · <a href="${mpUrl(x.mp)}" target="_blank" rel="noopener">MP</a>`:''}</div>
-        <div class="qs-r">${started?'<span class="pill">Empezado</span>':full&&!isMine?'<span class="pill">Lleno</span>':''}${play}${ref}</div></div>`;
+        <div class="qs-r">${started?SLOT_PILL[x.state]||SLOT_PILL.started:full&&!isMine?'<span class="pill">Lleno</span>':''}${play}${ref}</div></div>`;
     };
     const go=extra?'<div><button class="btn btn-ghost btn-sm" type="button" data-act="qx-go">¿No te viene bien ninguna hora?</button></div>':'';
-    return head+notice+asks+go+byDay(slots.filter(x=>NOW<x.time))+byDay(slots.filter(x=>NOW>=x.time),d=>'Ya empezados · '+d)+extra+'</section>';
+    const st=x=>NOW<x.time?'open':x.state||'started';
+    return head+notice+asks+go+byDay(slots.filter(x=>st(x)==='live'),d=>'Jugándose ahora · '+d)+byDay(slots.filter(x=>st(x)==='open'))
+      +byDay(slots.filter(x=>st(x)==='started'),d=>'Ya empezados · '+d)+byDay(slots.filter(x=>st(x)==='done'),d=>'Terminados · '+d)+extra+'</section>';
   },
 
   admin(){
@@ -1126,6 +1128,8 @@ function refStream(on){
 }
 // Vuelve a dibujar la vista sin perder lo que se está escribiendo, el foco ni la posición del chat.
 // Vista previa de lo leído de una hoja: cada pool con su ronda de destino. Nada se guarda hasta pulsar Importar.
+// Estado de un lobby de clasificatorios que ya ha empezado (lo calcula el servidor).
+const SLOT_PILL={live:'<span class="pill live">Jugándose</span>',done:'<span class="pill done">Terminado</span>',started:'<span class="pill">Empezado</span>'};
 function slotAdmin(){
   const slots=S.qual.slots||[], edit=slots.find(x=>x.id===UI.slotEdit), names=new Map(S.players.map(p=>[p.id,p])), fase=T.phaseBy.qualifiers;
   const taken=new Set(slots.flatMap(x=>x.players)), free=S.players.filter(p=>!taken.has(p.id));
@@ -1134,7 +1138,7 @@ function slotAdmin(){
   const row=x=>`<div class="qr"><div class="qr-id"><b>${esc(x.name)}</b><span class="muted num">${hora(x.time)}</span></div>
       <div class="qs-p">${x.players.map(id=>`<span class="qs-n ${x.pending.includes(id)?'pend':''}">${esc(names.get(id)?.username||'ID '+id)}${x.pending.includes(id)?' <small>pendiente</small>':''}<button class="qs-x" type="button" data-act="qs-out" data-user="${id}" aria-label="Quitar del lobby">×</button></span>`).join('')||'<span class="muted" style="font-size:.85rem">Libre</span>'}</div>
       <div class="qr-m muted"><span class="num">${x.players.length}/${x.size}</span>${x.mp?` · MP #${x.mp}`:''}</div>
-      <div class="qs-r"><select data-slot-ref="${x.id}" aria-label="Árbitro de ${esc(x.name)}"><option value="">Sin árbitro</option>${refs.map(r=>`<option value="${r.id}" ${r.id===x.ref_id?'selected':''}>${esc(r.username||'')}</option>`).join('')}</select>
+      <div class="qs-r">${SLOT_PILL[x.state]||''}<select data-slot-ref="${x.id}" aria-label="Árbitro de ${esc(x.name)}"><option value="">Sin árbitro</option>${refs.map(r=>`<option value="${r.id}" ${r.id===x.ref_id?'selected':''}>${esc(r.username||'')}</option>`).join('')}</select>
         <button class="btn btn-ghost btn-sm" type="button" data-act="qs-edit" data-id="${x.id}">Editar</button><button class="btn ${UI.slotDel===x.id?'btn-danger':'btn-ghost'} btn-sm" type="button" data-act="qs-del" data-id="${x.id}">${UI.slotDel===x.id?(x.players.length?`¿Quitar con ${x.players.length}?`:'¿Seguro?'):'Quitar'}</button></div></div>`;
   const open=days?days.list.filter(x=>x.players.length<x.size):[];
   return `<section class="card adm"><h3>Lobbies de clasificatorios</h3>

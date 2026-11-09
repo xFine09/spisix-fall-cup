@@ -272,7 +272,15 @@ export function createReferee(deps) {
     }
     if (text === 'Aborted the match') { l.playing = false; return; }
     if (text === 'Countdown finished') { l.timer = false; return; }
-    if (text === 'Closed the match') { l.closed = true; stopSync(l); return; }
+    if (text === 'Closed the match') {
+      l.closed = true; stopSync(l);
+      // Así el lobby de clasificatorios sale como terminado sin esperar a la sincronización de cada 5 minutos.
+      if (l.kind === 'qual') {
+        const t = setTimeout(() => syncQual(+l.mp).then(push, (e) => console.warn('[ref qual]', l.mp, e.message)), Math.max(Math.min(3000, READ_GAP), READ_GAP - sinceRead(l.mp)));
+        t.unref?.();
+      }
+      return;
+    }
     if ((m = text.match(/^(.+) rolls (\d+) point\(s\)$/))) return onRoll(s, l, m[1], +m[2]);
   }
 

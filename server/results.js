@@ -80,5 +80,7 @@ export function parseQual(data, poolBySlot) {
       scores[uid][g.beatmap_id] = Math.max(scores[uid][g.beatmap_id] || 0, val);
     }
   }
-  return { scores, name: data.match?.name || null, skipped };
+  // end_time: osu! lo pone al cerrar el lobby (!mp close, o solo tras un rato sin nadie).
+  const ended = data.match?.end_time ? Date.parse(data.match.end_time) || null : null;
+  return { scores, name: data.match?.name || null, skipped, ended };
 }

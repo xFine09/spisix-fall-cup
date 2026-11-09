@@ -87,6 +87,8 @@ const qual903 = () => ({ match: { id: 903, name: 'SPI: mixto' }, events: [
 const games558 = [];
 const match558 = () => ({ match: { id: 558, name: 'SPI6: partido arbitrado' }, events: games558.map((g, i) => ({ id: i + 1, detail: { type: 'other' }, game: g })), first_event_id: 1, latest_event_id: games558.length });
 // MP 559: lobby de clasificatorios creado por el bot (scores bajos para no cambiar las seeds).
+// MP 560: el Lobby E, ya cerrado (end_time), con un score bajo para no cambiar las seeds.
+const qual560 = () => ({ match: { id: 560, name: 'SPI6: (Clasificatorios) Lobby E', end_time: '2026-11-17T19:00:00Z' }, events: [{ id: 1, detail: { type: 'other' }, game: { ...game(201, [[601, 100]]), team_type: 'head-to-head' } }], first_event_id: 1, latest_event_id: 1 });
 const qual559 = () => ({ match: { id: 559, name: 'SPI6: (Clasificatorios) Lobby C' }, events: [{ id: 1, detail: { type: 'other' }, game: { ...game(201, [[605, 100]]), team_type: 'head-to-head' } }], first_event_id: 1, latest_event_id: 1 });
 
 function page(data, url) {
@@ -165,6 +167,7 @@ const mock = http.createServer(async (req, res) => {
   if (url.pathname === '/api/v2/matches/556') return send(200, page(match556(), url));
   if (url.pathname === '/api/v2/matches/558') return send(200, page(match558(), url));
   if (url.pathname === '/api/v2/matches/559') return send(200, page(qual559(), url));
+  if (url.pathname === '/api/v2/matches/560') return send(200, page(qual560(), url));
   if (url.pathname === '/api/v2/matches/777') return send(403, { error: null }); // lobby creado con !mp makeprivate
   send(404, {});
 });
@@ -1440,6 +1443,13 @@ try {
   assert.equal((await refc('/api/ref/qual-signup/approve', { method: 'POST', json: { user: 603 } })).status, 200);
   assert.equal((await refc('/api/ref/act', { method: 'POST', json: { key: 'qual:560', type: 'qinvite' } })).status, 200);
   await until(() => sentTo(QE).includes('!mp invite #603'), 'aprobado, se invita');
+  // Estado del lobby: sin estado antes de su hora, jugándose con el MP abierto y terminado al cerrarlo
+  const stateE = async () => (await anon2('/api/state')).body.qual.slots.find((x) => x.id === slotE.id).state;
+  assert.equal(await stateE(), null, 'aún no ha empezado');
+  await adm2('/api/admin/qual-slot', { method: 'POST', json: { id: slotE.id, name: 'Lobby E', time: (await anon2('/api/state')).body.now - 60e3, size: 4 } });
+  assert.equal(await stateE(), 'live', 'empezado y con MP: se está jugando');
+  assert.equal((await refc('/api/ref/act', { method: 'POST', json: { key: 'qual:560', type: 'close' } })).status, 200);
+  await until(async () => (await stateE()) === 'done', 'al cerrarlo sale como terminado');
   // Anti-spam de Bancho: los comandos repetibles llevan una palabra distinta cada vez; el resto, tal cual
   const cmds = irc.sent.filter((m) => /^!mp (settings|close|abort|aborttimer|start|timer|map|mods|set)\b/.test(m.text));
   assert.ok(cmds.length > 10 && cmds.every((m) => m.tagged), 'comandos con palabra al azar');
