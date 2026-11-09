@@ -260,6 +260,12 @@ function releases() {
 }
 const isPublic = (round, rel = releases()) => (rel[round]?.at ?? 0) <= Date.now();
 
+// Resultados de clasificatorios: ocultos hasta la hora que fije la organización (sin hora, ocultos del todo).
+// Los admins y los árbitros los ven siempre, y son los únicos que ven los MP de los lobbies.
+const QUAL_RESULTS = 'qual-results';
+const qualResultsAt = () => q.getRelease.get(QUAL_RESULTS)?.at ?? null;
+const qualResultsPublic = () => { const at = qualResultsAt(); return at != null && at <= Date.now(); };
+
 // Reglas de arbitraje de cada ronda del cuadro (bans, protects, mapas entre tandas de bans y temporizador).
 const BRACKET_ROUNDS = CONFIG.fases.filter((f) => f.bo).map((f) => f.key);
 function allRules() {
@@ -298,6 +304,8 @@ function buildState(user) {
     };
   }
   const { scores, lobbies } = qualScores();
+  const qualStaff = isRef(user);
+  const slots = qualSlots().map((x) => (qualStaff ? x : { ...x, mp: null }));
   return {
     now: Date.now(),
     configured: osu.configured(),
@@ -313,7 +321,12 @@ function buildState(user) {
     } : null,
     rules: allRules(),
     players, pools, matches,
-    qual: { scores, lobbies, slots: qualSlots() },
+    qual: {
+      scores: qualStaff || qualResultsPublic() ? scores : {},
+      lobbies: qualStaff ? lobbies : [],
+      slots,
+      results: qualResultsAt()
+    },
     team: team(),
     normas: q.siteText.get('normas') || null,
     anuncio: q.siteText.get('anuncio') || null,
@@ -695,6 +708,20 @@ const routes = {
     const at = b.now === true ? Date.now() : Number(b.at);
     if (!Number.isFinite(at) || Math.abs(at - Date.now()) > 366 * 86400e3) throw new HttpError(400, 'Elige la fecha y la hora de publicación.');
     q.setRelease.run(round, Math.round(at));
+    sendJson(res, 200, { ok: true, at: Math.round(at) });
+  },
+
+  // Publicación de los resultados de clasificatorios: { at }, { now: true } o { hide: true }.
+  'POST /api/admin/qual-results': async (req, res) => {
+    requireAdmin(req);
+    const b = await readJson(req);
+    if (b.hide === true) {
+      q.delRelease.run(QUAL_RESULTS);
+      return sendJson(res, 200, { ok: true, at: null });
+    }
+    const at = b.now === true ? Date.now() : Number(b.at);
+    if (!Number.isFinite(at) || Math.abs(at - Date.now()) > 366 * 86400e3) throw new HttpError(400, 'Elige la fecha y la hora de publicación.');
+    q.setRelease.run(QUAL_RESULTS, Math.round(at));
     sendJson(res, 200, { ok: true, at: Math.round(at) });
   },
 

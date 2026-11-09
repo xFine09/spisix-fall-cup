@@ -577,7 +577,7 @@ function demoState(){
   }
   return {demo:true,now:sim,configured:true,config:C,practice:{},twitch:{channel:C.twitch,live:null},
     me:{id:999,username:'TuUsuario',avatar_url:null,country:'ES',rank:345678,registered:false,admin:true,host:true},
-    players,pools,matches:{},qual:{scores,lobbies:Object.keys(scores).length?[{mp:120000001,name:'SPI: (Clasificatorios) Lobby A'},{mp:120000002,name:'SPI: (Clasificatorios) Lobby B'}]:[]}};
+    players,pools,matches:{},qual:{results:0,scores,lobbies:Object.keys(scores).length?[{mp:120000001,name:'SPI: (Clasificatorios) Lobby A'},{mp:120000002,name:'SPI: (Clasificatorios) Lobby B'}]:[]}};
 }
 
 function demoFill(m,p,k,n,NOW){
@@ -613,6 +613,9 @@ function av(p,cls=''){
 const PILL={done:'<span class="pill done">Finalizado</span>',live:'<span class="pill live">En directo</span>',sched:'<span class="pill">Programado</span>',unset:'<span class="pill">Sin fecha</span>',tbd:'<span class="pill tbd">Por decidir</span>'};
 const srcLabel=s=>s.q?`Seed ${s.q}`:`${s.r==='W'?'Ganador':'Perdedor'} ${s.m.toUpperCase()}`;
 const mpUrl=id=>`https://osu.ppy.sh/community/matches/${id}`;
+// Resultados de clasificatorios: públicos desde la hora que fije la organización. Antes solo los ven admins y árbitros.
+const qualOut=()=>DEMO||(S.qual.results!=null&&S.qual.results<=T.NOW);
+const qualWhen=()=>S.qual.results!=null?`el ${dia(S.qual.results)} a las ${hora(S.qual.results)} (hora de Madrid)`:'';
 
 // Recordatorios de Inicio: salen solos de los datos del torneo y desaparecen cuando dejan de ser actuales.
 function reminders(){
@@ -631,7 +634,9 @@ function reminders(){
   });
   const results=matches.filter(m=>m.estado==='done'&&m.time&&m.time<=NOW&&NOW-m.time<=DAY).sort((a,b)=>b.time-a.time).slice(0,5)
     .map(m=>row('Resultado','#partidos',m.ff?`${name(m.winner)} gana por forfeit a ${name(m.loser)} · ${esc(m.ronda)}`:`${name(m.a)} ${m.sa} – ${m.sb} ${name(m.b)} · ${esc(m.ronda)}`));
-  const items=[...next,...pools,...results];
+  const qr=S.qual.results, quals=qr==null?[]:qr<=NOW?(NOW-qr<=3*DAY?[row('Clasificatorios','#jugadores',`Ya están publicados los resultados de los clasificatorios.`)]:[])
+    :qr-NOW<=3*DAY?[row('Clasificatorios','#jugadores',`${when(qr)} se publican los resultados de los clasificatorios.`)]:[];
+  const items=[...next,...pools,...quals,...results];
   return items.length?`<section class="rem" aria-label="Recordatorios"><span class="eyebrow">Recordatorios</span><ul>${items.join('')}</ul></section>`:'';
 }
 
@@ -763,9 +768,11 @@ const VIEWS={
     const head=`<section><div class="sec-head"><div><span class="eyebrow">${S.players.length} inscritos · ${C.clasificados} plazas</span><h2>Jugadores</h2></div>
       <div class="tabs" role="tablist"><button class="tab" role="tab" data-jug="lista" aria-selected="${UI.jug==='lista'}">Inscritos</button><button class="tab" role="tab" data-jug="clasif" aria-selected="${UI.jug==='clasif'}">Clasificatorios</button></div></div>`;
     if(UI.jug==='clasif'){
-      if(!qual.rows.length) return head+`<div class="empty">Los clasificatorios se juegan del ${corto(T.phaseBy.qualifiers.start)} al ${corto(T.phaseBy.qualifiers.end)}. Los resultados aparecen aquí en cuanto se sincroniza cada lobby.</div></section>`;
+      if(!qualOut()&&!S.me?.referee) return head+`<div class="empty">${S.qual.results!=null?`Los resultados de los clasificatorios se publican ${qualWhen()}.<p class="num" id="cd" data-t="${S.qual.results}" data-l=" para la publicación" style="margin:8px 0 0;font-weight:700"></p>`:'Los resultados de los clasificatorios se publicarán cuando la organización lo anuncie.'}</div></section>`;
+      const hiddenNote=qualOut()?'':`<p class="note">Solo los admins y los árbitros ven estos resultados. ${S.qual.results!=null?`Se publican ${qualWhen()}.`:'Todavía no hay fecha de publicación.'}${S.me?.admin?' Se cambia en Admin → Resultados de clasificatorios.':''}</p>`;
+      if(!qual.rows.length) return head+`<div class="empty">Los clasificatorios se juegan del ${corto(T.phaseBy.qualifiers.start)} al ${corto(T.phaseBy.qualifiers.end)}. Los resultados aparecen aquí en cuanto se sincroniza cada lobby.</div>${hiddenNote}</section>`;
       const zs=C.metodoClasif!=='suma';
-      return head+`<p class="muted">${zs?`Orden por Z-sum: en cada mapa se mide cuántas desviaciones típicas se aleja tu score de la media, y se suman los ${qual.pool.length} mapas.`:'Orden por la suma de scores de todos los mapas.'} ${T.seedsFinal?'La línea discontinua marca el corte.':'Clasificación provisional.'}</p>
+      return head+hiddenNote+`<p class="muted">${zs?`Orden por Z-sum: en cada mapa se mide cuántas desviaciones típicas se aleja tu score de la media, y se suman los ${qual.pool.length} mapas.`:'Orden por la suma de scores de todos los mapas.'} ${T.seedsFinal?'La línea discontinua marca el corte.':'Clasificación provisional.'}</p>
       <div class="tbl-wrap"><table><thead><tr><th class="n">Seed</th><th>Jugador</th><th class="n">Rango</th><th class="n">${zs?'Z-sum':'Total'}</th>${qual.pool.map(m=>`<th class="n">${esc(m.slot)}</th>`).join('')}</tr></thead><tbody>
       ${qual.rows.map(r=>`<tr class="${r.seed===C.clasificados?'cut':''}"><td class="n">${r.seed}</td><td><span class="who2">${av(r.player)}${esc(r.player.username)}</span></td><td class="n">#${nf.format(r.player.rank||0)}</td><td class="n"><b>${zs?dec(r.z,2):nf.format(r.total)}</b></td>${r.scores.map(s=>`<td class="n">${s?nf.format(s):'–'}</td>`).join('')}</tr>`).join('')}
       </tbody></table></div></section>`;
@@ -804,7 +811,7 @@ const VIEWS={
     return `<section><div class="sec-head"><div><span class="eyebrow">${rangoFechas(p.start,p.end)} · ${list.length} partidos · Bo${p.bo}</span><h2>Partidos</h2></div>
       <span class="muted" style="font-size:.85rem"><span class="slot wa">A</span> mapa del jugador de la izquierda · <span class="slot wb">B</span> del de la derecha</span></div>
       <div class="tabs" role="tablist">${ps.map(x=>`<button class="tab" role="tab" data-fase="${x.key}" aria-selected="${x.key===p.key}">${esc(x.nombre)}</button>`).join('')}</div>
-      ${T.seedsFinal?'':`<p class="note">Los cruces se completan cuando terminen los clasificatorios (${corto(T.phaseBy.qualifiers.end)}).</p>`}
+      ${T.seedsFinal?'':T.NOW>T.phaseBy.qualifiers.end&&!qualOut()?`<p class="note">Los cruces se completan cuando se publiquen los resultados de los clasificatorios${S.qual.results!=null?' ('+corto(S.qual.results)+')':''}.</p>`:`<p class="note">Los cruces se completan cuando terminen los clasificatorios (${corto(T.phaseBy.qualifiers.end)}).</p>`}
       <div class="list">${list.map(matchCard).join('')}</div></section>`;
   },
 
@@ -913,6 +920,7 @@ const VIEWS={
         <section class="card adm" style="grid-column:1/-1"><h3>Publicación de mappools</h3>
           ${relAdmin()}
         </section>
+        ${qualResAdmin()}
         ${textAdmin()}
         ${pageTexts()}
         ${roundsAdmin()}
@@ -1369,6 +1377,16 @@ function refQual(l){
     ${logCard(l)}`;
 }
 
+function qualResAdmin(){
+  const at=S.qual.results, pub=qualOut();
+  const st=pub?'<span class="pill good">Públicos</span>':at!=null?`<span class="pill tbd">Ocultos hasta el ${dia(at)} · ${hora(at)}</span>`:'<span class="pill tbd">Ocultos, sin fecha</span>';
+  const form=`<div class="row"><div class="field"><label for="a-qres">Publicar el (hora de Madrid)</label><input type="datetime-local" id="a-qres" value="${toLocalInput(at,T.C.zona)}"></div>
+      <button class="btn btn-ghost btn-sm" type="button" data-act="qres-set">Programar</button>${pub?'':'<button class="btn btn-ghost btn-sm" type="button" data-act="qres-now">Publicar ya</button>'}${at!=null?'<button class="btn btn-ghost btn-sm" type="button" data-act="qres-hide">Ocultar</button>':''}</div>`;
+  return `<section class="card adm"><h3>Resultados de clasificatorios</h3>
+    <p class="muted" style="font-size:.85rem">Hasta la hora de publicación, las scores y las seeds solo las ven los admins y los árbitros. Los enlaces a los MP de los lobbies solo los ven ellos, también después.</p>
+    <p>${st}</p>${form}</section>`;
+}
+
 function relAdmin(){
   const rows=T.phases.filter(p=>p.key!=='registros').map(p=>{
     const r=S.releases?.[p.key]||{at:0,set:false}, n=(S.pools[p.key]||[]).length, pub=r.at<=T.NOW;
@@ -1440,7 +1458,7 @@ function render(){
   renderLive();
   // Si una mappool se publica en la próxima hora, se recargan los datos justo entonces (salvo en vistas con formularios).
   clearTimeout(relTimer);
-  const nextRel=Object.values(S.releases||{}).map(r=>r.at-nowMs()).filter(d=>d>0&&d<3600e3).sort((a,b)=>a-b)[0];
+  const nextRel=[...Object.values(S.releases||{}),{at:S.qual.results??0}].map(r=>r.at-nowMs()).filter(d=>d>0&&d<3600e3).sort((a,b)=>a-b)[0];
   if(nextRel&&!DEMO) relTimer=setTimeout(()=>{if(!['admin','arbitrar'].includes(currentView())) load()},nextRel+1500);
   clearInterval(timer);
   const cd=document.getElementById('cd');
@@ -1519,6 +1537,17 @@ app.addEventListener('click',e=>{
     if(!confirm(`¿Publicar ya la mappool de ${b.dataset.name}? La verá todo el mundo.`)) return;
     return act(()=>post('/api/admin/pool/release',{round:b.dataset.round,now:true}),'Mappool publicada.');
   }
+  if(a==='qres-set'){
+    const v=val('a-qres');
+    if(!v){UI.flash={ok:false,text:'Elige la fecha y la hora de publicación.'};return render()}
+    const at=zoned(v,false,T.C.zona);
+    return act(()=>post('/api/admin/qual-results',{at}),at<=nowMs()?'Hora guardada: los resultados ya son públicos.':`Resultados programados para el ${dia(at)} a las ${hora(at)}.`);
+  }
+  if(a==='qres-now'){
+    if(!confirm('¿Publicar ya los resultados de los clasificatorios? Los verá todo el mundo.')) return;
+    return act(()=>post('/api/admin/qual-results',{now:true}),'Resultados de clasificatorios publicados.');
+  }
+  if(a==='qres-hide') return act(()=>post('/api/admin/qual-results',{hide:true}),'Resultados ocultos: solo los ven admins y árbitros.');
   if(a==='pv-open'){const g=UI.poolRead.groups[+b.dataset.i];g.open=!g.open;return keepRender()}
   if(a==='pv-close'){UI.poolRead=null;UI.flash=null;return keepRender()}
   if(a==='pv-import') return poolImport();

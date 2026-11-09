@@ -743,6 +743,26 @@ try {
   await adm('/api/admin/qual/delete', { method: 'POST', json: { mp: '903' } });
   console.log('✓ clasificatorios: solo head to head');
 
+  // Resultados de clasificatorios: ocultos hasta la hora que fije la organización; los MP solo para admins y árbitros
+  r = await anon('/api/state');
+  assert.deepEqual([r.body.qual.scores, r.body.qual.lobbies, r.body.qual.results], [{}, [], null], 'sin fecha: el público no ve nada');
+  assert.equal((await anon('/api/admin/qual-results', { method: 'POST', json: { now: true } })).status, 401);
+  assert.equal((await adm('/api/admin/qual-results', { method: 'POST', json: { at: 'mañana' } })).status, 400);
+  const qualAt = Date.now() + 3600e3;
+  r = await adm('/api/admin/qual-results', { method: 'POST', json: { at: qualAt } });
+  assert.deepEqual(r.body, { ok: true, at: qualAt });
+  r = await anon('/api/state');
+  assert.deepEqual([r.body.qual.scores, r.body.qual.results], [{}, qualAt], 'programados: todavía ocultos, con la fecha a la vista');
+  assert.equal((await adm('/api/state')).body.qual.scores['4242']['202'], 850000, 'el host los sigue viendo');
+  await adm('/api/admin/qual-results', { method: 'POST', json: { now: true } });
+  r = await anon('/api/state');
+  assert.equal(r.body.qual.scores['4242']['202'], 850000, 'publicados: el público ve las scores');
+  assert.deepEqual(r.body.qual.lobbies, [], 'pero no los MP');
+  await adm('/api/admin/qual-results', { method: 'POST', json: { hide: true } });
+  assert.deepEqual((await anon('/api/state')).body.qual.scores, {}, 'ocultos otra vez');
+  await adm('/api/admin/qual-results', { method: 'POST', json: { now: true } });
+  console.log('✓ resultados de clasificatorios: publicación programada y MP privados');
+
   // La práctica ya no existe
   assert.equal((await adm('/api/practice', { method: 'POST', json: { round: 'octavos', beatmap_id: 103 } })).status, 404);
   assert.equal((await adm('/api/state')).body.practice, undefined);
@@ -1104,9 +1124,14 @@ try {
   assert.equal((await pc('/api/admin/pool/release', { method: 'POST', json: { round: 'octavos', now: true } })).status, 403, 'staff no publica');
   assert.ok(r.body.team.some((x) => x.id === 503 && x.role === 'staff'), 'staff: sale en el equipo');
   assert.equal((await pc('/api/ref/events')).status, 403);
+  await adm('/api/admin/qual-results', { method: 'POST', json: { hide: true } });
+  r = await pc('/api/state');
+  assert.deepEqual([r.body.qual.scores, r.body.qual.lobbies], [{}, []], 'staff: ni resultados ocultos ni MP');
+  assert.equal((await pc('/api/admin/qual-results', { method: 'POST', json: { now: true } })).status, 403, 'staff no publica los resultados');
   await role(adm, { id: 503, role: 'referee' });
   r = await pc('/api/state');
   assert.deepEqual([r.body.me.admin, r.body.me.referee], [false, true], 'árbitro');
+  assert.ok(Object.keys(r.body.qual.scores).length && r.body.qual.lobbies.length, 'el árbitro ve resultados ocultos y MP');
   assert.equal(await hiddenPool(pc), undefined, 'el árbitro no ve la pool oculta');
   assert.equal((await pc('/api/admin/qual-slot', { method: 'POST', json: { name: 'x', time: inTwoYears } })).status, 403, 'el árbitro no entra en el panel');
   const hiddenRound = (await adm('/api/state')).body.pools.qualifiers?.length;
@@ -1116,6 +1141,8 @@ try {
   assert.equal(r.body.pools.qualifiers?.length, hiddenRound, 'admin: ve lo mismo que la organización');
   assert.ok(Array.isArray(r.body.exceptions), 'admin: datos del panel');
   assert.equal((await role(pc, { user: 'JugadorA', role: 'staff' })).status, 403, 'un admin no cambia roles');
+  assert.equal((await pc('/api/admin/qual-results', { method: 'POST', json: { hide: true } })).status, 200, 'un admin también cambia la publicación de los resultados');
+  assert.equal((await pc('/api/admin/qual-results', { method: 'POST', json: { now: true } })).status, 200);
   assert.equal((await role(adm, { user: '4242', role: 'staff' })).status, 400, 'al host no se le cambia desde la web');
   assert.equal((await role(adm, { id: 4242, role: '' })).status, 404);
   assert.equal((await role(adm, { id: 999, role: '' })).status, 404);
@@ -1363,7 +1390,7 @@ try {
   await until(() => sentTo(QC).includes('!mp map 202 0'), 'siguiente mapa solo');
   ircSay(QC, 'BanchoBot', 'The match has finished!');
   await until(() => sentTo(QC).includes('Fin de la mappool. ¡Gracias por jugar!'), 'fin de la mappool');
-  await until(async () => (await anon2('/api/state')).body.qual.lobbies.some((l) => l.mp === 559 && l.name === 'SPI6: (Clasificatorios) Lobby C'), 'lobby leído de osu!');
+  await until(async () => (await refc('/api/state')).body.qual.lobbies.some((l) => l.mp === 559 && l.name === 'SPI6: (Clasificatorios) Lobby C'), 'lobby leído de osu!');
   r = await anon2('/api/state');
   assert.equal(r.body.matches['u1-3'].mp, 558, 'las seeds no cambian');
   // Al volver a entrar, un lobby de clasificatorios que no sea head to head con ScoreV2 se corrige
@@ -1385,8 +1412,9 @@ try {
   await until(() => sentTo(QE).includes('!mp invite #601'), 'invita a los apuntados');
   assert.ok(sentTo(QE).includes('!mp set 0 3 4'), 'HeadToHead con las plazas del lobby');
   assert.ok(irc.sent.some((m) => m.to === 'BanchoBot' && m.text === '!mp make SPI6: (Clasificatorios) Lobby E'));
-  r = (await anon2('/api/state')).body.qual.slots.find((x) => x.id === slotE.id);
+  r = (await refc('/api/state')).body.qual.slots.find((x) => x.id === slotE.id);
   assert.deepEqual([r.mp, r.ref_id, r.ref_name], [560, 503, 'Jugador C'], 'quien lo abre queda como su árbitro');
+  assert.equal((await anon2('/api/state')).body.qual.slots.find((x) => x.id === slotE.id).mp, null, 'el público no ve el MP del lobby');
   r = await refc('/api/ref/lobby', { method: 'POST', json: { slot: slotE.id } });
   assert.equal(r.status, 409, 'ese lobby ya está creado');
   assert.match(r.body.error, /ya tiene el MP #560/);

@@ -50,6 +50,7 @@ db.exec(`
     updated_at INTEGER
   );
   CREATE TABLE IF NOT EXISTS pool_release (   -- hora a la que se hace pública cada mappool (si no hay: día del showcase)
+                                              -- y, con round = 'qual-results', la de los resultados de clasificatorios
     round TEXT PRIMARY KEY,
     at    INTEGER NOT NULL
   );
@@ -163,6 +164,8 @@ const st = {
   delException: db.prepare('DELETE FROM exceptions WHERE user_id = ?'),
   releases: db.prepare('SELECT * FROM pool_release'),
   setRelease: db.prepare('INSERT INTO pool_release (round, at) VALUES (?, ?) ON CONFLICT(round) DO UPDATE SET at = excluded.at'),
+  getRelease: db.prepare('SELECT at FROM pool_release WHERE round = ?'),
+  delRelease: db.prepare('DELETE FROM pool_release WHERE round = ?'),
   getRefState: db.prepare('SELECT * FROM ref_state WHERE key = ?'),
   refStates: db.prepare('SELECT * FROM ref_state'),
   setRefState: db.prepare(`INSERT INTO ref_state (key, data, updated_at) VALUES (?, ?, ?)
