@@ -1124,6 +1124,8 @@ async function serveStatic(res, pathname) {
   if (!file.startsWith(PUBLIC_DIR)) throw new HttpError(404, 'No encontrado');
   let data;
   try { data = await readFile(file); } catch { throw new HttpError(404, 'No encontrado'); }
+  // Las etiquetas para compartir (og:image, og:url) necesitan la dirección completa de la web.
+  if (extname(file) === '.html') data = String(data).replaceAll('__BASE_URL__', BASE_URL);
   res.writeHead(200, {
     'Content-Type': TYPES[extname(file)] || 'application/octet-stream',
     'Cache-Control': extname(file) === '.html' ? 'no-cache' : 'public, max-age=3600'

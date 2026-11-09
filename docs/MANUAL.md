@@ -20,6 +20,7 @@ Detalle completo para quien instala y mantiene la web. El resumen está en el [R
 - **Arbitraje con bot de IRC**: los árbitros conectan su cuenta de osu! a Bancho desde la página **Arbitrar** y la web manda los comandos `!mp` por ellos. Crea el lobby, invita y reparte equipos, lee los `!roll` y lleva protects, bans y picks según las reglas de cada ronda; los jugadores pueden escribir su mapa en el chat. Además pone cada mapa con sus mods (FM y TB en FreeMod), empieza cuando los dos están listos y anuncia el marcador. También lleva lobbies de clasificatorios.
 - **Cuadro de doble eliminación de 16**: los cruces y los ganadores avanzan solos a partir de las seeds y los resultados.
 - **Directo de Twitch** (opcional): cuando el canal está en directo, la web lo anuncia en la cabecera y muestra una ventana pequeña con la miniatura del directo, que se puede abrir como reproductor en la propia web.
+- **Web**: tema claro u oscuro (el del sistema, o el que se elija con el botón de la cabecera, que se recuerda en ese navegador). Las pestañas van en la dirección, así que se pueden enlazar: `#mappool/semis`, `#partidos/cuartos`, `#jugadores/clasif`. Al compartir el enlace, Discord y otras redes muestran `public/og.png`; si se cambia el nombre del torneo, esa imagen hay que rehacerla a mano. En Admin y Registro, el navegador avisa antes de cerrar la página si hay algo escrito sin guardar.
 
 Sin dependencias: solo Node.js 22.13 o superior (usa `fetch` y `node:sqlite`, incluidos en Node). La imagen Docker usa Node 24.
 
@@ -207,7 +208,7 @@ Las seeds se calculan a partir de los inscritos. Quitar a un jugador después de
 
 | Para qué | Endpoint | Token |
 |---|---|---|
-| Login | `GET /oauth/authorize`, `POST /oauth/token` (`authorization_code`) | — |
+| Login | `GET /oauth/authorize`, `POST /oauth/token` (`authorization_code`) | Ninguno |
 | Perfil de quien inicia sesión | `GET /api/v2/me/osu` | del usuario (scope `identify`) |
 | Rango al importar / actualizar rangos | `GET /api/v2/users/{id}/osu` | de aplicación (`client_credentials`, scope `public`) |
 | Importar el formulario | `GET /api/v2/users/lookup` (50 nombres por petición) y `GET /api/v2/users/@{nombre}/osu` | de aplicación |
@@ -264,6 +265,9 @@ server/referee.js    bot de arbitraje: conexiones de los árbitros, mensajes de 
 server/db.js         SQLite y copias de seguridad
 server/config.js     lectura de config.json y fechas en hora de Madrid
 public/index.html    la web (sin servidor muestra datos de ejemplo)
+public/og.png        imagen al compartir el enlace (1200×630)
+public/favicon.svg   icono de la pestaña
+docs/DESIGN.md       dirección visual de la web y razón de cada decisión
 test/e2e.js          prueba completa con osu!, Twitch y Bancho simulados
 scripts/backup.js    copia manual de la base de datos
 Dockerfile, docker-compose.yml   despliegue con Docker (el HTTPS lo pone Tailscale Funnel)

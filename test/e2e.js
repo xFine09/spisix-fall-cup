@@ -330,6 +330,13 @@ try {
   assert.equal(r.status, 200);
   assert.match(r.body, /SpiSix: Fall Cup/);
   assert.ok(r.headers.get('content-security-policy'));
+  // Etiquetas para compartir con la dirección completa de la web, y su imagen e icono
+  assert.ok(r.body.includes(`<meta property="og:image" content="${BASE}/og.png">`), 'og:image con BASE_URL');
+  assert.ok(!r.body.includes('__BASE_URL__'), 'no queda el marcador sin sustituir');
+  r = await anon('/og.png');
+  assert.deepEqual([r.status, r.headers.get('content-type')], [200, 'image/png']);
+  r = await anon('/favicon.svg');
+  assert.deepEqual([r.status, r.headers.get('content-type')], [200, 'image/svg+xml']);
   r = await anon('/../server.js');
   assert.equal(r.status, 404, 'no se puede salir de public/');
   r = await anon('/api/state');
