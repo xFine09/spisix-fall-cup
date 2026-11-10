@@ -276,7 +276,7 @@ textarea{width:100%;min-height:120px;resize:vertical;font-family:var(--f-mono);f
 
 /* Mappool */
 .maps{display:grid;gap:8px}
-.map{display:grid;grid-template-columns:64px 96px minmax(0,1fr) auto;gap:14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.map{display:grid;grid-template-columns:64px 96px minmax(0,1fr) auto auto;gap:14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
 .map .slot{font-size:.9rem;padding:8px 0;text-align:center;width:64px;background:var(--mc);color:var(--slot-ink);border:0;border-radius:0;clip-path:polygon(14% 0,86% 0,100% 50%,86% 100%,14% 100%,0 50%)}
 .map .cover{width:96px;aspect-ratio:3/2;border-radius:8px;background:var(--surface-2) center/cover no-repeat;max-width:100%}
 .map .t{min-width:0}
@@ -285,9 +285,19 @@ textarea{width:100%;min-height:120px;resize:vertical;font-family:var(--f-mono);f
 .map .t span{font-size:.82rem;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .map .st{display:flex;gap:14px;font-family:var(--f-mono);font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums}
 .map .st b{color:var(--ink)}
-.maps.nocover .map{grid-template-columns:64px minmax(0,1fr) auto}
+.maps.nocover .map{grid-template-columns:64px minmax(0,1fr) auto auto}
+/* ID para copiar y abrir en osu! */
+.ma{display:flex;gap:6px;align-items:center}
+.ma-id,.ma-direct{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:600 .8rem/1 var(--f-mono);font-variant-numeric:tabular-nums;text-decoration:none;cursor:pointer;white-space:nowrap}
+.ma-direct{font-family:inherit}
+.ma-id svg{width:14px;height:14px;flex:none;color:var(--muted)}
+.ma-id:hover,.ma-direct:hover{border-color:var(--muted)}
+.ma-id:active,.ma-direct:active{transform:translateY(1px)}
+.ma-id.ok{border-color:var(--good);color:var(--good)}
+.ma-id.ok svg{color:currentColor}
 .maps.nocover .cover{display:none}
-@media (max-width:700px){.map,.maps.nocover .map{grid-template-columns:52px minmax(0,1fr)}.map .slot{width:52px}.map .cover{display:none}.map .st{grid-column:1/-1;flex-wrap:wrap;gap:6px 12px}}
+@media (max-width:700px){.map,.maps.nocover .map{grid-template-columns:52px minmax(0,1fr)}.map .slot{width:52px}.map .cover{display:none}.map .st{grid-column:1/-1;flex-wrap:wrap;gap:6px 12px}.map .ma{grid-column:1/-1}}
+@media (max-width:1100px) and (min-width:701px){.map{grid-template-columns:64px 96px minmax(0,1fr) auto}.maps.nocover .map{grid-template-columns:64px minmax(0,1fr) auto}.map .ma{grid-column:-2/-1;justify-content:flex-end}}
 
 /* Cuadro */
 .bracket{overflow-x:auto;padding-bottom:10px}
@@ -362,6 +372,7 @@ textarea{width:100%;min-height:120px;resize:vertical;font-family:var(--f-mono);f
   .foot a,.sec-head>a,a.mp-link{padding:12px 4px;margin:-12px -4px}
   input[type=file]{min-height:44px}
   .map .t a{padding-block:11px;margin-block:-11px}
+  .ma-id,.ma-direct{min-height:44px}
   nav.main .more-menu a{min-height:44px}
 }
 .qs-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -905,7 +916,7 @@ const VIEWS={
     return `<section><div class="sec-head"><div><span class="eyebrow">${dec(p.sr)}★ · ${p.bo?'Bo'+p.bo:'Run única'}${p.sc?' · Showcase '+corto(p.sc):''}</span><h2>Mappool · ${esc(p.nombre)}</h2></div></div>
       <div class="tabs" role="tablist">${ps.map(x=>`<button class="tab" role="tab" data-pool="${x.key}" aria-selected="${x.key===p.key}">${esc(x.nombre)}</button>`).join('')}</div>
       ${hidden&&maps.length?`<p class="note">Solo los admins y el staff ven esta mappool. Se publica ${when}.${S.me?.admin?' Se cambia en Admin → Publicación de mappools.':''}</p>`:''}
-      ${maps.length?`<div class="maps ${covers?'':'nocover'}">${maps.map(({slot,beatmap_id,data:d})=>{const mod=slot.slice(0,2);const name=`${esc(d.artist)} – ${esc(d.title)}`;return `<div class="map"><span class="slot ${mod}">${esc(slot)}</span><span class="cover" ${d.cover&&covers?`style="background-image:url('${esc(d.cover)}')"`:''}></span><div class="t">${d.url&&!DEMO?`<a href="${esc(d.url)}" target="_blank" rel="noopener">${name}</a>`:`<b>${name}</b>`}<span>[${esc(d.version)}] · mapeado por ${esc(d.creator)}</span></div><div class="st"><span><b>${dec(d.sr,2)}</b>★</span><span><b>${d.bpm}</b> BPM</span><span><b>${mm(d.length)}</b></span><span>CS ${dec(d.cs)}</span><span>AR ${dec(d.ar)}</span><span>OD ${dec(d.od)}</span></div></div>`}).join('')}</div>
+      ${maps.length?`<div class="maps ${covers?'':'nocover'}">${maps.map(({slot,beatmap_id,data:d})=>{const mod=slot.slice(0,2);const name=`${esc(d.artist)} – ${esc(d.title)}`;return `<div class="map"><span class="slot ${mod}">${esc(slot)}</span><span class="cover" ${d.cover&&covers?`style="background-image:url('${esc(d.cover)}')"`:''}></span><div class="t">${d.url&&!DEMO?`<a href="${esc(d.url)}" target="_blank" rel="noopener">${name}</a>`:`<b>${name}</b>`}<span>[${esc(d.version)}] · mapeado por ${esc(d.creator)}</span></div><div class="st"><span><b>${dec(d.sr,2)}</b>★</span><span><b>${d.bpm}</b> BPM</span><span><b>${mm(d.length)}</b></span><span>CS ${dec(d.cs)}</span><span>AR ${dec(d.ar)}</span><span>OD ${dec(d.od)}</span></div><div class="ma"><button type="button" class="ma-id" data-act="copy-id" data-id="${beatmap_id}" title="Copiar el ID para pegarlo en osu!" aria-label="Copiar el ID ${beatmap_id} de ${esc(slot)}"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="5" y="5" width="8.5" height="8.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 10.5h-.5A1.5 1.5 0 0 1 1.5 9V3A1.5 1.5 0 0 1 3 1.5h6A1.5 1.5 0 0 1 10.5 3v.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span>${beatmap_id}</span></button><a class="ma-direct" href="osu://b/${beatmap_id}" title="Abre el mapa en osu! (con osu!supporter se descarga directamente)">osu!direct</a></div></div>`}).join('')}</div>
       <p class="muted" style="font-size:.85rem">BPM, duración, CS, AR y OD ya incluyen el efecto de HR y DT.${p.key==='qualifiers'?' En clasificatorios se juegan en este orden.':''}</p>`
       :waitTxt}</section>`;
   },
@@ -1652,6 +1663,22 @@ async function act(fn,okText){
 const val=id=>document.getElementById(id)?.value??'';
 const mpId=v=>{const m=String(v).match(/(\d+)\D*$/);return m?m[1]:''};
 
+// Copia el ID del mapa (para pegarlo en osu!, p. ej. en !mp map). Sin HTTPS no hay API del portapapeles: se usa execCommand.
+async function copyId(b){
+  const id=b.dataset.id, label=b.querySelector('span');
+  let ok=false;
+  try{await navigator.clipboard.writeText(id);ok=true}catch(_){
+    const t=document.createElement('textarea');t.value=id;t.setAttribute('readonly','');t.style.cssText='position:fixed;opacity:0';document.body.append(t);t.select();
+    try{ok=document.execCommand('copy')}catch(_){}
+    t.remove();
+  }
+  clearTimeout(b._t);
+  label.textContent=ok?'Copiado':'No se pudo copiar';b.classList.toggle('ok',ok);
+  let live=document.getElementById('copyLive');
+  if(!live){live=document.createElement('span');live.id='copyLive';live.className='sr-only';live.setAttribute('aria-live','polite');document.body.append(live)}
+  live.textContent=ok?`ID ${id} copiado`:'No se pudo copiar el ID';
+  b._t=setTimeout(()=>{label.textContent=id;b.classList.remove('ok')},1600);
+}
 app.addEventListener('click',e=>{
   const b=e.target.closest('[data-fase],[data-pool],[data-jug],[data-ref],[data-qday],[data-act]'); if(!b) return;
   if(b.dataset.qday){UI.qday=b.dataset.qday;UI.slotDel=null;UI.slotEmpty=null;return keepRender()}
@@ -1660,6 +1687,7 @@ app.addEventListener('click',e=>{
   if(b.dataset.pool){UI.pool=b.dataset.pool;setSub(UI.pool);return render()}
   if(b.dataset.jug){UI.jug=b.dataset.jug;setSub(UI.jug);return render()}
   const a=b.dataset.act;
+  if(a==='copy-id') return copyId(b);
   if(a==='pool-del') return act(()=>post('/api/admin/pool/delete',{round:b.dataset.round,slot:b.dataset.slot}),'Mapa quitado.');
   if(a==='sync') return act(()=>post('/api/admin/sync',{id:b.dataset.id}),'Resultado actualizado desde osu!.');
   if(a==='qual-del') return act(()=>post('/api/admin/qual/delete',{mp:b.dataset.mp}),'Lobby quitado.');
