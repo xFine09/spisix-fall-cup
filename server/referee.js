@@ -1,10 +1,12 @@
 // Arbitraje con bot de IRC. Cada árbitro conecta su cuenta a Bancho con su contraseña IRC (solo en memoria,
-// nunca en disco ni en los logs) y la web manda los comandos !mp por él: crea el lobby, invita, reparte equipos,
-// lee los !roll, lleva protects, bans y picks (también escritos por los jugadores en el chat), pone cada mapa con
-// sus mods, empieza cuando los dos están listos y anuncia el marcador leído de la API de osu!.
+// nunca en disco ni en los logs) y la web manda los comandos !mp por él, solo cuando pulsa un botón o escribe.
+// La web no actúa sola en el lobby ni hace propuestas: el árbitro lee el chat y pulsa los botones. Solo lleva
+// el estado (quién hay, si están listos, qué mapa está puesto), el turno según las reglas y el resultado de cada
+// mapa, que lee de la API de osu!.
+// Todo lo apuntado (roll, orden, protects, bans y picks) se puede deshacer paso a paso o empezar de cero.
 // El estado de cada partido se guarda en la base de datos; la conexión a Bancho no.
-import { Bancho, ircName, sameName } from './irc.js';
-import { refFlow, modsFor, modOf, other } from './refflow.js';
+import { Bancho, ircName } from './irc.js';
+import { refFlow, modsFor, modOf } from './refflow.js';
 
 const LOG_MAX = 300;
 const IDLE_MS = 3 * 3600e3;   // 3 horas sin usar la web y sin página abierta: se cierra la conexión y se olvida la contraseña
@@ -93,7 +95,8 @@ export function createReferee(deps) {
       log: s ? s.log.slice(-30) : [],
       lobbies: s ? [...s.lobbies.values()].map((l) => ({
         mp: l.mp, kind: l.kind, key: l.key, name: l.name, closed: l.closed, playing: l.playing, waiting: l.waiting,
-        map: l.map, chatPicks: l.chatPicks, players: [...l.players.values()], scores: Object.values(l.scores), log: l.log.slice(-150),
+        map: l.map, ready: l.ready, timer: l.timer, badMode: l.badMode,
+        players: [...l.players.values()], scores: Object.values(l.scores), log: l.log.slice(-150),
         ...(l.kind === 'qual' ? { played: qualState(l.key).played } : {})
       })) : [],
       quals: q.quals.all().map((x) => ({ mp: x.mp, name: (x.data && JSON.parse(x.data).name) || null })),
@@ -110,7 +113,8 @@ export function createReferee(deps) {
   const lobbyOfChannel = (s, ch) => (ch?.startsWith('#mp_') ? s.lobbies.get(ch.slice(4)) : null);
   const lobbyOfKey = (s, key) => [...s.lobbies.values()].find((l) => l.key === key && !l.closed);
   const say = (s, l, text) => s.client?.say('#mp_' + l.mp, text);
-  const newLobby = (fields) => ({ players: new Map(), map: null, playing: false, waiting: false, closed: false, log: [], rolls: {}, rollArg: {}, scores: {}, timer: false, chatPicks: true, ...fields });
+  // ready: Bancho ha dicho que todos están listos · badMode: el lobby de clasificatorios no está en HeadToHead con ScoreV2
+  const newLobby = (fields) => ({ players: new Map(), map: null, playing: false, waiting: false, closed: false, log: [], scores: {}, timer: false, ready: false, badMode: null, ...fields });
 
   async function open(s) {
     const c = new Bancho(s.username, s.password);
@@ -205,7 +209,7 @@ export function createReferee(deps) {
       const l = lobbyOfChannel(s, target);
       if (!l) return;
       addLog(l, from, text);
-      if (from === 'BanchoBot') bancho(s, l, text); else player(s, l, from, text);
+      if (from === 'BanchoBot') bancho(s, l, text);
       return push();
     }
     // Mensaje privado: la respuesta de BanchoBot a !mp make, o cualquier otro aviso.
@@ -230,17 +234,16 @@ export function createReferee(deps) {
     let m;
     if ((m = text.match(/^(.+) joined in slot (\d+)(?: for team (red|blue))?\.$/))) {
       l.players.set(nameKey(m[1]), { name: m[1], slot: +m[2], team: m[3] || null });
-      return teamUp(s, l, m[1], m[3] || null);
+      l.ready = false;
+      return;
     }
-    if ((m = text.match(/^(.+) left the game\.$/))) return void l.players.delete(nameKey(m[1]));
+    if ((m = text.match(/^(.+) left the game\.$/))) { l.players.delete(nameKey(m[1])); l.ready = false; return; }
     if ((m = text.match(/^(.+) moved to slot (\d+)$/))) { const p = l.players.get(nameKey(m[1])); if (p) p.slot = +m[2]; return; }
     if ((m = text.match(/^(.+) changed to (Red|Blue)$/))) { const p = l.players.get(nameKey(m[1])); if (p) p.team = m[2].toLowerCase(); return; }
-    // Respuesta a !mp settings (al volver a entrar). Un lobby de clasificatorios tiene que ser head to head con ScoreV2.
+    // Respuesta a !mp settings. Un lobby de clasificatorios tiene que ser head to head con ScoreV2: si no, se avisa
+    // al árbitro (con un botón para corregirlo), sin cambiarlo por él.
     if ((m = text.match(/^Team mode: (\w+), Win condition: (\w+)$/i))) {
-      if (l.kind === 'qual' && (m[1] !== 'HeadToHead' || m[2] !== 'ScoreV2')) {
-        addLog(l, 'web', `El lobby estaba en ${m[1]} con ${m[2]}: se cambia a HeadToHead con ScoreV2.`);
-        say(s, l, '!mp set 0 3');
-      }
+      if (l.kind === 'qual') l.badMode = m[1] !== 'HeadToHead' || m[2] !== 'ScoreV2' ? `${m[1]} con ${m[2]}` : null;
       return;
     }
     // Respuesta a !mp settings (al volver a entrar): «Slot 1  Not Ready https://osu.ppy.sh/u/123 Nombre  [Team Red ]»
@@ -252,15 +255,12 @@ export function createReferee(deps) {
       return;
     }
     if ((m = text.match(/^(?:Changed beatmap to|Beatmap:) https:\/\/osu\.ppy\.sh\/b\/(\d+)/))) {
-      if (l.map?.bid !== +m[1]) l.map = { bid: +m[1], slot: slotOfBid(l, +m[1]), played: false };
+      if (l.map?.bid !== +m[1]) { l.map = { bid: +m[1], slot: slotOfBid(l, +m[1]), played: false }; l.ready = false; }
       return;
     }
-    if (text === 'All players are ready') {
-      // Solo con un mapa del pool que aún no se ha jugado en este lobby (los warmups los empieza el árbitro).
-      if (l.map?.slot && !l.map.played && !l.playing) { stopTimer(s, l); say(s, l, '!mp start 5'); }
-      return;
-    }
-    if (text === 'The match has started!') { l.playing = true; l.scores = {}; return; }
+    // Se avisa al árbitro; el mapa lo empieza él con «Empezar».
+    if (text === 'All players are ready') { l.ready = true; return; }
+    if (text === 'The match has started!') { l.playing = true; l.ready = false; l.scores = {}; return; }
     if ((m = text.match(/^(.+) finished playing \(Score: (\d+), (PASSED|FAILED)\)\.$/))) {
       l.scores[nameKey(m[1])] = { name: m[1], score: +m[2], passed: m[3] === 'PASSED' };
       return;
@@ -281,74 +281,14 @@ export function createReferee(deps) {
       }
       return;
     }
-    if ((m = text.match(/^(.+) rolls (\d+) point\(s\)$/))) return onRoll(s, l, m[1], +m[2]);
   }
 
-  // Mensajes de los jugadores: el !roll (para saber si lleva número) y los picks, bans y protects escritos en el chat.
-  function player(s, l, from, text) {
-    if (l.kind !== 'match') return;
-    const t = text.trim();
-    const roll = t.match(/^!roll(?:\s+(\S+))?/i);
-    if (roll) { l.rollArg[nameKey(from)] = roll[1] ?? ''; return; }
-    if (!l.chatPicks) return;
-    const m = t.match(/^(NM|HD|HR|DT|FM)\s?(\d{1,2})$/i);
-    if (!m) return;
-    const f = flowOf(l.key);
-    if (!TYPES[f.step] || sideOf(l, from) !== f.by) return;
-    try { perform(s, l, l.key, { type: f.step, slot: (m[1] + m[2]).toUpperCase() }); } catch (e) { say(s, l, e.message); }
-  }
-
-  const sideOf = (l, name) => (l.a && sameName(name, l.a.username) ? 'a' : l.b && sameName(name, l.b.username) ? 'b' : null);
   const playerName = (l, side) => (side ? l[side]?.username || side.toUpperCase() : '');
-
-  // TeamVS: el jugador A en rojo y el B en azul.
-  function teamUp(s, l, name, team) {
-    if (l.kind !== 'match') return;
-    const side = sideOf(l, name);
-    const want = side === 'a' ? 'red' : side === 'b' ? 'blue' : null;
-    if (want && team !== want) say(s, l, `!mp team #${l[side].id} ${want}`); // #ID: vale aunque el nombre tenga espacios o haya cambiado
-  }
-
-  function onRoll(s, l, name, value) {
-    if (l.kind !== 'match') return;
-    const side = sideOf(l, name);
-    const arg = l.rollArg[nameKey(name)];
-    delete l.rollArg[nameKey(name)];
-    if (!side || l.rolls[side] != null || matchState(l.key).roll?.winner) return;
-    if (arg && arg !== '100') return say(s, l, `${l[side].username}: solo vale !roll, sin número. Repítelo.`);
-    l.rolls[side] = value;
-    if (l.rolls.a == null || l.rolls.b == null) return;
-    const { a, b } = l.rolls;
-    l.rolls = {};
-    if (a === b) return say(s, l, `Empate en el roll (${a} – ${b}). Repetid el !roll.`);
-    const st = matchState(l.key);
-    st.roll = { a, b, winner: a > b ? 'a' : 'b' };
-    saveState(l.key, st);
-    announce(s, l);
-  }
 
   function stopTimer(s, l) {
     if (!l.timer) return;
     l.timer = false;
     say(s, l, '!mp aborttimer');
-  }
-
-  // Siguiente paso en el chat del lobby, con temporizador para protects, bans y picks.
-  function announce(s, l) {
-    const f = flowOf(l.key);
-    const n = (side) => playerName(l, side);
-    if (f.step === 'roll') return say(s, l, `${n('a')} y ${n('b')}: haced !roll.`);
-    if (f.step === 'order') {
-      const rolls = f.roll.a != null ? `Roll: ${n('a')} ${f.roll.a} – ${f.roll.b} ${n('b')}. ` : '';
-      return say(s, l, `${rolls}${n(f.by)} gana el roll y elige quién protege, banea y elige primero.`);
-    }
-    if (TYPES[f.step]) {
-      say(s, l, `${n(f.by)}, ${f.step === 'pick' ? 'elige mapa' : f.step === 'ban' ? 'banea un mapa' : 'protege un mapa'}${l.chatPicks ? ' (escríbelo en el chat, p. ej. NM2)' : ''}.`);
-      if (f.rules.pickTimer > 0) { say(s, l, `!mp timer ${f.rules.pickTimer}`); l.timer = true; }
-      return;
-    }
-    if (f.step === 'tb') return say(s, l, `¡Empate a ${f.score.a}! Toca el tiebreaker.`);
-    if (f.step === 'done') return say(s, l, `${n(f.winner)} gana el partido ${f.score[f.winner]} – ${f.score[other(f.winner)]}. ¡GG!`);
   }
 
   // Pone el mapa del slot con sus mods. El mapa empieza solo cuando todos están listos.
@@ -373,6 +313,8 @@ export function createReferee(deps) {
     l.syncTimer.unref?.();
   }
 
+  // Al terminar un mapa solo se lee el resultado (no se manda nada al lobby): el árbitro ve el marcador
+  // en la página y decide cuándo anunciarlo y poner el siguiente mapa.
   function afterMap(s, l) {
     if (l.kind === 'qual') {
       const slot = l.map?.slot;
@@ -386,10 +328,6 @@ export function createReferee(deps) {
         try { await syncQual(+l.mp); } catch (e) { console.warn('[ref qual]', l.mp, e.message); }
         push();
       });
-      if (!slot) return; // warmup: el árbitro sigue cuando quiera
-      const st = qualState(l.key);
-      const next = poolView('qualifiers').find((p) => !st.played.includes(p.slot));
-      if (next) playQual(s, l, next.slot); else say(s, l, 'Fin de la mappool. ¡Gracias por jugar!');
       return;
     }
     const before = flowOf(l.key).played;
@@ -400,13 +338,8 @@ export function createReferee(deps) {
       const f = flowOf(l.key);
       if (f.played > before || f.step === 'done') {
         stopSync(l);
-        push();
-        if (l.closed) return;
-        tellScore(s, l, f);
-        if (f.step === 'tb') {
-          try { perform(s, l, l.key, { type: 'tb' }); } catch (e) { say(s, l, e.message); }
-        } else announce(s, l);
-        return;
+        addLog(l, 'web', `Resultado leído de osu!: ${scoreLine(l, f)}`);
+        return push();
       }
       if (tries < SYNC_TRIES) { l.syncTimer = setTimeout(attempt, READ_GAP + 500); l.syncTimer.unref?.(); }
       else { stopSync(l); addLog(l, 'web', 'La API de osu! todavía no tiene el resultado de este mapa. Pulsa «Releer el MP» en un rato.'); push(); }
@@ -414,11 +347,10 @@ export function createReferee(deps) {
     syncLater(l, attempt);
   }
 
-  function tellScore(s, l, f) {
+  function scoreLine(l, f) {
     const last = f.maps.at(-1);
-    const point = f.step !== 'done' && f.step !== 'tb' && (f.score.a === f.need - 1 || f.score.b === f.need - 1) ? ' · Match point' : '';
     const map = last && last.a != null && last.b != null ? `${last.slot}: ${nfmt.format(last.a)} – ${nfmt.format(last.b)}. ` : '';
-    say(s, l, `${map}Marcador: ${playerName(l, 'a')} ${f.score.a} – ${f.score.b} ${playerName(l, 'b')}${point}`);
+    return `${map}Marcador: ${playerName(l, 'a')} ${f.score.a} – ${f.score.b} ${playerName(l, 'b')}`;
   }
 
   function playQual(s, l, slot) {
@@ -428,20 +360,22 @@ export function createReferee(deps) {
     playSlot(s, l, slot, null, 'qualifiers');
   }
 
-  // ---------- protects, bans y picks ----------
-  // Lo usan los botones de la web y los mapas escritos por los jugadores en el chat.
+  // ---------- roll, orden, protects, bans y picks ----------
+  // Cada botón apunta el paso y, con lobby, manda su mensaje o sus comandos (un pick pone el mapa y los mods).
+  // No se anuncia el turno siguiente ni se pone el temporizador: eso lo hace el árbitro cuando quiera.
+  const stepName = (x, f) => `${{ protect: 'protect', ban: 'ban', pick: 'pick' }[x.type]} de ${x.slot}${x.by ? ` (${f[x.by].username})` : ''}`;
   function perform(s, l, key, b) {
     const f = flowOf(key);
     if (!f.a || !f.b) throw new HttpError(400, 'Este partido aún no tiene a los dos jugadores.');
     const st = matchState(key);
     const type = b.type;
     const side = (x) => (x === 'a' || x === 'b' ? x : null);
-    let said = null;
+    let said = null, note = null;
     if (type === 'roll') {
       if (f.step !== 'roll') throw new HttpError(400, 'El roll ya está decidido. Usa «Deshacer» para cambiarlo.');
       if (!side(b.winner)) throw new HttpError(400, 'Elige quién ha ganado el roll.');
       st.roll = { winner: b.winner };
-      said = `${f[b.winner].username} gana el roll.`;
+      said = `${f[b.winner].username} gana el roll y elige quién protege, banea y elige primero.`;
     } else if (type === 'order') {
       if (f.step !== 'order') throw new HttpError(400, 'Ahora no toca elegir el orden.');
       if (!side(b.protect) || !side(b.ban) || !side(b.pick)) throw new HttpError(400, 'Elige quién protege, banea y elige primero.');
@@ -464,11 +398,15 @@ export function createReferee(deps) {
       if (!f.hasTb) throw new HttpError(400, 'La mappool de esta ronda no tiene TB.');
       st.actions.push({ type: 'pick', by: null, slot: 'TB', at: Date.now() });
     } else if (type === 'undo') {
-      if (st.actions.length) st.actions.pop();
-      else if (st.order) st.order = null;
-      else if (st.roll) st.roll = null;
+      // Solo cambia lo apuntado en la web; en el lobby no se manda nada.
+      if (st.actions.length) note = `Deshecho: ${stepName(st.actions.pop(), f)}.`;
+      else if (st.order) { st.order = null; note = 'Deshecho: el orden de protects, bans y picks.'; }
+      else if (st.roll) { st.roll = null; note = 'Deshecho: el roll.'; }
       else throw new HttpError(400, 'No hay nada que deshacer.');
-      said = 'El árbitro deshace el último paso.';
+    } else if (type === 'reset') {
+      if (!st.roll && !st.order && !st.actions.length) throw new HttpError(400, 'No hay nada apuntado.');
+      st.roll = null; st.order = null; st.actions = [];
+      note = 'Empezado de cero: se han borrado el roll, el orden, los protects, los bans y los picks (el marcador sale del MP).';
     } else {
       throw new HttpError(400, 'Acción desconocida.');
     }
@@ -477,11 +415,8 @@ export function createReferee(deps) {
     if (l) {
       const last = st.actions.at(-1);
       if (type === 'pick' || type === 'tb') playSlot(s, l, last.slot, last.by, f.round);
-      else {
-        stopTimer(s, l);
-        if (said) say(s, l, said);
-        announce(s, l);
-      }
+      else if (said) { stopTimer(s, l); say(s, l, said); }
+      if (note) addLog(l, 'web', note);
     }
     push();
     return flowOf(key);
@@ -538,15 +473,14 @@ export function createReferee(deps) {
       const rec = q.getMatch.get(match);
       // El MP nuevo sustituye al anterior (si había): el resultado se vuelve a leer de este.
       q.upsertMatch.run(match, rec?.time ?? null, rec?.ref || user.username, +mp, rec?.ff ?? null, rec?.bans ?? '[]', null, Date.now());
+      // Lo que hace el botón «Crear el lobby»: modo del lobby e invitaciones. El saludo lo manda el árbitro.
       say(s, l, '!mp set 2 3 2'); // TeamVS, ScoreV2, 2 plazas
       say(s, l, `!mp invite #${sides.a.id}`);
       say(s, l, `!mp invite #${sides.b.id}`);
-      say(s, l, `${label(match)} de ${CONFIG.nombre} (Bo${need(match) * 2 - 1}). Cuando estéis los dos, haced !roll.`);
     } else {
       q.upsertQual.run(+mp, JSON.stringify({ name, scores: {} }), Date.now());
       saveState(l.key, { played: [] });
       say(s, l, `!mp set 0 3 ${slot?.size || 16}`); // HeadToHead, ScoreV2, plazas
-      say(s, l, `Clasificatorios de ${CONFIG.nombre}: ${poolOf('qualifiers').length} mapas en orden, una sola run. NF obligatorio.`);
       if (slot) {
         q.setSlotMp.run(+mp, slot.id);
         if (!slot.ref_id) q.setSlotRef.run(user.id, slot.id);
@@ -590,7 +524,7 @@ export function createReferee(deps) {
     return { s, l };
   }
 
-  const LOBBY_CMDS = { start: '!mp start 5', abort: '!mp abort', close: '!mp close', settings: '!mp settings' };
+  const LOBBY_CMDS = { start: '!mp start 5', abort: '!mp abort', close: '!mp close', settings: '!mp settings', aborttimer: '!mp aborttimer' };
 
   async function act(user, key, b) {
     key = String(key || '');
@@ -602,7 +536,23 @@ export function createReferee(deps) {
     if (LOBBY_CMDS[type]) {
       const { s: ss, l } = lobbyFor(user, key);
       if (type === 'start') stopTimer(ss, l);
+      if (type === 'aborttimer') l.timer = false;
       say(ss, l, LOBBY_CMDS[type]);
+      return push();
+    }
+    if (type === 'teams') {
+      // TeamVS: el jugador A en rojo y el B en azul (#ID: vale aunque el nombre tenga espacios o haya cambiado)
+      const { s: ss, l } = lobbyFor(user, key);
+      if (l.kind !== 'match') throw new HttpError(400, 'Eso es para partidos del cuadro.');
+      say(ss, l, `!mp team #${l.a.id} red`);
+      say(ss, l, `!mp team #${l.b.id} blue`);
+      return push();
+    }
+    if (type === 'fixmode') {
+      const { s: ss, l } = lobbyFor(user, key);
+      if (l.kind !== 'qual') throw new HttpError(400, 'Eso es para lobbies de clasificatorios.');
+      say(ss, l, '!mp set 0 3');
+      l.badMode = null;
       return push();
     }
     if (type === 'timer') {
@@ -628,11 +578,6 @@ export function createReferee(deps) {
       l.map = { bid: +id, slot: null, played: false };
       return push();
     }
-    if (type === 'chatpicks') {
-      const { l } = lobbyFor(user, key);
-      l.chatPicks = Boolean(b.on);
-      return push();
-    }
     if (type === 'qinvite') {
       const { s: ss, l } = lobbyFor(user, key);
       const slot = l.kind === 'qual' ? q.slotByMp.get(+l.mp) : null;
@@ -649,7 +594,7 @@ export function createReferee(deps) {
       return push();
     }
     if (type === 'resync') {
-      const { s: ss, l } = lobbyFor(user, key);
+      const { l } = lobbyFor(user, key);
       const wait = Math.ceil((READ_GAP - sinceRead(l.mp)) / 1000);
       if (wait > 0) throw new HttpError(429, `Espera ${wait} s: osu! pide no leer el mismo MP más de una vez por minuto.`);
       if (l.kind === 'qual') { await syncQual(+l.mp); return push(); }
@@ -657,10 +602,7 @@ export function createReferee(deps) {
       stopSync(l);
       await syncMatch(key);
       const f = flowOf(key);
-      if (f.played > before || f.step === 'done') {
-        tellScore(ss, l, f);
-        if (f.step === 'tb') perform(ss, l, key, { type: 'tb' }); else announce(ss, l);
-      }
+      if (f.played > before) addLog(l, 'web', `Resultado leído de osu!: ${scoreLine(l, f)}`);
       return push();
     }
 

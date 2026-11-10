@@ -1264,53 +1264,70 @@ try {
   assert.equal(r.body.matches['u1-3'].mp, 558);
   assert.equal(r.body.matches['u1-3'].ref, 'Jugador C');
 
-  // Equipos: A en rojo y B en azul
+  // La web no actúa sola: los equipos se ponen con su botón
+  const lobby = () => live.last.lobbies.find((l) => l.key === 'u1-3' && !l.closed);
   ircSay(CH, 'BanchoBot', `${A} joined in slot 1.`);
   ircSay(CH, 'BanchoBot', `${B} joined in slot 2 for team red.`);
+  await until(() => lobby()?.players.length === 2, 'jugadores en el lobby');
+  assert.ok(!sentTo(CH).some((t) => t.startsWith('!mp team')), 'sin equipos hasta que el árbitro los pone');
+  r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'teams' } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
   await until(() => sentTo(CH).includes(`!mp team #${f3.a.id} red`) && sentTo(CH).includes(`!mp team #${f3.b.id} blue`), 'equipos por ID');
-  // Roll: con número no vale; empate no vale
-  ircSay(CH, A, '!roll 1000');
-  ircSay(CH, 'BanchoBot', `${A} rolls 999 point(s)`);
-  await until(() => sentTo(CH).includes(`${A}: solo vale !roll, sin número. Repítelo.`), 'roll con número rechazado');
+  // Roll: el árbitro lo ve en el chat y apunta quién gana; la web no lee ni propone nada
+  const inLog = (text) => lobby()?.log.some((x) => x.text === text);
   ircSay(CH, A, '!roll');
   ircSay(CH, 'BanchoBot', `${A} rolls 40 point(s)`);
   ircSay(CH, B, '!roll');
   ircSay(CH, 'BanchoBot', `${B} rolls 75 point(s)`);
-  await until(() => live.last.flows['u1-3'].step === 'order', 'roll leído del chat');
-  assert.deepEqual(live.last.flows['u1-3'].roll, { a: 40, b: 75, winner: 'b' });
-  await until(() => sentTo(CH).includes(`Roll: ${A} 40 – 75 ${B}. ${B} gana el roll y elige quién protege, banea y elige primero.`), 'anuncio del roll');
+  await until(() => inLog(`${B} rolls 75 point(s)`), 'roll en el chat de la página');
+  assert.equal(live.last.flows['u1-3'].step, 'roll', 'el roll no se apunta solo');
+  assert.ok(!('rolls' in lobby()) && !('suggest' in lobby()), 'sin propuestas');
+  assert.ok(!sentTo(CH).some((t) => /roll/i.test(t)), 'nada mandado al lobby sobre el roll');
+  r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'roll', winner: 'b' } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  await until(() => live.last.flows['u1-3'].step === 'order', 'roll apuntado');
+  assert.deepEqual(live.last.flows['u1-3'].roll, { winner: 'b' });
+  await until(() => sentTo(CH).includes(`${B} gana el roll y elige quién protege, banea y elige primero.`), 'anuncio del roll al pulsarlo');
   r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'order', protect: 'a', ban: 'b', pick: 'b' } });
   assert.equal(r.status, 200, JSON.stringify(r.body));
-  await until(() => sentTo(CH).includes('!mp timer 30') && sentTo(CH).includes(`${A}, protege un mapa (escríbelo en el chat, p. ej. NM2).`), 'turno y temporizador de la ronda');
+  await until(() => sentTo(CH).includes(`Orden: protege primero ${A}, banea primero ${B} y elige primero ${B}.`), 'orden anunciado');
+  assert.ok(!sentTo(CH).includes('!mp timer 30'), 'el temporizador no se pone solo');
+  await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'timer', seconds: 30 } });
+  await until(() => sentTo(CH).includes('!mp timer 30'), 'temporizador con el botón');
 
-  // Protects: por el chat (solo cuenta el jugador al que le toca) y con el botón
-  ircSay(CH, B, 'HD1');
+  // Protects: lo que escribe un jugador no se apunta; el árbitro pulsa el mapa
   ircSay(CH, A, 'nm1');
-  await until(() => live.last.flows['u1-3'].protects.length === 1, 'protect escrito en el chat');
-  assert.deepEqual(live.last.flows['u1-3'].protects.map((x) => [x.by, x.slot]), [['a', 'NM1']], 'el mensaje de B fuera de turno no cuenta');
-  ircSay(CH, B, 'NM1');
-  await until(() => sentTo(CH).includes('NM1: ya está protegido.'), 'regla: protect repetido');
+  await until(() => inLog('nm1'), 'mapa escrito en el chat');
+  assert.equal(live.last.flows['u1-3'].protects.length, 0, 'no se apunta solo');
+  r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'protect', slot: 'NM1' } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  await until(() => sentTo(CH).includes(`${A} protege NM1.`) && sentTo(CH).includes('!mp aborttimer'), 'protect anunciado y temporizador parado');
   r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'protect', slot: 'hd1' } });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   // Bans: no se puede banear un mapa protegido; la primera tanda la abre B (orden elegido)
   await until(() => live.last.flows['u1-3'].step === 'ban', 'turno de bans');
   assert.equal(live.last.flows['u1-3'].by, 'b');
-  ircSay(CH, B, 'nm1');
-  await until(() => sentTo(CH).includes('NM1: está protegido.'), 'regla: no banear protegidos');
-  ircSay(CH, B, 'dt1');
-  await until(() => live.last.flows['u1-3'].bans.length === 1, 'ban escrito en el chat');
+  assert.equal(live.last.flows['u1-3'].allowed.NM1, 'Está protegido', 'la página sabe por qué no vale');
+  r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'ban', slot: 'NM1' } });
+  assert.equal(r.status, 400, 'regla: no banear protegidos');
+  r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'ban', slot: 'DT1' } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
   r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'ban', slot: 'DT1' } });
   assert.equal(r.status, 400, 'mapa ya baneado');
   r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'ban', slot: 'HR1' } });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   await until(() => live.last.flows['u1-3'].step === 'pick' && live.last.flows['u1-3'].by === 'b', 'turno de picks: First Pick de B');
-  // Pick de B (First Pick) por el chat: el bot pone el mapa con NF y empieza cuando los dos están listos
-  ircSay(CH, B, 'NM2');
+  // Pick de B (First Pick): al confirmarlo se pone el mapa con NF; se empieza con el botón cuando el árbitro quiere
+  r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'pick', slot: 'NM2' } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
   await until(() => sentTo(CH).includes(`${B} elige NM2: Artista 102 - Titulo 102 [Insane]. Empieza cuando estéis listos.`), 'pick anunciado');
   assert.ok(sentTo(CH).includes('!mp map 102 0') && sentTo(CH).includes('!mp mods NF'), 'mapa y mods antes del anuncio');
   const play = async (bid, sa, sb) => {
     ircSay(CH, 'BanchoBot', 'All players are ready');
-    await until(() => sentTo(CH).filter((t) => t === '!mp start 5').length > play.n, 'empieza solo');
+    await until(() => lobby()?.ready === true, 'todos listos en la página');
+    assert.equal(sentTo(CH).filter((t) => t === '!mp start 5').length, play.n, 'no empieza solo');
+    await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'start' } });
+    await until(() => sentTo(CH).filter((t) => t === '!mp start 5').length > play.n, 'empieza con el botón');
     play.n++;
     ircSay(CH, 'BanchoBot', 'The match has started!');
     ircSay(CH, 'BanchoBot', `${A} finished playing (Score: ${sa}, PASSED).`);
@@ -1319,38 +1336,46 @@ try {
     ircSay(CH, 'BanchoBot', 'The match has finished!');
   };
   play.n = 0;
+  const readLine = (text) => lobby()?.log.some((x) => x.from === 'web' && x.text === text);
   await play(102, 500000, 900000);
-  await until(() => sentTo(CH).includes(`NM2: 500.000 – 900.000. Marcador: ${A} 0 – 1 ${B}`), 'marcador leído de la API de osu!');
+  await until(() => readLine(`Resultado leído de osu!: NM2: 500.000 – 900.000. Marcador: ${A} 0 – 1 ${B}`), 'marcador leído de la API de osu!');
+  assert.ok(!sentTo(CH).some((t) => t.includes('Marcador')), 'el marcador no se anuncia solo');
   await until(() => live.last.flows['u1-3'].step === 'pick' && live.last.flows['u1-3'].by === 'a', 'turno de A');
   // Pick de A con el botón: FreeMod
   r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'pick', slot: 'FM1' } });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   await until(() => sentTo(CH).includes('!mp mods Freemod') && sentTo(CH).includes(`${A} elige FM1: Artista 103 - Titulo 103 [Insane] · FreeMod, NF obligatorio. Empieza cuando estéis listos.`), 'FM en FreeMod');
   await play(103, 900000, 500000);
-  await until(() => sentTo(CH).includes(`FM1: 900.000 – 500.000. Marcador: ${A} 1 – 1 ${B}`), 'segundo mapa');
+  await until(() => readLine(`Resultado leído de osu!: FM1: 900.000 – 500.000. Marcador: ${A} 1 – 1 ${B}`), 'segundo mapa');
   // Regla: B no puede repetir el mod de su pick anterior (NM2 → NM1); el mapa protegido sí se puede elegir
   await until(() => live.last.flows['u1-3'].by === 'b', 'turno de B');
-  ircSay(CH, B, 'NM1');
-  await until(() => sentTo(CH).includes('NM1: mismo mod que su pick anterior.'), 'regla: mismo mod');
-  ircSay(CH, B, 'NM1'); // repetido enseguida: el bot no repite el aviso
+  r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'pick', slot: 'NM1' } });
+  assert.equal(r.status, 400, 'regla: mismo mod');
+  assert.match(r.body.error, /mismo mod que su pick anterior/);
   ircSay(CH, B, 'hd1');
+  r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'pick', slot: 'HD1' } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
   await until(() => sentTo(CH).includes('!mp mods NF HD'), 'pick del mapa protegido');
-  assert.equal(sentTo(CH).filter((t) => t === 'NM1: mismo mod que su pick anterior.').length, 1, 'aviso repetido no se manda dos veces');
   r = await anon2('/api/state');
   assert.deepEqual(r.body.matches['u1-3'].bans, ['DT1', 'HR1']);
   assert.deepEqual(r.body.matches['u1-3'].protects, ['NM1', 'HD1']);
   assert.deepEqual(r.body.matches['u1-3'].result.wins, { [f3.a.id]: 1, [f3.b.id]: 1 });
-  // Deshacer y apuntar a mano saltándose las reglas
+  // Deshacer (solo en la web, sin mandar nada al lobby) y apuntar a mano saltándose las reglas
+  const sentBefore = sentTo(CH).length;
   r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'undo' } });
   assert.equal(r.status, 200);
-  await until(() => sentTo(CH).includes('El árbitro deshace el último paso.'), 'deshacer anunciado');
   await until(() => live.last.flows['u1-3'].picks.length === 2, 'pick deshecho');
+  await until(() => readLine(`Deshecho: pick de HD1 (${B}).`), 'deshacer en el chat de la página');
   r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'ban', slot: 'NM1', by: 'a' } });
   assert.equal(r.status, 400, 'fuera de turno sin forzar');
   r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'ban', slot: 'NM1', by: 'a', force: true } });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   await until(() => live.last.flows['u1-3'].bans.length === 3, 'ban forzado');
   await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'undo' } });
+  await until(() => live.last.flows['u1-3'].bans.length === 2, 'ban forzado deshecho');
+  await until(() => sentTo(CH).includes(`${A} banea NM1.`), 'ban forzado anunciado');
+  await new Promise((done) => setTimeout(done, 1500));
+  assert.equal(sentTo(CH).filter((t) => !t.startsWith('!')).length, sentTo(CH).slice(0, sentBefore).filter((t) => !t.startsWith('!')).length + 1, 'deshacer no manda nada; el ban forzado sí se anuncia');
   // Chat y comandos del árbitro
   await refc('/api/ref/chat', { method: 'POST', json: { key: 'u1-3', text: '¡Suerte a los dos!' } });
   await until(() => sentTo(CH).includes('¡Suerte a los dos!'), 'mensaje del árbitro');
@@ -1381,6 +1406,12 @@ try {
   const lob = live.last.lobbies.find((l) => l.key === 'u1-3' && !l.closed);
   assert.deepEqual(lob.players.map((p) => [p.name, p.team]), [[A, 'red'], [B, 'blue']]);
   assert.deepEqual(lob.map, { bid: 104, slot: 'HD1', played: false });
+  // Empezar de cero: se borra todo lo apuntado del partido (el marcador sigue saliendo del MP)
+  r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'reset' } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  await until(() => live.last.flows['u1-3'].roll === null && !live.last.flows['u1-3'].bans.length, 'partido de cero');
+  assert.deepEqual((await anon2('/api/state')).body.matches['u1-3'].bans, []);
+  assert.equal((await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'reset' } })).status, 400, 'nada que borrar');
 
   // osu! solo deja 4 lobbies de torneo abiertos por cuenta
   irc.full = true;
@@ -1389,7 +1420,7 @@ try {
   assert.match(r.body.error, /4 lobbies de torneo/);
   irc.full = false;
 
-  // Lobby de clasificatorios: los mapas van solos en orden
+  // Lobby de clasificatorios: cada mapa lo pone el árbitro con su botón
   r = await refc('/api/ref/lobby', { method: 'POST', json: { qual: 'Lobby C' } });
   assert.deepEqual(r.body, { ok: true, mp: '559', key: 'qual:559' }, JSON.stringify(r.body));
   const QC = '#mp_559';
@@ -1397,17 +1428,23 @@ try {
   await refc('/api/ref/act', { method: 'POST', json: { key: 'qual:559', type: 'qmap', slot: 'NM1' } });
   await until(() => sentTo(QC).includes('!mp map 201 0'), 'primer mapa');
   ircSay(QC, 'BanchoBot', 'The match has finished!');
-  await until(() => sentTo(QC).includes('!mp map 202 0'), 'siguiente mapa solo');
-  ircSay(QC, 'BanchoBot', 'The match has finished!');
-  await until(() => sentTo(QC).includes('Fin de la mappool. ¡Gracias por jugar!'), 'fin de la mappool');
+  await until(() => live.last.lobbies.find((l) => l.key === 'qual:559')?.played.includes('NM1'), 'mapa jugado apuntado');
+  await new Promise((done) => setTimeout(done, 300));
+  assert.ok(!sentTo(QC).includes('!mp map 202 0'), 'el siguiente mapa no se pone solo');
+  await refc('/api/ref/act', { method: 'POST', json: { key: 'qual:559', type: 'qmap', slot: 'NM2' } });
+  await until(() => sentTo(QC).includes('!mp map 202 0'), 'siguiente mapa con el botón');
   await until(async () => (await refc('/api/state')).body.qual.lobbies.some((l) => l.mp === 559 && l.name === 'SPI6: (Clasificatorios) Lobby C'), 'lobby leído de osu!');
   r = await anon2('/api/state');
   assert.equal(r.body.matches['u1-3'].mp, 558, 'las seeds no cambian');
-  // Al volver a entrar, un lobby de clasificatorios que no sea head to head con ScoreV2 se corrige
+  // Un lobby de clasificatorios que no sea head to head con ScoreV2 se avisa; se corrige con el botón
   const setsBefore = sentTo(QC).filter((t) => t === '!mp set 0 3').length;
   ircSay(QC, 'BanchoBot', 'Team mode: HeadToHead, Win condition: ScoreV2');
   ircSay(QC, 'BanchoBot', 'Team mode: TeamVs, Win condition: ScoreV2');
-  await until(() => sentTo(QC).filter((t) => t === '!mp set 0 3').length === setsBefore + 1, 'corrige el modo del lobby');
+  await until(() => live.last.lobbies.find((l) => l.key === 'qual:559')?.badMode === 'TeamVs con ScoreV2', 'aviso de modo');
+  assert.equal(sentTo(QC).filter((t) => t === '!mp set 0 3').length, setsBefore, 'no se corrige solo');
+  await refc('/api/ref/act', { method: 'POST', json: { key: 'qual:559', type: 'fixmode' } });
+  await until(() => sentTo(QC).filter((t) => t === '!mp set 0 3').length === setsBefore + 1, 'corrige el modo con el botón');
+  await until(() => live.last.lobbies.find((l) => l.key === 'qual:559')?.badMode === null, 'aviso quitado');
   ircSay(CH, 'BanchoBot', 'Team mode: TeamVs, Win condition: ScoreV2');
   // Lobby con jugadores apuntados: se crea con sus plazas e invita a los apuntados
   await adm2('/api/admin/qual-slot', { method: 'POST', json: { name: 'Lobby E', time: Date.now() + 3600e3, size: 4 } });
@@ -1480,7 +1517,7 @@ try {
     if (f.isFile()) assert.ok(!readFileSync(join(f.parentPath, f.name)).includes('irc-secreta'), 'contraseña en ' + f.name);
   }
   assert.ok(!log.includes('irc-secreta'), 'contraseña en el log');
-  console.log('✓ arbitraje: bot de IRC con roll, protects, bans y picks (chat y web), reglas, marcador y clasificatorios');
+  console.log('✓ arbitraje: el árbitro decide cada comando con los botones (sin propuestas), reglas, deshacer, marcador y clasificatorios');
   console.log('\nTodo correcto.');
 } catch (e) {
   failed = true;

@@ -470,6 +470,20 @@ form.f{display:grid;gap:14px;max-width:560px}
 .rlog .me b{color:var(--accent)}
 .rlog .web{color:var(--warn)}
 .rstep{display:grid;gap:12px}
+/* Con un lobby abierto: el chat y la botonera, uno al lado del otro */
+.ref.wide{grid-template-columns:1fr}
+.rside{padding-block:4px}
+.rside>summary{cursor:pointer;font-weight:700;font-family:var(--f-display);min-height:44px;display:flex;align-items:center}
+.rside[open]>summary{margin-bottom:12px}
+.rcon{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:980px){.rcon{grid-template-columns:1fr}}
+.rchat{position:sticky;top:76px}
+@media (max-width:980px){.rchat{position:static}}
+.rchat .rlog{height:min(62vh,620px)}
+.rbtns{display:grid;gap:14px}
+.rgrp{display:grid;gap:8px}
+.rgrp+.rgrp{padding-top:12px;border-top:1px solid var(--line)}
+.rgrp h4{margin:0;font-size:.78rem;font-weight:700;letter-spacing:.02em;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -789,18 +803,20 @@ const VIEWS={
     // Solo los que necesitan árbitro ahora: con jugadores o con este árbitro, y que no sean de hace más de 6 horas. Los suyos, primero.
     const myId=S.me?.id;
     const slotRows=R.slots.filter(x=>!mine.some(l=>String(l.mp)===String(x.mp))&&(x.signed||x.pending||x.mp||x.ref_id===myId)&&x.time>T.NOW-6*3600e3).sort((x,y)=>(y.ref_id===myId)-(x.ref_id===myId)||x.time-y.time);
-    const side=`<aside class="card adm"><h3>Partidos</h3>
+    const sideIn=`<h3>Partidos</h3>
         <div class="rlist">${flows.map(item).join('')||'<p class="muted" style="font-size:.85rem">Aún no hay partidos con los dos jugadores decididos: hacen falta las seeds de los clasificatorios.</p>'}</div>
         <h3>Clasificatorios</h3>
         ${quals.length?`<div class="rlist">${quals.map(l=>`<button type="button" class="rm" data-ref="${esc(l.key)}" aria-current="${UI.ref===l.key}"><span><b>${esc(l.name)}</b></span><small>MP #${esc(l.mp)} · ${l.players.length} en el lobby</small></button>`).join('')}</div>`:''}
         ${on&&slotRows.length?`<div class="mini">${slotRows.map(x=>`<div class="it"><span><b>${esc(x.name)}</b> · ${corto(x.time)} ${hora(x.time)} · ${x.signed}/${x.size}${x.pending?` · ${x.pending} sin aprobar`:''} · ${x.ref_id===myId?'<b>tuyo</b>':x.ref_name?esc(x.ref_name):'sin árbitro'}${x.mp?` · MP #${x.mp}`:''}</span><span class="qs-r">${x.mp?`<button class="btn btn-ghost btn-sm" type="button" data-act="ref-attach" data-key="qual:${x.mp}">Entrar</button><button class="btn btn-ghost btn-sm" type="button" data-act="ref-slot" data-id="${x.id}" data-replace="1">Crear otro</button>`:`<button class="btn btn-primary btn-sm" type="button" data-act="ref-slot" data-id="${x.id}">Crear lobby</button>`}</span></div>`).join('')}</div>`:''}
         ${on?`<form class="row" data-form="ref-qual"><div class="field" style="flex:1 1 140px"><label for="r-qname">Otro lobby</label><input type="text" id="r-qname" maxlength="30" placeholder="Lobby A"></div><button class="btn btn-ghost btn-sm" type="submit">Crear</button></form>`:''}
         ${on&&others.length?`<div class="mini">${others.map(x=>`<div class="it"><span>MP #${x.mp}${x.name?' · '+esc(x.name):''}</span><button class="btn btn-ghost btn-sm" type="button" data-act="ref-attach" data-key="qual:${x.mp}">Entrar</button></div>`).join('')}</div>`:''}
-        ${!on&&!quals.length?'<p class="muted" style="font-size:.85rem">Conecta con Bancho para crear lobbies de clasificatorios.</p>':''}
-      </aside>`;
+        ${!on&&!quals.length?'<p class="muted" style="font-size:.85rem">Conecta con Bancho para crear lobbies de clasificatorios.</p>':''}`;
     const sel=R.flows[UI.ref], ql=quals.find(l=>l.key===UI.ref);
+    // Con un lobby abierto, la lista se pliega para dejar todo el ancho al chat y a la botonera.
+    const wide=Boolean(ql||sel&&inLobby(sel.id));
+    const side=wide?`<details class="card adm rside"><summary>Cambiar de partido o de lobby</summary>${sideIn.replace('<h3>Partidos</h3>','<h3 class="sr-only">Partidos</h3>')}</details>`:`<aside class="card adm">${sideIn}</aside>`;
     const main=sel?refMatch(sel):ql?refQual(ql):`${flashHtml()}<div class="empty">Elige un partido de la lista.</div>`;
-    return `<section>${head}${refErr?`<div class="flash err">${esc(refErr)}</div>`:''}${refConn()}<div class="ref">${side}<div>${main}</div></div></section>`;
+    return `<section>${head}${refErr?`<div class="flash err">${esc(refErr)}</div>`:''}${refConn()}<div class="ref${wide?' wide':''}">${side}<div>${main}</div></div></section>`;
   },
   inicio(){
     const {cur,NOW,C}=T, reg=T.phaseBy.registros;
@@ -1393,88 +1409,106 @@ function refConn(){
     <p class="muted" style="font-size:.8rem">La contraseña solo está en la memoria del servidor mientras estás conectado (ni en la base de datos ni en los registros) y se olvida al desconectar, al cerrar sesión o tras 3 horas sin usar esta página. Sin conectar puedes apuntar igualmente el roll, los protects, los bans y los picks; los comandos los escribes tú en osu!.</p>
   </div>`;
 }
-function lobbyBar(l){
+// Estado del lobby (solo información: quién hay, mapa puesto, si se juega). No propone nada.
+function lobbyInfo(l){
   const pl=[...l.players].sort((a,b)=>a.slot-b.slot).map(p=>`<span class="rp ${p.team?'t-'+p.team:''}" title="Slot ${p.slot}${p.team?' · '+(p.team==='red'?'rojo':'azul'):''}">${esc(p.name)}</span>`).join('')||'<span class="muted" style="font-size:.85rem">Nadie en el lobby todavía</span>';
   const map=l.map?`${l.map.slot?`<span class="slot ${esc(l.map.slot.slice(0,2))}">${esc(l.map.slot)}</span>`:'<span class="pill">Warmup</span>'} <a href="https://osu.ppy.sh/b/${l.map.bid}" target="_blank" rel="noopener">b/${l.map.bid}</a>`:'<span class="muted">Sin mapa</span>';
-  const st=l.playing?'<span class="pill live">Jugando</span>':l.waiting?'<span class="pill tbd">Esperando el resultado de osu!…</span>':'';
-  const f=l.kind==='match'?R.flows[l.key]:null;
-  return `<div class="rlob"><div class="row" style="align-items:center"><b>Lobby <a href="${mpUrl(l.mp)}" target="_blank" rel="noopener">#${esc(l.mp)}</a></b>${st}<span>${map}</span></div>
+  const st=l.playing?'<span class="pill live">Jugando</span>':l.waiting?'<span class="pill tbd">Leyendo el resultado de osu!…</span>':l.ready?'<span class="pill good">Todos listos</span>':'';
+  return `<div class="rlob"><div class="row" style="align-items:center"><b>Lobby <a href="${mpUrl(l.mp)}" target="_blank" rel="noopener">#${esc(l.mp)}</a></b>${st}<span>${map}</span>${l.timer?'<span class="pill tbd">Temporizador</span>':''}</div>
     <div class="rpl">${pl}</div>
     ${l.scores.length?`<div class="mt-meta">${l.scores.map(x=>`<span>${esc(x.name)}: <b class="num">${nf.format(x.score)}</b>${x.passed?'':' (fail)'}</span>`).join('')}</div>`:''}
-    <div class="row">
-      <button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="start">Empezar (5 s)</button>
-      <button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="abort">Abortar</button>
-      <button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="timer" data-seconds="90">Temporizador 90 s</button>
-      ${f?`<button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="invite" data-names="${esc(f.a.username)},${esc(f.b.username)}">Invitar otra vez</button>`:''}
-      <button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="settings">!mp settings</button>
-      <button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="resync">Releer el MP</button>
-      <button class="btn btn-danger btn-sm" type="button" data-act="ref-close">Cerrar lobby</button>
-    </div>
-    ${f?`<span class="checks"><label><input type="checkbox" id="r-cp" data-keep="no" ${l.chatPicks?'checked':''}>Aceptar los mapas que escriben los jugadores en el chat (NM2, HD1…)</label></span>`:''}
+    ${l.badMode?`<p class="note bad">El lobby está en ${esc(l.badMode)}: los clasificatorios se juegan en HeadToHead con ScoreV2.</p>`:''}
   </div>`;
 }
-function logCard(l){
-  return `<div class="card adm"><h3>Chat del lobby</h3>
+// Botones de la botonera. Cada uno manda su comando o su mensaje al pulsarlo; el texto exacto sale al pasar el ratón.
+const rcmd=(type,label,command,extra='',cls='btn-ghost')=>`<button class="btn ${cls} btn-sm" type="button" data-act="ref-do" data-type="${type}" title="${esc(command)}" ${extra}>${label}</button>`;
+const rsay=(label,text)=>`<button class="btn btn-ghost btn-sm" type="button" data-act="ref-say" data-text="${esc(text)}" title="${esc(text)}">${label}</button>`;
+const rgrp=(title,body)=>body?`<div class="rgrp"><h4>${title}</h4>${body}</div>`:'';
+function lobbyBtns(l,f){
+  const secs=f?.rules?.pickTimer>0?f.rules.pickTimer:90;
+  return `<div class="row">
+      ${rcmd('start','Empezar (5 s)','!mp start 5')}
+      ${rcmd('abort','Abortar','!mp abort')}
+      ${rcmd('timer',`Temporizador ${secs} s`,`!mp timer ${secs}`,`data-seconds="${secs}"`)}
+      ${rcmd('aborttimer','Parar temporizador','!mp aborttimer')}
+      ${f?rcmd('teams','Poner equipos',`!mp team #${f.a.id} red · !mp team #${f.b.id} blue`):''}
+      ${f?rcmd('invite','Invitar otra vez',`!mp invite ${f.a.username} · !mp invite ${f.b.username}`,`data-names="${esc(f.a.username)},${esc(f.b.username)}"`):''}
+      ${l.kind==='qual'?rcmd('fixmode','HeadToHead y ScoreV2','!mp set 0 3'):''}
+      ${rcmd('settings','!mp settings','!mp settings')}
+      ${rcmd('resync','Releer el MP','Lee el resultado de la API de osu!')}
+      <button class="btn btn-danger btn-sm" type="button" data-act="ref-close" title="!mp close">Cerrar lobby</button>
+    </div>`;
+}
+function chatPanel(l){
+  return `<div class="card adm rchat"><h3>Chat del lobby</h3>
     <div class="rlog" id="rlog-${esc(l.mp)}" aria-live="polite">${l.log.map(logLine).join('')}</div>
-    <form class="row" data-form="ref-chat"><input type="text" id="r-chat" maxlength="300" placeholder="Mensaje o comando (!mp …)" style="flex:1 1 240px" autocomplete="off" aria-label="Mensaje para el lobby"><button class="btn btn-primary btn-sm" type="submit">Enviar</button></form>
-    <form class="row" data-form="ref-wu"><input type="text" id="r-wu" placeholder="Warmup: enlace o ID de la dificultad" style="flex:1 1 240px" aria-label="Warmup"><button class="btn btn-ghost btn-sm" type="submit">Poner warmup</button></form>
+    <form class="row" data-form="ref-chat"><input type="text" id="r-chat" maxlength="300" placeholder="Mensaje o comando (!mp …)" style="flex:1 1 200px" autocomplete="off" aria-label="Mensaje para el lobby"><button class="btn btn-primary btn-sm" type="submit">Enviar</button></form>
+    <form class="row" data-form="ref-wu"><input type="text" id="r-wu" placeholder="Warmup: enlace o ID de la dificultad" style="flex:1 1 200px" aria-label="Warmup"><button class="btn btn-ghost btn-sm" type="submit">Poner warmup</button></form>
   </div>`;
 }
 function refMatch(f){
   const l=R.lobbies.find(x=>x.key===f.id&&!x.closed), on=R.irc.status==='connected', pool=R.pools[f.round];
   const n=s=>esc(f[s]?.username||String(s).toUpperCase());
+  const nm=s=>f[s]?.username||String(s).toUpperCase();
   const mapsBy=Object.fromEntries(f.maps.map(x=>[x.slot,x]));
   const head=`<div class="rhead"><div><span class="eyebrow">${esc(f.label)} · Bo${f.need*2-1}</span><div class="rsc"><span class="ta">${n('a')}</span><span class="num">${f.score.a}</span><i>–</i><span class="num">${f.score.b}</span><span class="tb">${n('b')}</span></div></div>
     <div class="mt-meta">${f.mp?`<a class="mp-link" href="${mpUrl(f.mp)}" target="_blank" rel="noopener">MP #${f.mp}</a>`:'<span>Sin MP todavía</span>'}${f.ref?`<span>Árbitro: ${esc(f.ref)}</span>`:''}${f.time?`<span>${dia(f.time)} · ${hora(f.time)}</span>`:''}</div></div>`;
   let lob;
   if(!on) lob=`<p class="muted" style="font-size:.85rem">Sin conexión a Bancho: los botones solo apuntan cada paso.${f.mp?'':` Crea el lobby en osu! con <code>!mp make ${esc(T.C.sigla)}: (${n('a')}) vs (${n('b')})</code> y pega el MP en Admin.`}</p>`;
-  else if(!l) lob=`<div class="row" style="align-items:center">${f.step==='done'?'':`<button class="btn btn-primary btn-sm" type="button" data-act="ref-lobby">Crear el lobby</button>`}${f.mp?`<button class="btn btn-ghost btn-sm" type="button" data-act="ref-attach" data-key="${f.id}">Volver a entrar al MP #${f.mp}</button>`:''}${f.mp&&f.maps.length&&f.step!=='done'?'<span class="checks"><label><input type="checkbox" id="r-replace">Sustituir el MP anterior</label></span>':''}</div>
-    ${f.step==='done'?'':`<p class="muted" style="font-size:.8rem">Al crearlo, la web pone TeamVS y ScoreV2, invita a los dos jugadores y los coloca en rojo (${n('a')}) y azul (${n('b')}).</p>`}`;
-  else lob=lobbyBar(l);
+  else if(!l) lob=`<div class="row" style="align-items:center">${f.step==='done'?'':`<button class="btn btn-primary btn-sm" type="button" data-act="ref-lobby" title="!mp make · !mp set 2 3 2 · !mp invite">Crear el lobby</button>`}${f.mp?`<button class="btn btn-ghost btn-sm" type="button" data-act="ref-attach" data-key="${f.id}">Volver a entrar al MP #${f.mp}</button>`:''}${f.mp&&f.maps.length&&f.step!=='done'?'<span class="checks"><label><input type="checkbox" id="r-replace">Sustituir el MP anterior</label></span>':''}</div>`;
+  else lob=lobbyInfo(l);
 
   const turn=['protect','ban','pick'].includes(f.step), force=UI.refForce;
+  // Mensajes fijos: se mandan tal cual al pulsarlos.
+  const point=f.score.a===f.need-1||f.score.b===f.need-1?' · Match point':'';
+  const msgs=l?`<div class="row">
+      ${rsay('Bienvenida',`${f.label} de ${T.C.nombre} (Bo${f.need*2-1}). Cuando estéis los dos, haced !roll.`)}
+      ${rsay('Repetir el roll','Empate en el roll. Repetid el !roll.')}
+      ${rsay('Roll sin número','Solo vale !roll, sin número. Repetidlo.')}
+      ${turn?rsay('Turno',`${nm(f.by)}, ${f.step==='pick'?'elige mapa':f.step==='ban'?'banea un mapa':'protege un mapa'} (escríbelo en el chat, p. ej. NM2).`):''}
+      ${f.maps.length?rsay('Marcador',`Marcador: ${nm('a')} ${f.score.a} – ${f.score.b} ${nm('b')}${point}`):''}
+      ${f.step==='done'&&!f.ff?rsay('GG',`${nm(f.winner)} gana el partido ${f.score[f.winner]} – ${f.score[f.winner==='a'?'b':'a']}. ¡GG!`):''}
+    </div>`:'';
+
   let step='';
   if(f.noPool) step='<p class="note">Esta ronda aún no tiene mappool en la web: añádela en Admin.</p>';
   else if(pool===null) step='<p class="note">La mappool de esta ronda todavía no es pública.</p>';
-  else if(f.step==='roll') step=`<p>${l?'Esperando el <code>!roll</code> de los dos jugadores: la web lo lee sola y repite si empatan. Si lo prefieres, apúntalo a mano:':'¿Quién ha ganado el roll?'}</p><div class="row"><button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="roll" data-winner="a">Gana ${n('a')}</button><button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="roll" data-winner="b">Gana ${n('b')}</button></div>`;
-  else if(f.step==='order') step=`<p>${f.roll?.a!=null?`Roll: ${n('a')} ${f.roll.a} – ${f.roll.b} ${n('b')}. `:''}<b class="${f.by==='a'?'ta':'tb'}">${n(f.by)}</b> ha ganado el roll y elige el orden.</p>
-    <form class="row" data-form="ref-order">${[['protect','Protege primero'],['ban','Banea primero'],['pick','Elige primero (First Pick)']].map(([k,t])=>`<div class="field"><label for="r-o-${k}">${t}</label><select id="r-o-${k}"><option value="a" ${f.by==='a'?'selected':''}>${n('a')}</option><option value="b" ${f.by==='b'?'selected':''}>${n('b')}</option></select></div>`).join('')}<button class="btn btn-primary btn-sm" type="submit">Guardar el orden</button></form>`;
-  else if(turn) step=`<p>Turno de <b class="${f.by==='a'?'ta':'tb'}">${n(f.by)}</b>: ${REF_VERB[f.step]} un mapa${f.step==='ban'?` (tanda ${Math.floor(f.bans.length/2)+1} de ${f.rules.bans})`:''}. ${l&&l.chatPicks?'Puede escribirlo en el chat del lobby, o púlsalo aquí.':'Púlsalo aquí.'}</p>`;
-  else if(f.step==='play') step=`<p>Se está jugando <span class="slot ${esc(f.current.slice(0,2))}">${esc(f.current)}</span>${f.by?` (elige ${n(f.by)})`:''}. ${l?'El mapa empieza solo cuando los dos están listos. Al terminar, la web lee el resultado de osu! y sigue sola.':'Cuando acabe, pulsa «Releer el MP» en Admin o espera a la actualización automática.'}</p>`;
-  else if(f.step==='tb') step=`<p><b>Empate a ${f.score.a}.</b> Toca el tiebreaker (FreeMod).</p><div><button class="btn btn-primary btn-sm" type="button" data-act="ref-do" data-type="tb">Poner el TB</button></div>`;
-  else if(f.step==='done') step=`<p><b class="${f.winner==='a'?'ta':'tb'}">${n(f.winner)}</b> gana ${f.ff?'por forfeit':`${f.score[f.winner]} – ${f.score[f.winner==='a'?'b':'a']}`}.${l?' Cierra el lobby cuando acabéis.':''}</p>`;
+  else if(f.step==='roll') step=rgrp('Roll',`<div class="row">${rcmd('roll',`Gana ${n('a')}`,`«${nm('a')} gana el roll…»`,'data-winner="a"')}${rcmd('roll',`Gana ${n('b')}`,`«${nm('b')} gana el roll…»`,'data-winner="b"')}</div>`);
+  else if(f.step==='order') step=rgrp('Orden',`<form class="row" data-form="ref-order">${[['protect','Protege primero'],['ban','Banea primero'],['pick','Elige primero']].map(([k,t])=>`<div class="field"><label for="r-o-${k}">${t}</label><select id="r-o-${k}"><option value="a" ${f.by==='a'?'selected':''}>${n('a')}</option><option value="b" ${f.by==='b'?'selected':''}>${n('b')}</option></select></div>`).join('')}<button class="btn btn-ghost btn-sm" type="submit" title="Anuncia el orden en el lobby">Guardar el orden</button></form>`);
+  else if(f.step==='tb') step=rgrp('Tiebreaker',`<div>${rcmd('tb','Poner el TB','!mp map · !mp mods Freemod')}</div>`);
+  else if(f.step==='done') step=`<p><b class="${f.winner==='a'?'ta':'tb'}">${n(f.winner)}</b> gana ${f.ff?'por forfeit':`${f.score[f.winner]} – ${f.score[f.winner==='a'?'b':'a']}`}.</p>`;
 
   const grid=pool&&(turn||force)?`<div class="rpool">${pool.filter(p=>p.slot!=='TB').map(p=>{
     const why=turn?f.allowed?.[p.slot]||'':'';
     const r=mapsBy[p.slot], tag=f.protects.some(x=>x.slot===p.slot)?'Protegido':f.bans.some(x=>x.slot===p.slot)?'Baneado':r?`Gana ${n(r.w)}`:f.picks.some(x=>x.slot===p.slot)?'Elegido':'';
     return `<button type="button" data-act="ref-do" data-type="${turn?f.step:'pick'}" data-slot="${esc(p.slot)}" ${why&&!force?'disabled':''} title="${esc(why||p.title)}"><span class="slot ${esc(p.slot.slice(0,2))}">${esc(p.slot)}</span><span class="t">${esc(p.title)}</span><small>${esc(why||tag||p.sr+'★')}</small></button>`;
   }).join('')}</div>`:'';
-  const forceSel=force?`<div class="row"><div class="field"><label for="r-ftype">Apuntar</label><select id="r-ftype">${[['protect','Protect'],['ban','Ban'],['pick','Pick']].map(([k,t])=>`<option value="${k}" ${k===(turn?f.step:'pick')?'selected':''}>${t}</option>`).join('')}</select></div><div class="field"><label for="r-by">Jugador</label><select id="r-by"><option value="a" ${f.by!=='b'?'selected':''}>${n('a')}</option><option value="b" ${f.by==='b'?'selected':''}>${n('b')}</option></select></div></div><p class="muted" style="font-size:.8rem">Así se apunta cualquier mapa sin comprobar el turno ni las reglas. Úsalo solo para corregir.</p>`:'';
+  const forceSel=force?`<div class="row"><div class="field"><label for="r-ftype">Apuntar</label><select id="r-ftype">${[['protect','Protect'],['ban','Ban'],['pick','Pick']].map(([k,t])=>`<option value="${k}" ${k===(turn?f.step:'pick')?'selected':''}>${t}</option>`).join('')}</select></div><div class="field"><label for="r-by">Jugador</label><select id="r-by"><option value="a" ${f.by!=='b'?'selected':''}>${n('a')}</option><option value="b" ${f.by==='b'?'selected':''}>${n('b')}</option></select></div></div>`:'';
+  const mapsTitle=turn?`${REF_STEP[f.step]} · turno de <span class="${f.by==='a'?'ta':'tb'}">${n(f.by)}</span>${f.step==='ban'?` (tanda ${Math.floor(f.bans.length/2)+1} de ${f.rules.bans})`:''}`:f.step==='play'?`Toca jugar ${esc(f.current)}`:'Mapas';
+  const maps=grid||forceSel?rgrp(mapsTitle,`${forceSel}${grid}`):f.step==='play'?rgrp(mapsTitle,''):'';
   const any=f.roll||f.order||f.protects.length||f.bans.length||f.picks.length;
-  const tools=f.noPool||pool===null?'':`<div class="row" style="align-items:center"><button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="undo" ${any?'':'disabled'}>Deshacer el último paso</button>${f.step!=='done'?`<span class="checks"><label><input type="checkbox" id="r-force" data-keep="no" ${force?'checked':''}>Apuntar a mano (saltarse las reglas)</label></span>`:''}</div>`;
+  const fix=f.noPool||pool===null?'':rgrp('Corregir',`<div class="row" style="align-items:center"><button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="undo" ${any?'':'disabled'} title="Solo en la web: no manda nada al lobby">Deshacer el último paso</button><button class="btn btn-ghost btn-sm" type="button" data-act="ref-reset" ${any?'':'disabled'} title="Solo en la web: no manda nada al lobby">Empezar de cero</button>${f.step!=='done'?`<span class="checks"><label><input type="checkbox" id="r-force" data-keep="no" ${force?'checked':''}>Apuntar a mano</label></span>`:''}</div>`);
 
   const side=x=>x.by==='a'?'wa':x.by==='b'?'wb':'';
   const chips=(list,cls)=>list.map(x=>`<span class="slot ${esc(x.slot.slice(0,2))} ${cls} ${side(x)}" title="${n(x.by)}">${esc(x.slot)}</span>`).join('');
   const tl=`<div class="picks">${f.roll?`<span class="lbl">Roll</span><span style="font-size:.85rem">${f.roll.a!=null?`${f.roll.a} – ${f.roll.b} · `:''}gana ${n(f.roll.winner)}</span>`:''}${f.protects.length?`<span class="lbl">Protects</span>${chips(f.protects,'')}`:''}${f.bans.length?`<span class="lbl">Bans</span>${chips(f.bans,'ban')}`:''}${f.picks.length?`<span class="lbl">Picks</span>${chips(f.picks,'')}`:''}</div>`;
   const table=f.maps.length?`<div class="tbl-wrap"><table><thead><tr><th>Mapa</th><th class="n">${n('a')}</th><th class="n">${n('b')}</th><th>Gana</th></tr></thead><tbody>${f.maps.map(x=>`<tr><td><span class="slot ${esc(x.slot.slice(0,2))}">${esc(x.slot)}</span></td><td class="n">${x.a!=null?nf.format(x.a):'Sin score'}</td><td class="n">${x.b!=null?nf.format(x.b):'Sin score'}</td><td class="${x.w==='a'?'ta':'tb'}">${n(x.w)}</td></tr>`).join('')}</tbody></table></div>`:'';
+  const btns=`<div class="card adm rbtns"><h3>Botones</h3>${flashHtml()}${l?rgrp('Lobby',lobbyBtns(l,f)):''}${rgrp('Mensajes',msgs)}${step}${maps}${fix}</div>`;
   return `<div class="card adm">${head}${lob}</div>
-    <div class="card adm rstep"><h3>${REF_STEP[f.step]||''}</h3>${flashHtml()}${step}${forceSel}${grid}${tools}</div>
-    ${any||f.maps.length?`<div class="card adm"><h3>Resumen <span class="muted" style="font-size:.8rem;font-weight:500">Subrayado: <span class="ta">${n('a')}</span> · <span class="tb">${n('b')}</span></span></h3>${tl}${table}</div>`:''}
-    ${l?logCard(l):''}`;
+    ${l?`<div class="rcon">${chatPanel(l)}${btns}</div>`:btns}
+    ${any||f.maps.length?`<div class="card adm"><h3>Resumen <span class="muted" style="font-size:.8rem;font-weight:500">Subrayado: <span class="ta">${n('a')}</span> · <span class="tb">${n('b')}</span></span></h3>${tl}${table}</div>`:''}`;
 }
 function refQual(l){
-  const pool=R.pools.qualifiers||[], played=new Set(l.played||[]), next=pool.find(p=>!played.has(p.slot));
-  return `<div class="card adm"><div class="rhead"><div><span class="eyebrow">Clasificatorios</span><h3>${esc(l.name)}</h3></div><div class="mt-meta"><a class="mp-link" href="${mpUrl(l.mp)}" target="_blank" rel="noopener">MP #${esc(l.mp)}</a><span>${l.players.length} en el lobby</span></div></div>
-      ${flashHtml()}${lobbyBar(l)}
-      <form class="row" data-form="ref-inv"><div class="field" style="flex:1 1 260px"><label for="r-inv">Invitar</label><input type="text" id="r-inv" placeholder="nombre1, nombre2, …"></div><button class="btn btn-ghost btn-sm" type="submit">Invitar</button></form>
-      ${R.slots.some(x=>String(x.mp)===String(l.mp))?'<div><button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="qinvite">Invitar a los aprobados que falten</button></div>':''}
-    </div>
-    <div class="card adm rstep"><h3>Mappool</h3>
-      <p>${next?`Siguiente: <b>${esc(next.slot)}</b>. Al terminar cada mapa, la web pone el siguiente; para repetir uno, púlsalo.`:'Ya se han jugado todos los mapas.'}</p>
-      ${next?`<div><button class="btn btn-primary btn-sm" type="button" data-act="ref-do" data-type="qmap" data-slot="${esc(next.slot)}">${played.size?'Poner '+esc(next.slot):'Empezar la mappool ('+esc(next.slot)+')'}</button></div>`:''}
-      <div class="rpool">${pool.map(p=>`<button type="button" data-act="ref-do" data-type="qmap" data-slot="${esc(p.slot)}" title="${esc(p.title)}"><span class="slot ${esc(p.slot.slice(0,2))}">${esc(p.slot)}</span><span class="t">${esc(p.title)}</span><small>${played.has(p.slot)?'Jugado · poner otra vez':'Poner'}</small></button>`).join('')}</div>
-    </div>
-    ${logCard(l)}`;
+  const pool=R.pools.qualifiers||[], played=new Set(l.played||[]);
+  const msgs=`<div class="row">${rsay('Bienvenida',`Clasificatorios de ${T.C.nombre}: ${pool.length} mapas en orden, una sola run. NF obligatorio.`)}${rsay('Fin de la mappool','Fin de la mappool. ¡Gracias por jugar!')}</div>`;
+  const inv=`<form class="row" data-form="ref-inv"><div class="field" style="flex:1 1 200px"><label for="r-inv">Invitar</label><input type="text" id="r-inv" placeholder="nombre1, nombre2, …"></div><button class="btn btn-ghost btn-sm" type="submit">Invitar</button></form>
+    ${R.slots.some(x=>String(x.mp)===String(l.mp))?`<div>${rcmd('qinvite','Invitar a los aprobados que falten','!mp invite (los que no están)')}</div>`:''}`;
+  const grid=`<div class="rpool">${pool.map(p=>`<button type="button" data-act="ref-do" data-type="qmap" data-slot="${esc(p.slot)}" title="!mp map ${p.bid||''} · !mp mods · ${esc(p.title)}"><span class="slot ${esc(p.slot.slice(0,2))}">${esc(p.slot)}</span><span class="t">${esc(p.title)}</span><small>${played.has(p.slot)?'Jugado':'Sin jugar'}</small></button>`).join('')}</div>`;
+  return `<div class="card adm"><div class="rhead"><div><span class="eyebrow">Clasificatorios</span><h3>${esc(l.name)}</h3></div><div class="mt-meta"><a class="mp-link" href="${mpUrl(l.mp)}" target="_blank" rel="noopener">MP #${esc(l.mp)}</a><span>${l.players.length} en el lobby</span><span>${played.size} de ${pool.length} mapas jugados</span></div></div>
+      ${lobbyInfo(l)}</div>
+    <div class="rcon">${chatPanel(l)}
+      <div class="card adm rbtns"><h3>Botones</h3>${flashHtml()}${rgrp('Lobby',lobbyBtns(l,null))}${rgrp('Mensajes',msgs)}${rgrp('Invitar',inv)}${rgrp('Mapas',grid)}</div>
+    </div>`;
 }
 
 function qualResAdmin(){
@@ -1715,6 +1749,8 @@ app.addEventListener('click',e=>{
   if(a==='ref-lobby'){b.disabled=true;b.textContent='Creando…';return refAct('/api/ref/lobby',{match:UI.ref,replace:Boolean(document.getElementById('r-replace')?.checked)},r=>`Lobby creado (MP #${r.mp}). Los jugadores ya tienen la invitación.`)}
   if(a==='ref-attach'){const k=b.dataset.key;b.disabled=true;return refAct('/api/ref/attach',{key:k},null,()=>{UI.ref=k})}
   if(a==='ref-close'){if(!confirm('¿Cerrar el lobby? Bancho lo cierra para todos los jugadores.')) return;return refAct('/api/ref/act',{key:UI.ref,type:'close'})}
+  if(a==='ref-say') return refAct('/api/ref/chat',{key:UI.ref,text:b.dataset.text});
+  if(a==='ref-reset'){if(!confirm('¿Borrar el roll, el orden, los protects, los bans y los picks apuntados? En el lobby no se manda nada y el marcador sale del MP.')) return;return refAct('/api/ref/act',{key:UI.ref,type:'reset'},'Partido empezado de cero en la web.')}
   if(a==='ref-do'){
     const d=b.dataset, body={key:UI.ref,type:d.type};
     if(d.slot){body.slot=d.slot;if(UI.refForce&&d.type!=='qmap'){body.type=val('r-ftype')||d.type;body.by=val('r-by');body.force=true}}
@@ -1752,7 +1788,6 @@ app.addEventListener('change',e=>{
     },()=>{UI.flash={ok:false,text:'No puedo leer ese archivo. Vuelve a elegirlo.'};keepRender()});
   }
   if(e.target.id==='r-force'){UI.refForce=e.target.checked;return keepRender()}
-  if(e.target.id==='r-cp') return refAct('/api/ref/act',{key:UI.ref,type:'chatpicks',on:e.target.checked});
   if(refPending&&e.target.tagName==='SELECT'){refPending=false;keepRender()}
   if(e.target.id==='a-round'||e.target.id==='a-pround') UI.admRound=e.target.value;
 });

@@ -17,7 +17,7 @@ Detalle completo para quien instala y mantiene la web. El resumen está en el [R
 - **Roles**: el host (`ADMIN_IDS`) asigna desde el panel quién es admin, árbitro o staff. Se aplica al momento. Staff ve las mappools antes de publicarse, sin entrar en el panel.
 - **Resultados**: el admin pega el enlace del MP y la web cuenta los mapas ganados por cada jugador. Ignora los warmups (solo cuenta mapas del pool de la ronda) y aplica EZ ×1,8 y EZHD ×2 (en clasificatorios no hay multiplicadores). Mientras se juega, se actualiza sola cada 5 minutos.
 - **Clasificatorios**: se añaden los MP de los lobbies; se toma el mejor score de cada jugador en cada mapa y se ordena por Z-sum. Solo cuentan los mapas jugados en head to head: un MP por equipos se rechaza, y si solo algunos mapas se jugaron así, el panel lo indica. Los resultados no son públicos hasta la hora que programe la organización; los admins y los árbitros los ven siempre, y son los únicos que ven los enlaces a los MP.
-- **Arbitraje con bot de IRC**: los árbitros conectan su cuenta de osu! a Bancho desde la página **Arbitrar** y la web manda los comandos `!mp` por ellos. Crea el lobby, invita y reparte equipos, lee los `!roll` y lleva protects, bans y picks según las reglas de cada ronda; los jugadores pueden escribir su mapa en el chat. Además pone cada mapa con sus mods (FM y TB en FreeMod), empieza cuando los dos están listos y anuncia el marcador. También lleva lobbies de clasificatorios.
+- **Arbitraje con bot de IRC**: los árbitros conectan su cuenta de osu! a Bancho desde la página **Arbitrar**. La página tiene dos paneles: el chat del lobby, donde el árbitro lee a los jugadores y escribe lo que quiera, y una botonera. Cada botón manda su comando `!mp` o su mensaje en el momento en que se pulsa; la web no hace nada sola en el lobby ni propone nada. Solo enseña el estado (quién hay, si están todos listos, el mapa puesto), lleva el turno de protects, bans y picks según las reglas de cada ronda, pone cada mapa con sus mods (FM y TB en FreeMod) y lee el resultado de cada mapa en la API de osu!. Todo lo apuntado se puede deshacer paso a paso o empezar de cero. También lleva lobbies de clasificatorios.
 - **Cuadro de doble eliminación de 16**: los cruces y los ganadores avanzan solos a partir de las seeds y los resultados.
 - **Directo de Twitch** (opcional): cuando el canal está en directo, la web lo anuncia en la cabecera y muestra una ventana pequeña con la miniatura del directo, que se puede abrir como reproductor en la propia web.
 - **Web**: tema claro u oscuro (el del sistema, o el que se elija con el botón de la cabecera, que se recuerda en ese navegador). Las pestañas van en la dirección, así que se pueden enlazar: `#mappool/semis`, `#partidos/cuartos`, `#jugadores/clasif`. Al compartir el enlace, Discord y otras redes muestran `public/og.png`; si se cambia el nombre del torneo, esa imagen hay que rehacerla a mano. En Admin y Registro, el navegador avisa antes de cerrar la página si hay algo escrito sin guardar.
@@ -80,7 +80,24 @@ Bancho solo ofrece IRC sin cifrar. Es lo mismo que hace cualquier cliente IRC de
 
 El servidor necesita poder salir al puerto 6667 (las conexiones de casa lo permiten casi siempre).
 
-Bancho deja a una cuenta normal 10 mensajes cada 5 segundos ([wiki de osu!](https://osu.ppy.sh/wiki/en/Bot_account)). El bot manda como mucho 8 cada 5 segundos y 18 cada 25 (el valor por defecto de bancho.js), para dejar margen a lo que el árbitro escriba desde el juego; lo que no cabe lo pone en cola. Cuenta por cuenta de osu!, así que reconectar no reinicia el límite. Tampoco repite el mismo aviso en 10 segundos (por ejemplo, si un jugador escribe varias veces un pick no válido). Después de cada mapa lee el MP en la API de osu!, como mucho una vez por minuto por MP, que es lo que piden sus términos de uso. Con ese resultado anuncia el marcador y el siguiente turno.
+Bancho deja a una cuenta normal 10 mensajes cada 5 segundos ([wiki de osu!](https://osu.ppy.sh/wiki/en/Bot_account)). El bot manda como mucho 8 cada 5 segundos y 18 cada 25 (el valor por defecto de bancho.js), para dejar margen a lo que el árbitro escriba desde el juego; lo que no cabe lo pone en cola. Cuenta por cuenta de osu!, así que reconectar no reinicia el límite. Después de cada mapa lee el MP en la API de osu!, como mucho una vez por minuto por MP, que es lo que piden sus términos de uso. El marcador se actualiza en la página; se anuncia en el lobby cuando el árbitro pulsa **Marcador**.
+
+Qué manda cada botón de **Arbitrar** (el comando exacto sale al pasar el ratón por encima):
+
+| Botón | Lo que se manda al lobby |
+|---|---|
+| Crear el lobby | `!mp make`, `!mp set 2 3 2` (TeamVS, ScoreV2) e invitaciones (en clasificatorios, `!mp set 0 3 <plazas>`) |
+| Poner equipos | `!mp team #A red` y `!mp team #B blue` |
+| Gana A / Gana B | quién gana el roll y elige el orden |
+| Guardar el orden | quién protege, banea y elige primero |
+| Un mapa en protects o bans | «A protege NM1» o «B banea DT1» (y para el temporizador si estaba puesto) |
+| Un mapa en picks / Poner el TB | `!mp map`, `!mp mods` y el anuncio del mapa |
+| Empezar, Abortar, Temporizador, Parar temporizador | `!mp start 5`, `!mp abort`, `!mp timer <s>`, `!mp aborttimer` |
+| HeadToHead y ScoreV2 (clasificatorios) | `!mp set 0 3` (si `!mp settings` muestra otro modo, la página lo avisa) |
+| Mensajes: Bienvenida, Repetir el roll, Roll sin número, Turno, Marcador, GG (en clasificatorios: Bienvenida y Fin de la mappool) | ese mensaje, tal cual |
+| Deshacer el último paso / Empezar de cero | nada: solo cambia lo apuntado en la web |
+
+El chat del lobby también admite cualquier mensaje o comando escrito a mano.
 
 osu! solo deja tener 4 lobbies de torneo abiertos por cuenta. Si se llega a ese límite, la web lo dice al crear el lobby; hay que cerrar los anteriores.
 
@@ -165,7 +182,7 @@ docker compose start web
 | Clasificatorios | **Lobbies de clasificatorios**: pegar el enlace de cada MP. Se releen solos durante la fase. |
 | Al acabar los clasificatorios | **Resultados de clasificatorios**: fecha y hora a la que se hacen públicos las scores, las seeds y el cuadro. Hasta entonces, y sin fecha programada, solo los ven los admins y los árbitros. **Publicar ya** los hace públicos en el momento y **Ocultar** los vuelve a esconder. Los enlaces a los MP de los lobbies solo los ven admins y árbitros, también después. |
 | Al programar un partido | **Partido**: fecha (hora de Madrid) y árbitro. |
-| Al empezar el partido | **Arbitrar** → elegir el partido → **Crear el lobby**: el MP, los bans y los protects se guardan solos. Si se arbitra a mano en osu!, pegar el enlace del MP en **Partido** y escribir los bans (`NM2, HD1`), porque la API no los registra. |
+| Al empezar el partido | **Arbitrar** → elegir el partido → **Crear el lobby**, y cada paso con sus botones: el MP, los bans y los protects quedan guardados. Si se arbitra a mano en osu!, pegar el enlace del MP en **Partido** y escribir los bans (`NM2, HD1`), porque la API no los registra. |
 | Antes de cada ronda | **Reglas de arbitraje por ronda**: bans, protects, mapas entre tandas y segundos para elegir. |
 | Hay un admin, árbitro o staff nuevo (solo el host) | **Roles**: su nombre o enlace de osu! y el rol. Se aplica al momento. |
 | Antes de los clasificatorios | **Lobbies de clasificatorios**: **Crear la rejilla** con días, horas y plazas, y **Un lobby suelto** para horas especiales. Los jugadores se apuntan en Qualis; aquí se puede añadir o quitar a cualquiera y elegir el árbitro de cada lobby. Si sobran, **Quitar los vacíos de este día**. |
