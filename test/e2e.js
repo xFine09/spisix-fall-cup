@@ -1494,6 +1494,21 @@ try {
   assert.equal(await stateE(), 'live', 'empezado y con MP: se está jugando');
   assert.equal((await refc('/api/ref/act', { method: 'POST', json: { key: 'qual:560', type: 'close' } })).status, 200);
   await until(async () => (await stateE()) === 'done', 'al cerrarlo sale como terminado');
+  // Corrección a mano de los árbitros: el estado del lobby y las plazas, en cualquier momento
+  const slotOf = async () => (await anon2('/api/state')).body.qual.slots.find((x) => x.id === slotE.id);
+  assert.equal((await refc('/api/ref/qual-slot/state', { method: 'POST', json: { id: slotE.id, state: 'live' } })).status, 200);
+  assert.deepEqual([(await slotOf()).state, (await slotOf()).manual], ['live', true], 'puesto a mano: manda sobre el automático');
+  assert.equal((await refc('/api/ref/qual-slot/state', { method: 'POST', json: { id: slotE.id, state: 'jugando' } })).status, 400, 'estado no válido');
+  assert.equal((await p03('/api/ref/qual-slot/state', { method: 'POST', json: { id: slotE.id, state: 'done' } })).status, 403, 'solo árbitros');
+  assert.equal((await refc('/api/ref/qual-slot/state', { method: 'POST', json: { id: slotE.id, state: 'auto' } })).status, 200);
+  assert.deepEqual([(await slotOf()).state, (await slotOf()).manual], ['done', false], 'de vuelta al automático');
+  assert.ok(!(await slotOf()).pending.includes(603));
+  assert.equal((await refc('/api/ref/qual-signup/state', { method: 'POST', json: { user: 603, approved: false } })).status, 200);
+  assert.ok((await slotOf()).pending.includes(603), 'aprobada → pendiente, aunque el lobby ya haya empezado');
+  assert.equal((await p03('/api/ref/qual-signup/state', { method: 'POST', json: { user: 603, approved: true } })).status, 403, 'solo árbitros');
+  assert.equal((await refc('/api/ref/qual-signup/state', { method: 'POST', json: { user: 603, approved: true } })).status, 200);
+  assert.ok(!(await slotOf()).pending.includes(603), 'pendiente → aprobada');
+  assert.equal((await refc('/api/ref/qual-signup/state', { method: 'POST', json: { user: 9999, approved: true } })).status, 404, 'sin plaza');
   // Anti-spam de Bancho: los comandos repetibles llevan una palabra distinta cada vez; el resto, tal cual
   const cmds = irc.sent.filter((m) => /^!mp (settings|close|abort|aborttimer|start|timer|map|mods|set)\b/.test(m.text));
   assert.ok(cmds.length > 10 && cmds.every((m) => m.tagged), 'comandos con palabra al azar');
@@ -1517,7 +1532,7 @@ try {
     if (f.isFile()) assert.ok(!readFileSync(join(f.parentPath, f.name)).includes('irc-secreta'), 'contraseña en ' + f.name);
   }
   assert.ok(!log.includes('irc-secreta'), 'contraseña en el log');
-  console.log('✓ arbitraje: el árbitro decide cada comando con los botones (sin propuestas), reglas, deshacer, marcador y clasificatorios');
+  console.log('✓ arbitraje: el árbitro decide cada comando con los botones (sin propuestas), reglas, deshacer, marcador, clasificatorios y correcciones a mano');
   console.log('\nTodo correcto.');
 } catch (e) {
   failed = true;

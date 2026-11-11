@@ -233,7 +233,10 @@ function pendingRequest(b, u) {
 }
 // Estado de un lobby que ya ha empezado: terminado si osu! lo ha cerrado o ya se ha jugado toda la mappool,
 // jugándose si tiene MP y aún no, y empezado a secas si llegó la hora y nadie lo ha abierto desde la web.
+// Si un árbitro lo ha puesto a mano (porque el automático se quedó mal), manda el suyo.
+const SLOT_STATES = ['started', 'live', 'done'];
 function slotState(slot, now, poolSize) {
+  if (SLOT_STATES.includes(slot.state)) return slot.state;
   if (now < slot.time) return null;
   if (!slot.mp) return 'started';
   const row = q.getQual.get(slot.mp);
@@ -249,7 +252,7 @@ function qualSlots() {
     bySlot.set(x.slot_id, [...(bySlot.get(x.slot_id) || []), x.user_id]);
     if (!x.approved) pending.set(x.slot_id, [...(pending.get(x.slot_id) || []), x.user_id]);
   }
-  return q.qualSlots.all().map((x) => ({ ...x, players: bySlot.get(x.id) || [], pending: pending.get(x.id) || [], state: slotState(x, now, poolSize) }));
+  return q.qualSlots.all().map((x) => ({ ...x, players: bySlot.get(x.id) || [], pending: pending.get(x.id) || [], state: slotState(x, now, poolSize), manual: SLOT_STATES.includes(x.state) }));
 }
 
 // Quién lleva el torneo, para la página de información y para el panel del host.
@@ -566,6 +569,33 @@ const routes = {
     const { seat, slot } = pendingSeat(b, u);
     q.delSignup.run(seat.user_id);
     if (slot) q.setRejection.run(seat.user_id, slot.name, slot.time, String(b.reason ?? '').replace(/\s+/g, ' ').trim().slice(0, 200) || null);
+    referee.push();
+    sendJson(res, 200, { ok: true });
+  },
+
+  // Correcciones a mano de los árbitros, para cuando algo se ha quedado mal: sin límite de hora.
+  // Plaza aprobada ↔ pendiente (una plaza pendiente no cuenta como jugada, así que el jugador puede elegir otro lobby).
+  'POST /api/ref/qual-signup/state': async (req, res) => {
+    const u = requireRef(req);
+    const b = await readJson(req);
+    const s = q.signupOf.get(Number(b.user));
+    if (!s) throw new HttpError(404, 'Esa persona ya no está en ningún lobby.');
+    if (s.user_id === u.id) throw new HttpError(403, 'Es tu plaza: la cambia otra persona.');
+    if (typeof b.approved !== 'boolean') throw new HttpError(400, 'Elige aprobada o pendiente.');
+    q.setSignupApproved.run(b.approved ? 1 : 0, s.user_id);
+    if (b.approved) q.delRejection.run(s.user_id);
+    referee.push();
+    sendJson(res, 200, { ok: true });
+  },
+
+  // Estado del lobby puesto a mano (Empezado, Jugándose, Terminado) o de vuelta al automático.
+  'POST /api/ref/qual-slot/state': async (req, res) => {
+    requireRef(req);
+    const b = await readJson(req);
+    const slot = slotFrom(b.id);
+    const state = b.state === 'auto' ? null : String(b.state);
+    if (state !== null && !SLOT_STATES.includes(state)) throw new HttpError(400, 'Elige Automático, Empezado, Jugándose o Terminado.');
+    q.setSlotState.run(state, slot.id);
     referee.push();
     sendJson(res, 200, { ok: true });
   },

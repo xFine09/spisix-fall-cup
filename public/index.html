@@ -376,6 +376,13 @@ textarea{width:100%;min-height:120px;resize:vertical;font-family:var(--f-mono);f
   nav.main .more-menu a{min-height:44px}
 }
 .qs-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+/* Corregir un lobby a mano (árbitros) */
+.qfix{grid-column:1/-1;display:grid;gap:12px;padding:14px;border-radius:10px;background:var(--surface-2);margin-top:4px}
+.qfix .field{max-width:320px}
+.qf-p{display:grid;gap:6px}
+.qf-h{font-size:.78rem;font-weight:700;color:var(--muted)}
+.qf-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.qf-n{font-weight:600;min-width:8ch}
 .qs-p{display:flex;flex-wrap:wrap;gap:6px}
 .qs-n{display:inline-flex;align-items:center;gap:6px;padding:3px 10px 3px 4px;border:1px solid var(--line);border-radius:999px;font-size:.85rem;min-width:0;overflow-wrap:anywhere}
 .qs-n.me{border-color:var(--accent);font-weight:600}
@@ -1019,10 +1026,11 @@ const VIEWS={
       return `<div class="qr ${isMine?'mine':''}"><div class="qr-id"><b>${esc(x.name)}</b><span class="muted num">${hora(x.time)}</span></div>
         <div class="qs-p">${x.players.map(id=>{const p=names.get(id),wait=x.pending.includes(id);return p?`<span class="qs-n ${id===me?.id?'me':''} ${wait?'pend':''}">${av(p)}${esc(p.username)}${wait?' <small>pendiente</small>':''}</span>`:''}).join('')||`<span class="muted" style="font-size:.85rem">${started?'Sin jugadores':'Libre'}</span>`}</div>
         <div class="qr-m muted"><span class="num">${x.players.length}/${x.size}</span> · ${x.ref_name?'Árbitro: '+esc(x.ref_name):'Sin árbitro'}${x.mp?` · <a href="${mpUrl(x.mp)}" target="_blank" rel="noopener">MP</a>`:''}</div>
-        <div class="qs-r">${started?SLOT_PILL[x.state]||SLOT_PILL.started:full&&!isMine?'<span class="pill">Lleno</span>':''}${play}${ref}</div></div>`;
+        <div class="qs-r">${started||x.manual?SLOT_PILL[x.state]||SLOT_PILL.started:full&&!isMine?'<span class="pill">Lleno</span>':''}${x.manual&&me?.referee?'<span class="muted" style="font-size:.78rem">puesto a mano</span>':''}${play}${ref}${me?.referee?`<button class="btn btn-ghost btn-sm" type="button" data-act="qs-fix" data-id="${x.id}" aria-expanded="${UI.slotFix===x.id}">${UI.slotFix===x.id?'Cerrar':'Corregir'}</button>`:''}</div>
+        ${me?.referee&&UI.slotFix===x.id?slotFix(x,names):''}</div>`;
     };
     const go=extra?'<div><button class="btn btn-ghost btn-sm" type="button" data-act="qx-go">¿No te viene bien ninguna hora?</button></div>':'';
-    const st=x=>NOW<x.time?'open':x.state||'started';
+    const st=x=>x.manual?x.state:NOW<x.time?'open':x.state||'started';
     return head+notice+asks+go+byDay(slots.filter(x=>st(x)==='live'),d=>'Jugándose ahora · '+d)+byDay(slots.filter(x=>st(x)==='open'))
       +byDay(slots.filter(x=>st(x)==='started'),d=>'Ya empezados · '+d)+byDay(slots.filter(x=>st(x)==='done'),d=>'Terminados · '+d)+extra+'</section>';
   },
@@ -1304,6 +1312,19 @@ function extraBlock(mineStarted){
     <div class="row"><div class="field"><label for="q-xt">Fecha y hora (Madrid)</label><input type="datetime-local" id="q-xt" min="${toLocalInput(Math.max(T.NOW,fase.start),T.C.zona)}" max="${toLocalInput(last,T.C.zona)}"></div>
     <div class="field" style="flex:1 1 240px"><label for="q-xn">Motivo (opcional)</label><input type="text" id="q-xn" maxlength="200"></div></div>
     <div><button class="btn btn-ghost btn-sm" type="submit">Solicitar lobby extraordinario</button></div></form>`;
+}
+// Corrección a mano para árbitros, por si algo se ha quedado mal: el estado del lobby y cada plaza (aprobada ↔ pendiente).
+const SLOT_NAME={started:'Empezado',live:'Jugándose',done:'Terminado'};
+function slotFix(x,names){
+  const now=x.manual?'':` (ahora: ${T.NOW<x.time&&!x.state?'sin empezar':SLOT_NAME[x.state||'started']})`;
+  const seat=id=>{
+    const p=names.get(id), wait=x.pending.includes(id), name=esc(p?.username||'ID '+id);
+    return `<div class="qf-r"><span class="qf-n">${name}</span><span class="pill ${wait?'tbd':'good'}">${wait?'Pendiente':'Aprobada'}</span>${id===S.me.id?'<span class="muted" style="font-size:.82rem">Es tu plaza: la cambia otra persona.</span>':`<button class="btn btn-ghost btn-sm" type="button" data-act="qs-seat" data-user="${id}" data-on="${wait?1:0}" aria-label="${wait?'Aprobar la plaza de':'Pasar a pendiente la plaza de'} ${name}">${wait?'Aprobar':'Pasar a pendiente'}</button>`}</div>`;
+  };
+  return `<div class="qfix"><div class="field"><label for="qf-s${x.id}">Estado del lobby</label><select id="qf-s${x.id}" data-keep="no" data-slot-state="${x.id}">
+      <option value="auto" ${x.manual?'':'selected'}>Automático${now}</option>${Object.entries(SLOT_NAME).map(([k,t])=>`<option value="${k}" ${x.manual&&x.state===k?'selected':''}>${t}</option>`).join('')}</select></div>
+    ${x.players.length?`<div class="qf-p"><span class="qf-h">Plazas</span>${x.players.map(seat).join('')}</div>`:''}
+    <p class="muted" style="font-size:.8rem">Solo para corregir errores, en cualquier momento. Una plaza pendiente no cuenta como jugada: ese jugador puede apuntarse a otro lobby. «Automático» vuelve a calcular el estado con el MP y la hora.</p></div>`;
 }
 // Plazas por aprobar de los lobbies que aún no han empezado.
 const pendingSeats=()=>S.me?.referee?(S.qual.slots||[]).filter(x=>T.NOW<x.time).flatMap(x=>x.pending.map(id=>({id,slot:x}))):[];
@@ -1754,6 +1775,8 @@ app.addEventListener('click',e=>{
     return act(()=>post('/api/ref/qual-request/accept',{user,time:t?zoned(t,false,T.C.zona):null,referee:b.dataset.arb==='1'}),r=>`Lobby ${r.name} creado.`);
   }
   if(a==='qx-reject'){const user=+b.dataset.user;return act(()=>post('/api/ref/qual-request/reject',{user,reason:val('qx-r'+user)}),'Solicitud rechazada.')}
+  if(a==='qs-fix'){UI.slotFix=UI.slotFix===+b.dataset.id?null:+b.dataset.id;UI.flash=null;return keepRender()}
+  if(a==='qs-seat'){const on=b.dataset.on==='1';return act(()=>post('/api/ref/qual-signup/state',{user:+b.dataset.user,approved:on}),on?'Plaza aprobada.':'Plaza pasada a pendiente.')}
   if(a==='qs-claim'){const on=b.dataset.on==='1';return act(()=>post('/api/ref/qual-claim',{id:+b.dataset.id,on}),on?'Arbitras este lobby.':'Ya no arbitras este lobby.')}
   if(a==='qs-empty'){
     const day=b.dataset.day;
@@ -1802,6 +1825,7 @@ app.addEventListener('input',e=>{
 });
 app.addEventListener('change',e=>{
   if(e.target.id==='a-mid'){UI.admMatch=e.target.value;UI.flash=null;render()}
+  if(e.target.dataset.slotState) return act(()=>post('/api/ref/qual-slot/state',{id:+e.target.dataset.slotState,state:e.target.value}),e.target.value==='auto'?'El estado del lobby vuelve a ser automático.':`Lobby marcado como ${SLOT_NAME[e.target.value]}.`);
   if(e.target.dataset.slotRef) return act(()=>post('/api/admin/qual-slot/ref',{id:+e.target.dataset.slotRef,ref:e.target.value?+e.target.value:null}),'Árbitro guardado.');
   if(e.target.dataset.roleId) return act(()=>post('/api/admin/role',{id:+e.target.dataset.roleId,role:e.target.value}),'Rol cambiado.');
   if(e.target.dataset.pv!==undefined){UI.poolRead.groups[+e.target.dataset.pv].round=e.target.value;return keepRender()}

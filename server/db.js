@@ -117,6 +117,8 @@ for (const c of ['discord_id', 'discord']) if (userCols.includes(c)) db.exec(`AL
 db.exec('DROP TABLE IF EXISTS alerts; DROP TABLE IF EXISTS announcements');
 if (!db.prepare('PRAGMA table_info(qual_signups)').all().some((c) => c.name === 'approved')) db.exec('ALTER TABLE qual_signups ADD COLUMN approved INTEGER NOT NULL DEFAULT 1');
 if (!db.prepare('PRAGMA table_info(qual_slots)').all().some((c) => c.name === 'ref_id')) db.exec('ALTER TABLE qual_slots ADD COLUMN ref_id INTEGER');
+// Estado puesto a mano por un árbitro (started | live | done) cuando el automático se ha quedado mal; NULL: automático.
+if (!db.prepare('PRAGMA table_info(qual_slots)').all().some((c) => c.name === 'state')) db.exec('ALTER TABLE qual_slots ADD COLUMN state TEXT');
 // Los árbitros añadidos antes de que existieran los roles pasan a ser un rol más.
 if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'referees'").get()) {
   db.exec(`BEGIN;
@@ -187,6 +189,7 @@ const st = {
   updateSlot: db.prepare('UPDATE qual_slots SET name = ?, time = ?, size = ? WHERE id = ?'),
   setSlotMp: db.prepare('UPDATE qual_slots SET mp = ? WHERE id = ?'),
   setSlotRef: db.prepare('UPDATE qual_slots SET ref_id = ? WHERE id = ?'),
+  setSlotState: db.prepare('UPDATE qual_slots SET state = ? WHERE id = ?'),
   clearRef: db.prepare('UPDATE qual_slots SET ref_id = NULL WHERE ref_id = ?'),
   delSlot: db.prepare('DELETE FROM qual_slots WHERE id = ?'),
   siteText: db.prepare('SELECT text, at FROM site_text WHERE key = ?'),
@@ -209,6 +212,7 @@ const st = {
   setSignup: db.prepare(`INSERT INTO qual_signups (user_id, slot_id, at, approved) VALUES (?, ?, ?, ?)
     ON CONFLICT(user_id) DO UPDATE SET slot_id = excluded.slot_id, at = excluded.at, approved = excluded.approved`),
   approveSignup: db.prepare('UPDATE qual_signups SET approved = 1 WHERE user_id = ?'),
+  setSignupApproved: db.prepare('UPDATE qual_signups SET approved = ? WHERE user_id = ?'),
   rejectionOf: db.prepare('SELECT lobby, time, reason FROM qual_rejections WHERE user_id = ?'),
   setRejection: db.prepare(`INSERT INTO qual_rejections (user_id, lobby, time, reason) VALUES (?, ?, ?, ?)
     ON CONFLICT(user_id) DO UPDATE SET lobby = excluded.lobby, time = excluded.time, reason = excluded.reason`),
