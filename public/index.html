@@ -1317,14 +1317,15 @@ function extraBlock(mineStarted){
 const SLOT_NAME={started:'Empezado',live:'Jugándose',done:'Terminado'};
 function slotFix(x,names){
   const now=x.manual?'':` (ahora: ${T.NOW<x.time&&!x.state?'sin empezar':SLOT_NAME[x.state||'started']})`;
+  const played=new Set(S.qualPlayed||[]);
   const seat=id=>{
     const p=names.get(id), wait=x.pending.includes(id), name=esc(p?.username||'ID '+id);
-    return `<div class="qf-r"><span class="qf-n">${name}</span><span class="pill ${wait?'tbd':'good'}">${wait?'Pendiente':'Aprobada'}</span>${id===S.me.id?'<span class="muted" style="font-size:.82rem">Es tu plaza: la cambia otra persona.</span>':`<button class="btn btn-ghost btn-sm" type="button" data-act="qs-seat" data-user="${id}" data-on="${wait?1:0}" aria-label="${wait?'Aprobar la plaza de':'Pasar a pendiente la plaza de'} ${name}">${wait?'Aprobar':'Pasar a pendiente'}</button>`}</div>`;
+    return `<div class="qf-r"><span class="qf-n">${name}</span><span class="pill ${wait?'tbd':'good'}">${wait?'Pendiente':'Aprobada'}</span>${played.has(id)?'<span class="muted" style="font-size:.82rem">Ha jugado: su plaza cuenta siempre.</span>':id===S.me.id?'<span class="muted" style="font-size:.82rem">Es tu plaza: la cambia otra persona.</span>':`<button class="btn btn-ghost btn-sm" type="button" data-act="qs-seat" data-user="${id}" data-on="${wait?1:0}" aria-label="${wait?'Aprobar la plaza de':'Pasar a pendiente la plaza de'} ${name}">${wait?'Aprobar':'Pasar a pendiente'}</button>`}</div>`;
   };
   return `<div class="qfix"><div class="field"><label for="qf-s${x.id}">Estado del lobby</label><select id="qf-s${x.id}" data-keep="no" data-slot-state="${x.id}">
       <option value="auto" ${x.manual?'':'selected'}>Automático${now}</option>${Object.entries(SLOT_NAME).map(([k,t])=>`<option value="${k}" ${x.manual&&x.state===k?'selected':''}>${t}</option>`).join('')}</select></div>
     ${x.players.length?`<div class="qf-p"><span class="qf-h">Plazas</span>${x.players.map(seat).join('')}</div>`:''}
-    <p class="muted" style="font-size:.8rem">Solo para corregir errores, en cualquier momento. Una plaza pendiente no cuenta como jugada: ese jugador puede apuntarse a otro lobby. «Automático» vuelve a calcular el estado con el MP y la hora.</p></div>`;
+    <p class="muted" style="font-size:.8rem">Solo para corregir errores, en cualquier momento. Una plaza pendiente no cuenta como jugada: ese jugador puede apuntarse a otro lobby. Quien ya ha jugado algún mapa queda aprobado siempre. «Automático» vuelve a calcular el estado con el MP y la hora.</p></div>`;
 }
 // Plazas por aprobar de los lobbies que aún no han empezado.
 const pendingSeats=()=>S.me?.referee?(S.qual.slots||[]).filter(x=>T.NOW<x.time).flatMap(x=>x.pending.map(id=>({id,slot:x}))):[];

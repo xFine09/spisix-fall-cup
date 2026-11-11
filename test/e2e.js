@@ -1484,7 +1484,10 @@ try {
   assert.equal((await refc('/api/ref/act', { method: 'POST', json: { key: 'qual:560', type: 'qinvite' } })).status, 200);
   await new Promise((done) => setTimeout(done, 400));
   assert.ok(!sentTo(QE).includes('!mp invite #603'), 'sin aprobar no se invita');
-  assert.equal((await refc('/api/ref/qual-signup/approve', { method: 'POST', json: { user: 603 } })).status, 200);
+  // Quien ya tiene scores de clasificatorios (603 jugó el MP 901) queda aprobado al leer los MP, aunque nadie lo aprobara
+  assert.equal((await adm2('/api/admin/qual', { method: 'POST', json: { mp: '901' } })).status, 200);
+  await until(() => live.last.slots?.some((x) => x.id === slotE.id && x.pending === 0), 'aprobado solo por haber jugado');
+  assert.equal((await refc('/api/ref/qual-signup/approve', { method: 'POST', json: { user: 603 } })).status, 404, 'ya no está pendiente');
   assert.equal((await refc('/api/ref/act', { method: 'POST', json: { key: 'qual:560', type: 'qinvite' } })).status, 200);
   await until(() => sentTo(QE).includes('!mp invite #603'), 'aprobado, se invita');
   // Estado del lobby: sin estado antes de su hora, jugándose con el MP abierto y terminado al cerrarlo
@@ -1503,11 +1506,14 @@ try {
   assert.equal((await refc('/api/ref/qual-slot/state', { method: 'POST', json: { id: slotE.id, state: 'auto' } })).status, 200);
   assert.deepEqual([(await slotOf()).state, (await slotOf()).manual], ['done', false], 'de vuelta al automático');
   assert.ok(!(await slotOf()).pending.includes(603));
-  assert.equal((await refc('/api/ref/qual-signup/state', { method: 'POST', json: { user: 603, approved: false } })).status, 200);
-  assert.ok((await slotOf()).pending.includes(603), 'aprobada → pendiente, aunque el lobby ya haya empezado');
+  r = await refc('/api/ref/qual-signup/state', { method: 'POST', json: { user: 603, approved: false } });
+  assert.equal(r.status, 409, 'quien ha jugado no puede volver a pendiente');
+  assert.match(r.body.error, /ya ha jugado/i);
+  assert.ok(!(await slotOf()).pending.includes(603));
+  assert.ok((await refc('/api/state')).body.qualPlayed.includes(603), 'el árbitro sabe quién ha jugado');
+  assert.equal((await anon2('/api/state')).body.qualPlayed, undefined, 'el público no');
   assert.equal((await p03('/api/ref/qual-signup/state', { method: 'POST', json: { user: 603, approved: true } })).status, 403, 'solo árbitros');
   assert.equal((await refc('/api/ref/qual-signup/state', { method: 'POST', json: { user: 603, approved: true } })).status, 200);
-  assert.ok(!(await slotOf()).pending.includes(603), 'pendiente → aprobada');
   assert.equal((await refc('/api/ref/qual-signup/state', { method: 'POST', json: { user: 9999, approved: true } })).status, 404, 'sin plaza');
   // Anti-spam de Bancho: los comandos repetibles llevan una palabra distinta cada vez; el resto, tal cual
   const cmds = irc.sent.filter((m) => /^!mp (settings|close|abort|aborttimer|start|timer|map|mods|set)\b/.test(m.text));

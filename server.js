@@ -346,7 +346,7 @@ function buildState(user) {
     anuncio: q.siteText.get('anuncio') || null,
     textos: Object.fromEntries(PAGE_TEXTS.map((k) => [k, q.siteText.get(k)]).filter(([, v]) => v)),
     fasesEditadas: Boolean(q.siteText.get('fases')),
-    ...(isRef(user) ? { qualRequests: q.pendingRequests.all() } : {}),
+    ...(isRef(user) ? { qualRequests: q.pendingRequests.all(), qualPlayed: [...qualPlayers()] } : {}),
     ...(admin ? {
       exceptions: q.exceptions.all().map((e) => ({ id: e.user_id, username: e.username }))
     } : {})
@@ -389,7 +389,23 @@ async function syncQual(mp) {
     throw new HttpError(400, `El MP #${mp} no se jugó en head to head, así que sus mapas no cuentan para los clasificatorios.`);
   }
   q.upsertQual.run(mp, JSON.stringify(parsed), Date.now());
+  confirmPlayed();
   return parsed;
+}
+
+// Quien ya ha jugado algún mapa de clasificatorios (tiene scores en algún MP) tiene la plaza aprobada siempre,
+// aunque el árbitro se olvidara de aprobarla: se aprueba al leer cada MP y al arrancar el servidor.
+function qualPlayers() {
+  const ids = new Set();
+  for (const l of q.quals.all()) for (const uid of Object.keys(l.data ? JSON.parse(l.data).scores || {} : {})) ids.add(Number(uid));
+  return ids;
+}
+function confirmPlayed() {
+  const played = qualPlayers();
+  const late = q.signups.all().filter((s) => !s.approved && played.has(s.user_id));
+  for (const s of late) { q.approveSignup.run(s.user_id); q.delRejection.run(s.user_id); }
+  if (late.length) referee.push();
+  return late.length;
 }
 
 function finished(rec) {
@@ -582,6 +598,7 @@ const routes = {
     if (!s) throw new HttpError(404, 'Esa persona ya no está en ningún lobby.');
     if (s.user_id === u.id) throw new HttpError(403, 'Es tu plaza: la cambia otra persona.');
     if (typeof b.approved !== 'boolean') throw new HttpError(400, 'Elige aprobada o pendiente.');
+    if (!b.approved && qualPlayers().has(s.user_id)) throw new HttpError(409, 'Ya ha jugado los clasificatorios: su plaza cuenta siempre como aprobada.');
     q.setSignupApproved.run(b.approved ? 1 : 0, s.user_id);
     if (b.approved) q.delRejection.run(s.user_id);
     referee.push();
@@ -1193,6 +1210,8 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`SpiSix: Fall Cup en ${BASE_URL} (puerto ${PORT})`);
+  const late = confirmPlayed();
+  if (late) console.log(`[qualis] ${late} ${late === 1 ? 'plaza aprobada' : 'plazas aprobadas'}: ya habían jugado y estaban pendientes`);
   if (!osu.configured()) console.warn('Aviso: faltan OSU_CLIENT_ID y OSU_CLIENT_SECRET; el login y la API no funcionarán.');
   if (!HOST_IDS.size) console.warn('Aviso: ADMIN_IDS está vacío; no hay host, así que nadie podrá usar el panel de administración.');
   if (CONFIG.twitch && !/^\w{3,25}$/.test(CONFIG.twitch)) console.warn('Aviso: "twitch" en config.json debe ser el nombre del canal (p. ej. spi6_osu), no el enlace.');
