@@ -68,6 +68,8 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 img{max-width:100%}
 [hidden]{display:none!important}
 a{color:var(--accent)}
+a.pl{color:inherit;text-decoration:none}
+a.pl:hover,a.pl:focus-visible{color:var(--accent);text-decoration:underline}
 h1,h2,h3{font-family:var(--f-display);line-height:1.15;text-wrap:balance;margin:0;letter-spacing:-.005em}
 h2{font-size:clamp(1.55rem,3.4vw,2.15rem);font-weight:900}
 h3{font-size:1.12rem;font-weight:800}
@@ -266,6 +268,65 @@ tr.cut td{border-bottom:2px dashed var(--accent)}
 .pc .sub{font-size:.8rem;color:var(--muted);font-family:var(--f-mono)}
 .pc .pill{grid-column:1/-1;justify-self:start;margin-top:8px}
 .tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+/* Tarjeta de inscrito: toda la tarjeta abre la ficha (el enlace del nombre se estira por encima) */
+.pc{position:relative}
+.pc a.pl-card{color:inherit;text-decoration:none}
+.pc a.pl-card::after{content:"";position:absolute;inset:0;border-radius:14px}
+.pc:has(a.pl-card:hover){border-color:var(--accent)}
+.pc:has(a.pl-card:hover) a.pl-card{color:var(--accent)}
+.pc:has(a.pl-card:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.pc a.pl-card:focus-visible{outline:none}
+/* Ficha del jugador */
+.back{display:inline-block;margin-bottom:10px;font-size:.9rem;font-weight:600}
+.fi-head{display:flex;align-items:center;gap:16px;margin-bottom:18px}
+.fi-id{display:grid;gap:4px;min-width:0}
+.fi-id h2{margin:0;overflow-wrap:anywhere}
+.fi-sub{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;color:var(--muted);font-size:.9rem}
+.fi-kpis{grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr))}
+.fi-kpis .kpi{padding:12px 14px}
+.fi-kpis .kpi b{font-size:1.45rem;overflow-wrap:anywhere}
+.rk{margin:18px 0 0;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.rk figcaption{display:grid;gap:2px;margin-bottom:30px;font-size:.9rem} /* hueco para el rótulo al pasar el ratón */
+.rk-box{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px}
+.rk-y{display:flex;flex-direction:column;justify-content:space-between;font-family:var(--f-mono);font-size:.72rem;color:var(--muted);text-align:right}
+.rk-plot{position:relative;height:130px;touch-action:pan-y;cursor:crosshair}
+.rk-plot svg{display:block;width:100%;height:100%;overflow:visible}
+.rk-g{stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke;stroke-dasharray:3 4}
+.rk-line{fill:none;stroke:var(--accent);stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
+.rk-dot{position:absolute;width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--surface);transform:translate(-50%,-50%);pointer-events:none}
+.rk-cur{position:absolute;top:0;bottom:0;width:1px;background:var(--muted);pointer-events:none}
+.rk-tip{position:absolute;top:-6px;transform:translate(-50%,-100%);background:var(--ink);color:var(--surface);font-size:.75rem;font-weight:700;padding:3px 8px;border-radius:6px;white-space:nowrap;pointer-events:none}
+.rk-x{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted)}
+.fi-at{font-size:.82rem;margin:12px 0 0}
+.fi-btns{margin-top:16px;display:flex;flex-wrap:wrap;gap:10px}
+@media (max-width:520px){.fi-head .av.xl{width:56px;height:56px}.rk-plot{height:110px}}
+/* Skills y rendimiento por mod en la ficha */
+.sk,.md{margin-top:18px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.sk h3,.md h3{margin:0 0 4px;font-size:1rem}
+.sk-note,.md-note{font-size:.82rem;margin:0 0 12px}
+.md-note{margin:10px 0 0}
+.sk-list{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.sk-top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 12px;font-size:.88rem;margin-bottom:5px}
+.sk-top b .muted{font-weight:500;font-size:.8rem}
+.sk-top>span{font-variant-numeric:tabular-nums;color:var(--muted)}
+@media (max-width:520px){.sk-top{flex-direction:column}}
+.sk .tr{display:block;height:10px;background:var(--surface-2);border-radius:99px;overflow:hidden}
+.sk .tr i{display:block;height:100%;min-width:4px;background:var(--accent);border-radius:99px}
+.sk-ch{font-weight:700;margin-left:6px;white-space:nowrap}
+.sk-ch.up{color:var(--good)}
+.sk-ch.down{color:var(--live)}
+.md table td small{color:var(--muted)}
+/* o!TR en la ficha */
+.ot{margin-top:18px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.ot h3{margin:0 0 4px;font-size:1rem}
+.ot-note{font-size:.82rem;margin:0 0 12px}
+.ot .kpi{background:var(--surface-2);border-color:transparent}
+/* Partidos de un jugador */
+.pj-tools{margin-bottom:12px}
+.pj-tools select{flex:0 1 280px}
+.pj-who{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;margin:4px 0 14px}
+.pj-n{font-family:var(--f-display);font-weight:800;font-size:1.15rem;min-width:0;overflow-wrap:anywhere}
+.side.me .nm{font-weight:800;text-decoration:underline 2px var(--accent);text-underline-offset:4px}
 /* Los campos llevan un borde más marcado (--field, 3:1 como mínimo) que tarjetas y separadores, para que se vea dónde escribir. */
 input[type=search],input[type=text],input[type=password],input[type=number],input[type=datetime-local],input[type=date],select,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--field);border-radius:10px;padding:9px 12px;min-width:0;max-width:100%}
 input[type=search]{flex:1 1 220px}
@@ -736,6 +797,10 @@ function av(p,cls=''){
 const PILL={done:'<span class="pill done">Finalizado</span>',live:'<span class="pill live">En directo</span>',sched:'<span class="pill">Programado</span>',unset:'<span class="pill">Sin fecha</span>',tbd:'<span class="pill tbd">Por decidir</span>'};
 const srcLabel=s=>s.q?`Seed ${s.q}`:`${s.r==='W'?'Ganador':'Perdedor'} ${s.m.toUpperCase()}`;
 const mpUrl=id=>`https://osu.ppy.sh/community/matches/${id}`;
+// Nombre de jugador que lleva a su perfil de osu!. En la demo los IDs son inventados, así que va sin enlace.
+const pname=p=>p.id&&!DEMO?`<a class="pl" href="https://osu.ppy.sh/users/${encodeURIComponent(p.id)}" target="_blank" rel="noopener">${esc(p.username)}</a>`:esc(p.username);
+// En Jugadores, el nombre abre la ficha del jugador en la web (y desde la ficha se llega a su perfil de osu!).
+const fname=(p,cls='')=>`<a class="pl ${cls}" href="#jugadores/ficha/${encodeURIComponent(p.id)}">${esc(p.username)}</a>`;
 // Resultados de clasificatorios: públicos desde la hora que fije la organización. Antes solo los ven admins y árbitros.
 const qualOut=()=>DEMO||(S.qual.results!=null&&S.qual.results<=T.NOW);
 const qualWhen=()=>S.qual.results!=null?`el ${dia(S.qual.results)} a las ${hora(S.qual.results)} (hora de Madrid)`:'';
@@ -763,16 +828,21 @@ function reminders(){
   return items.length?`<section class="rem" aria-label="Recordatorios"><span class="eyebrow">Recordatorios</span><ul>${items.join('')}</ul></section>`:'';
 }
 
-function matchCard(m){
+// matchCard se usa con .map(matchCard), que pasa el índice como segundo argumento: por eso hay dos funciones.
+const matchCard=m=>matchCardOf(m,null);
+// me: ID del jugador cuyos partidos se están viendo. Se resalta su lado y se dice si ganó o perdió.
+function matchCardOf(m,me){
   const side=(p,s,right,mine,other)=>{
-    const cls=!p?'tbd':m.estado==='done'&&m.loser===p?'lose':'';
-    return `<div class="side ${right?'r':''} ${cls}">${av(p)}<span class="nm">${p?esc(p.username):esc(srcLabel(s))}</span>${p&&p.qseed?`<span class="sd">#${p.qseed}</span>`:''}</div>`;
+    const cls=!p?'tbd':(m.estado==='done'&&m.loser===p?'lose':'')+(me&&p.id===me?' me':'');
+    return `<div class="side ${right?'r':''} ${cls}">${av(p)}<span class="nm">${p?pname(p):esc(srcLabel(s))}</span>${p&&p.qseed?`<span class="sd">#${p.qseed}</span>`:''}</div>`;
   };
   const hasScore=(m.estado==='done'||m.estado==='live')&&!m.ff;
   const maps=m.result?.maps||[];
   const picks=(m.bans.length||maps.length||m.protects.length)&&m.a&&m.b?`<div class="picks">${m.protects.length?`<span class="lbl">Protects</span>${m.protects.map(s=>`<span class="slot ${esc(s.slice(0,2))}">${esc(s)}</span>`).join('')}`:''}${m.bans.length?`<span class="lbl">Bans</span>${m.bans.map(s=>`<span class="slot ${esc(s.slice(0,2))} ban">${esc(s)}</span>`).join('')}`:''}${maps.length?`<span class="lbl">Mapas</span>${maps.map(x=>`<span class="slot ${esc(x.slot.slice(0,2))} ${x.w===m.a.id?'wa':'wb'}" title="Gana ${esc(x.w===m.a.id?m.a.username:m.b.username)}">${esc(x.slot)}</span>`).join('')}`:''}</div>`:'';
+  const won=me&&m.estado==='done'?m.winner?.id===me:null;
+  const pill=won==null?PILL[m.estado]:`<span class="pill ${won?'good':''}">${won?'Victoria':'Derrota'}${m.ff?' por forfeit':''}</span>`;
   return `<article class="mt ${m.estado}">
-    <div class="mt-top"><span>${PILL[m.estado]} <span style="margin-left:6px">${esc(m.ronda)}</span></span>${m.time?`<time datetime="${new Date(m.time).toISOString()}">${dia(m.time)} · ${hora(m.time)}</time>`:'<span>Hora por acordar</span>'}</div>
+    <div class="mt-top"><span>${pill} <span style="margin-left:6px">${esc(m.ronda)}</span></span>${m.time?`<time datetime="${new Date(m.time).toISOString()}">${dia(m.time)} · ${hora(m.time)}</time>`:'<span>Hora por acordar</span>'}</div>
     <div class="mt-p">${side(m.a,m.srcA,false,m.sa,m.sb)}
       <div class="sc">${hasScore?`<b>${m.sa}</b><i>–</i><b>${m.sb}</b>`:m.ff?'<span class="vsx">FF</span>':'<span class="vsx">vs</span>'}</div>
       ${side(m.b,m.srcB,true,m.sb,m.sa)}</div>
@@ -784,14 +854,14 @@ function matchCard(m){
 function bracketCard(m){
   const row=(p,s,score,isW)=>{
     const st=!p?'t':m.estado==='done'?(isW?'w':'l'):'';
-    return `<div class="bm-row ${st}"><span class="s">${p&&p.qseed?p.qseed:''}</span><span class="n">${p?esc(p.username):esc(srcLabel(s))}</span><span class="v">${(m.estado==='done'||m.estado==='live')?(m.ff?(isW?'W':'FF'):score):''}</span></div>`;
+    return `<div class="bm-row ${st}"><span class="s">${p&&p.qseed?p.qseed:''}</span><span class="n">${p?pname(p):esc(srcLabel(s))}</span><span class="v">${(m.estado==='done'||m.estado==='live')?(m.ff?(isW?'W':'FF'):score):''}</span></div>`;
   };
   const foot=m.estado==='live'?'EN DIRECTO':m.time?`${corto(m.time)} ${hora(m.time)}`:'sin fecha';
   return `<div class="bm ${m.estado}">${row(m.a,m.srcA,m.sa,m.winner&&m.winner===m.a)}${row(m.b,m.srcB,m.sb,m.winner&&m.winner===m.b)}<div class="bm-f"><span>${m.id.toUpperCase()}</span><span>${foot}</span></div></div>`;
 }
 
 /* ---------------- vistas ---------------- */
-const UI={fase:null,pool:null,jug:'lista',q:'',flash:null,admMatch:'u1-1',busy:false,imp:null,impText:'',admRound:null,poolText:'',poolRead:null,poolBusy:null,slotEdit:null,slotDel:null,slotEmpty:null,qday:null,normasReset:false,textReset:null,fasesReset:false,live:null,liveId:null,ref:null,refForce:false};
+const UI={fase:null,pj:null,ficha:null,pool:null,jug:'lista',q:'',flash:null,admMatch:'u1-1',busy:false,imp:null,impText:'',admRound:null,poolText:'',poolRead:null,poolBusy:null,slotEdit:null,slotDel:null,slotEmpty:null,qday:null,normasReset:false,textReset:null,fasesReset:false,live:null,liveId:null,ref:null,refForce:false};
 
 // Resultado de la última importación del formulario, con lo que hay que revisar a mano.
 function importReport(){
@@ -801,6 +871,146 @@ function importReport(){
     ${list('No encontrados en osu! (revisa el nombre o pega el enlace del perfil en su fila)',r.notFound)}
     ${list('Fuera de rango (añade una excepción si pueden jugar y vuelve a importar)',r.rejected.map(x=>`${x.name} (#${x.rank?nf.format(x.rank):'sin rango'})`))}
     ${list('No se añaden porque se borraron o los quitó la organización',r.removed)}</div>`;
+}
+// Partidos de un jugador en todas las rondas, en el orden del torneo (pestaña Partidos con un jugador elegido).
+function playerMatches(p,picker){
+  const order=k=>T.phases.findIndex(x=>x.key===k);
+  const ms=T.matches.filter(m=>m.a?.id===p.id||m.b?.id===p.id).sort((a,b)=>order(a.fase)-order(b.fase)||(a.time||9e15)-(b.time||9e15));
+  const done=ms.filter(m=>m.estado==='done'), won=done.filter(m=>m.winner?.id===p.id).length;
+  let mf=0,mc=0;
+  done.filter(m=>!m.ff).forEach(m=>{const a=m.a.id===p.id;mf+=a?m.sa:m.sb;mc+=a?m.sb:m.sa});
+  const st=T.status.get(p.id), cls={reg:'',in:'acc',lower:'low',out:'',champ:'acc'};
+  const name=`<b>${esc(p.username)}</b>`;
+  const empty=!T.seedsFinal?`${name} todavía no tiene partidos: los cruces se completan cuando terminen los clasificatorios y se publiquen sus resultados.`
+    :st.k==='out'?`${name} no se clasificó para el cuadro.`:`${name} no tiene partidos en el cuadro.`;
+  const kpi=(v,l)=>`<div class="kpi"><b>${v}</b><span>${l}</span></div>`;
+  return `<section><div class="sec-head"><div><span class="eyebrow">Todas las rondas</span><h2>Partidos de ${esc(p.username)}</h2></div><button class="btn btn-ghost btn-sm" type="button" data-act="pj-clear">Ver todos los partidos</button></div>
+    ${picker}
+    <div class="pj-who">${av(p,'lg')}<span class="pj-n">${pname(p)}</span><span class="pill ${cls[st.k]}">${esc(st.txt)}</span></div>
+    ${done.length?`<div class="kpis">${kpi(done.length,done.length===1?'partido jugado':'partidos jugados')}${kpi(won,won===1?'ganado':'ganados')}${kpi(done.length-won,done.length-won===1?'perdido':'perdidos')}${kpi(`${mf}–${mc}`,'mapas ganados y perdidos')}</div>`:''}
+    ${ms.length?`<p class="muted" style="font-size:.85rem"><span class="slot wa">A</span> mapa del jugador de la izquierda · <span class="slot wb">B</span> del de la derecha</p><div class="list">${ms.map(m=>matchCardOf(m,p.id)).join('')}</div>`:`<div class="empty">${empty}</div>`}</section>`;
+}
+/* ---------------- ficha del jugador ---------------- */
+// La ficha muestra la última foto del perfil de osu! que guarda el servidor una vez al día (GET /api/profile).
+// Se pide al abrirla y se guarda un rato en memoria; nunca se llama a osu! desde aquí.
+const PROF=new Map();
+function loadProfile(id){
+  const c=PROF.get(id);
+  if(c&&(c.loading||Date.now()-c.at<(c.err?MIN:30*MIN))) return c;
+  const e={loading:true,at:Date.now(),data:c?.data||null,err:false};
+  PROF.set(id,e);
+  if(DEMO){Object.assign(e,{loading:false,data:demoProfile(id)});return e}
+  fetch('/api/profile?id='+encodeURIComponent(id),{credentials:'same-origin',headers:{Accept:'application/json'}})
+    .then(r=>r.ok?r.json():Promise.reject(r.status)).then(d=>{e.data=d},()=>{e.err=true})
+    .finally(()=>{e.loading=false;if(currentView()==='jugadores'&&UI.ficha===id) render()});
+  return e;
+}
+// Vista previa: datos inventados con la misma forma que los del servidor.
+function demoProfile(id){
+  const p=S.players.find(x=>x.id===id), r=rng('prof'+id);
+  let k=p.rank*(1+(r()-.35)*.3);
+  const hist=Array.from({length:90},(_,i)=>{k+= (p.rank-k)/(90-i)+(r()-.5)*p.rank*.012;return Math.max(1,Math.round(k))});
+  hist[89]=p.rank;
+  return {id,taken_at:S.now-3*HOUR-17*MIN,profile:{username:p.username,avatar_url:null,country:p.country,country_name:null,global_rank:p.rank,country_rank:Math.max(1,Math.round(p.rank/38)),pp:Math.round(110000*p.rank**-.3+r()*80),accuracy:95+r()*4,play_count:Math.round(6000+r()*50000),rank_history:hist},
+    otr:r()<.25?{found:r()<.5,otr_id:null,rating:null,mods:[],taken_at:S.now-5*HOUR,url:null}:{found:true,otr_id:null,rating:Math.round(700+r()*900),percentile:20+r()*75,global_rank:Math.round(2000+r()*30000),country_rank:Math.round(20+r()*400),tier:pick(r,['bronze','silver','gold','platinum']),sub_tier:1+Math.floor(r()*3),provisional:r()<.2,tournaments:Math.round(1+r()*20),matches:Math.round(5+r()*120),win_rate:.3+r()*.4,mods:[['NM',300],['HD',140],['HR',90],['DT',80],['HDHR',20]].map(([m,n])=>({mods:m,count:Math.round(n*(.5+r())),average:Math.round(450000+r()*350000)})).sort((a,b)=>b.count-a.count),taken_at:S.now-5*HOUR,url:null},
+    skills:{percentiles:Object.fromEntries(SKILL_NAMES.map(([k])=>[k,Math.round(r()*100)])),change:SIM==='hoy'||SIM==='qual'?null:Object.fromEntries(SKILL_NAMES.map(([k])=>[k,Math.round((r()-.5)*24)])),players:S.players.length,maps:SIM==='hoy'||SIM==='qual'?0:Math.round(5+r()*20),tr:r()<.7},
+    mods:['NM','HD','HR','DT','FM'].map(m=>({mod:m,qual:m==='FM'?null:{z:Math.round((r()-.4)*200)/100,maps:m==='NM'?4:2},bracket:SIM==='hoy'||SIM==='qual'?null:(n=>({played:n,won:Math.floor(r()*(n+1))}))(2+Math.floor(r()*4)),otr:{count:Math.round(20+r()*200),average:Math.round(450000+r()*350000)}}))};
+}
+// Skills de este torneo (5 barras): percentil frente al resto de inscritos y flecha con el cambio desde los clasificatorios.
+const SKILL_NAMES=[['aim','Aim','puntería en saltos'],['speed','Velocidad','streams y ritmo rápido'],['prec','Precisión','círculos pequeños (CS)'],['acc','Accuracy','ventana de acierto (OD)'],['stamina','Resistencia','mapas largos con muchas notas rápidas']];
+function skillsHtml(sk){
+  if(!sk) return qualOut()?'':`<section class="sk"><h3>Skills en el torneo</h3><p class="muted sk-note">Las skills de este torneo salen de los clasificatorios y aparecen cuando la organización publique sus resultados${S.qual.results!=null?' ('+dia(S.qual.results)+')':''}. Hasta entonces, solo hay datos de o!TR.</p></section>`;
+  const arrow=v=>v==null?'':v>0?`<span class="sk-ch up" title="Sube ${v} puntos desde los clasificatorios">▲ ${v}<span class="sr-only"> puntos desde los clasificatorios</span></span>`:v<0?`<span class="sk-ch down" title="Baja ${-v} puntos desde los clasificatorios">▼ ${-v}<span class="sr-only"> puntos desde los clasificatorios</span></span>`:'<span class="sk-ch same" title="Igual que tras los clasificatorios">=</span>';
+  return `<section class="sk" aria-labelledby="sk-h"><h3 id="sk-h">Skills en el torneo</h3>
+    <p class="muted sk-note">Todo sale de partidos de torneo: los clasificatorios y el cuadro de este torneo, con ${sk.tr?'su TR de o!TR':'su seed'} como punto de partida. Cada barra lo compara con los otros ${sk.players-1} inscritos con datos${sk.change?`; la flecha es el cambio desde los clasificatorios, tras ${sk.maps} ${sk.maps===1?'mapa':'mapas'} del cuadro`:''}.</p>
+    <ul class="sk-list">${SKILL_NAMES.map(([k,es,hint])=>{const v=sk.percentiles[k];return `<li><div class="sk-top"><b>${es} <span class="muted">· ${hint}</span></b><span>mejor que el ${v} % del torneo ${arrow(sk.change?.[k])}</span></div><span class="tr" aria-hidden="true"><i style="width:${v}%"></i></span></li>`}).join('')}</ul></section>`;
+}
+// Rendimiento por mod: clasificatorios y cuadro de este torneo, y o!TR (otros torneos). Cada columna dice de dónde sale.
+function modsHtml(mods){
+  if(!mods?.length) return '';
+  const has=k=>mods.some(m=>m[k]);
+  const sign=z=>(z>0?'+':z<0?'−':'')+dec(Math.abs(z),2);
+  const cols=[has('qual')&&['Clasificatorios',m=>m.qual?`${sign(m.qual.z)} <small>(${m.qual.maps} ${m.qual.maps===1?'mapa':'mapas'})</small>`:'–'],
+    has('bracket')&&['Cuadro',m=>m.bracket?`${m.bracket.won} de ${m.bracket.played} ganados`:'–'],
+    has('otr')&&['o!TR',m=>m.otr?`${nf.format(m.otr.count)} mapas · ${nf.format(m.otr.average)} de media`:'–']].filter(Boolean);
+  const notes=[has('qual')&&'<b>Clasificatorios</b>: z medio en los mapas de ese mod (0 es la media de quienes los jugaron; +1, una desviación por encima).',has('bracket')&&'<b>Cuadro</b>: mapas de ese mod ganados en sus partidos (el TB cuenta como FM).',has('otr')&&'<b>o!TR</b>: mapas y puntuación media en otros torneos verificados.'].filter(Boolean);
+  return `<section class="md" aria-labelledby="md-h"><h3 id="md-h">Rendimiento por mod</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Mod</th>${cols.map(([h])=>`<th>${h}</th>`).join('')}</tr></thead>
+    <tbody>${mods.map(m=>`<tr><td><span class="slot ${esc(m.mod.slice(0,2))}">${esc(m.mod)}</span></td>${cols.map(([,f])=>`<td class="num">${f(m)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+    <p class="muted md-note">${notes.join(' ')}</p></section>`;
+}
+// Datos de o!TR (otros torneos verificados): rating, tier, torneos y estadísticas por mod.
+const TIER_ROMAN=['','I','II','III'];
+function otrHtml(o){
+  if(!o) return '';
+  const head='<h3 id="ot-h">o!TR · otros torneos</h3>';
+  const when=`<p class="muted fi-at">Datos de o!TR del ${dia(o.taken_at)} a las ${hora(o.taken_at)}. Se actualizan una vez al día.${o.url?` <a href="${esc(o.url)}" target="_blank" rel="noopener">Ver en o!TR</a>`:''}</p>`;
+  if(o.rating==null) return `<section class="ot" aria-labelledby="ot-h">${head}<p class="muted">${o.found?'Sin rating de o!TR: todavía no tiene torneos verificados.':'o!TR no tiene datos de este jugador.'}</p>${when}</section>`;
+  const pct=o.percentile==null?null:o.percentile<=1?o.percentile*100:o.percentile;
+  const tier=o.tier?o.tier.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/^./,c=>c.toUpperCase())+(TIER_ROMAN[o.sub_tier]?' '+TIER_ROMAN[o.sub_tier]:''):'–';
+  const kpi=(v,l)=>`<div class="kpi"><b>${v}</b><span>${l}</span></div>`;
+  return `<section class="ot" aria-labelledby="ot-h">${head}
+    <p class="muted ot-note">Rating de torneo calculado por o!TR con sus partidos en otros torneos verificados, no en este.${o.provisional?' Rating provisional: aún tiene pocos partidos.':''}</p>
+    <div class="kpis fi-kpis">${kpi(nf.format(Math.round(o.rating)),'TR (rating de o!TR)')}${kpi(esc(tier),'tier')}${pct!=null?kpi(`${Math.round(pct)} %`,'percentil en o!TR'):''}${o.global_rank?kpi('#'+nf.format(o.global_rank),'rango global en o!TR'):''}${kpi(o.tournaments??'–','torneos jugados')}${o.win_rate!=null?kpi(`${Math.round(o.win_rate*100)} %`,'partidos ganados'):''}</div>
+    ${when}</section>`;
+}
+const countryName=c=>{try{return new Intl.DisplayNames(['es'],{type:'region'}).of(c)}catch(_){return c}};
+// Rango de los últimos 90 días: una línea (arriba, mejor rango). Los días sin rango (null) dejan un hueco.
+function rankChart(hist){
+  const pts=hist.map((v,i)=>({i,v})).filter(x=>x.v);
+  if(pts.length<2) return '<p class="muted" style="font-size:.85rem">Sin historial de rango: osu! lo guarda solo mientras el jugador tiene rango.</p>';
+  const n=hist.length, vs=pts.map(x=>x.v), best=Math.min(...vs), worst=Math.max(...vs), span=worst-best||1;
+  const X=i=>n>1?i/(n-1)*100:0, Y=v=>4+(v-best)/span*92; // en % del ancho y del alto
+  let d='',prev=-2;
+  pts.forEach(({i,v})=>{d+=`${i===prev+1?'L':'M'}${X(i).toFixed(2)} ${Y(v).toFixed(2)}`;prev=i});
+  const first=pts[0], last=pts[pts.length-1], diff=first.v-last.v, ago=n-1-first.i;
+  const trend=diff>0?`ha subido ${nf.format(diff)} puestos`:diff<0?`ha bajado ${nf.format(-diff)} puestos`:'sigue en el mismo puesto';
+  const sum=`Hace ${ago} días: #${nf.format(first.v)}. Ahora: #${nf.format(last.v)}; ${trend}.`;
+  return `<figure class="rk"><figcaption><b>Rango en los últimos 90 días</b><span class="muted">${esc(sum)}</span></figcaption>
+    <div class="rk-box"><div class="rk-y" aria-hidden="true"><span>#${nf.format(best)}</span><span>#${nf.format(worst)}</span></div>
+    <div class="rk-plot" data-h="${esc(JSON.stringify(hist))}"><svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="${esc(sum)}"><line class="rk-g" x1="0" x2="100" y1="4" y2="4"/><line class="rk-g" x1="0" x2="100" y1="96" y2="96"/><path class="rk-line" d="${d}"/></svg>
+    <span class="rk-dot" style="left:${X(last.i)}%;top:${Y(last.v)}%"></span><span class="rk-cur" hidden></span><span class="rk-tip" hidden></span></div>
+    <span></span><div class="rk-x" aria-hidden="true"><span>hace ${n-1} días</span><span>hoy</span></div></div></figure>`;
+}
+// Al pasar el ratón o el dedo por la gráfica: el rango de ese día.
+function rankHover(e){
+  const pl=e.target.closest?.('.rk-plot'); if(!pl) return;
+  const h=JSON.parse(pl.dataset.h), n=h.length, box=pl.getBoundingClientRect();
+  const i=Math.max(0,Math.min(n-1,Math.round((e.clientX-box.left)/box.width*(n-1))));
+  const vs=h.filter(Boolean), best=Math.min(...vs), span=Math.max(...vs)-best||1;
+  const cur=pl.querySelector('.rk-cur'), tip=pl.querySelector('.rk-tip'), dot=pl.querySelector('.rk-dot'), x=n>1?i/(n-1)*100:0;
+  cur.hidden=tip.hidden=false; cur.style.left=x+'%';
+  const ago=n-1-i;
+  tip.textContent=`${ago===0?'Hoy':ago===1?'Ayer':'Hace '+ago+' días'}: ${h[i]?'#'+nf.format(h[i]):'sin rango'}`;
+  tip.style.left=Math.min(Math.max(x,14),86)+'%';
+  if(h[i]){dot.style.left=x+'%';dot.style.top=(4+(h[i]-best)/span*92)+'%'}
+}
+function rankLeave(e){
+  const pl=e.target.closest?.('.rk-plot'); if(!pl) return;
+  pl.querySelectorAll('.rk-cur,.rk-tip').forEach(x=>x.hidden=true);
+  const h=JSON.parse(pl.dataset.h), vs=h.filter(Boolean), best=Math.min(...vs), span=Math.max(...vs)-best||1, li=h.map(Boolean).lastIndexOf(true);
+  const dot=pl.querySelector('.rk-dot'); dot.style.left=(li/(h.length-1)*100)+'%'; dot.style.top=(4+(h[li]-best)/span*92)+'%';
+}
+function fichaHtml(p){
+  const c=loadProfile(p.id), d=c.data?.profile||null, at=c.data?.taken_at, st=T.status.get(p.id);
+  const cls={reg:'',in:'acc',lower:'low',out:'',champ:'acc'};
+  const cc=d?.country||p.country, cn=cc?countryName(cc)||d?.country_name||cc:''; // osu! da el nombre en inglés: mejor el del navegador
+  const rank=v=>v?'#'+nf.format(v):'–';
+  const kpi=(v,l)=>`<div class="kpi"><b>${v}</b><span>${l}</span></div>`;
+  let body;
+  if(!c.data&&c.loading) body='<div class="empty">Cargando la ficha…</div>';
+  else if(!c.data) body='<div class="empty">No se ha podido cargar la ficha. Se volverá a intentar en un momento.</div>';
+  else if(!d) body='<p class="note">Todavía no hay datos de osu! de este jugador: la web los toma una vez al día.</p>';
+  else body=`<div class="kpis fi-kpis">${kpi(rank(d.global_rank),'rango global')}${kpi(rank(d.country_rank),cn?'rango en '+esc(cn):'rango en su país')}${kpi(d.pp!=null?nf.format(Math.round(d.pp)):'–','pp')}${kpi(d.accuracy!=null?dec(d.accuracy,2)+' %':'–','precisión')}${kpi(d.play_count!=null?nf.format(d.play_count):'–','partidas jugadas')}</div>
+    ${rankChart(d.rank_history||[])}
+    <p class="muted fi-at">Datos públicos de osu! del ${dia(at)} a las ${hora(at)} (hora de Madrid). Se actualizan una vez al día.</p>`;
+  if(c.data) body+=skillsHtml(c.data.skills)+modsHtml(c.data.mods)+otrHtml(c.data.otr);
+  return `<section class="ficha"><a class="back" href="#jugadores">← Jugadores</a>
+    <div class="fi-head">${av({...p,avatar_url:d?.avatar_url||p.avatar_url},'xl')}<div class="fi-id"><span class="eyebrow">Ficha del jugador</span><h2>${esc(p.username)}</h2>
+      <span class="fi-sub">${cc?`<span>${esc(cn||cc)}</span>`:''}<span class="pill ${cls[st.k]}">${esc(st.txt)}</span></span></div></div>
+    ${body}
+    <div class="btns fi-btns"><a class="btn btn-primary" href="#partidos/jugador/${encodeURIComponent(p.id)}">Ver sus partidos</a>${DEMO?'':`<a class="btn btn-ghost" href="https://osu.ppy.sh/users/${encodeURIComponent(p.id)}" target="_blank" rel="noopener">Perfil en osu!</a>`}</div>
+  </section>`;
 }
 const flashHtml=()=>UI.flash?`<div class="flash ${UI.flash.ok?'ok':'err'}" role="status">${esc(UI.flash.text)}</div>`:'';
 
@@ -845,7 +1055,7 @@ const VIEWS={
     const upcoming=T.matches.filter(m=>m.estado==='sched'&&m.time>NOW&&m!==nx).sort((a,b)=>a.time-b.time).slice(0,3);
     let target,label,eyebrow,extra='';
     if(regOpen){target=reg.end;label='para cerrar registros';eyebrow='Registros abiertos';extra=`<span class="muted num">Cierran el ${dia(reg.end)} a las ${hora(reg.end)}</span>`}
-    else if(nx){target=nx.time;label='para el próximo partido';eyebrow='Próximo partido · '+nx.ronda;extra=`<div class="vs">${av(nx.a)} ${esc(nx.a.username)} <i>vs</i> ${esc(nx.b.username)} ${av(nx.b)}</div><span class="muted num">${dia(nx.time)} · ${hora(nx.time)} (hora de Madrid)</span>`}
+    else if(nx){target=nx.time;label='para el próximo partido';eyebrow='Próximo partido · '+nx.ronda;extra=`<div class="vs">${av(nx.a)} ${pname(nx.a)} <i>vs</i> ${pname(nx.b)} ${av(nx.b)}</div><span class="muted num">${dia(nx.time)} · ${hora(nx.time)} (hora de Madrid)</span>`}
     else{const nextP=T.phases.find(p=>p.start>NOW);if(nextP){target=nextP.start;label='para '+nextP.nombre.toLowerCase();eyebrow='Siguiente fase';extra=`<span class="muted num">${esc(nextP.nombre)} empieza el ${dia(nextP.start)}</span>`}}
     const champ=T.byId.gf.estado==='done'?T.byId.gf.winner:null;
     return `
@@ -883,13 +1093,14 @@ const VIEWS={
       <tbody>${T.phases.filter(p=>p.key!=='registros').map(p=>{const pool=S.pools[p.key]||[];return `<tr><td><b>${esc(p.nombre)}</b></td><td>${p.sc?corto(p.sc):'–'}</td><td>${rangoFechas(p.start,p.end)}</td><td class="n">${dec(p.sr)}★</td><td class="n">${p.bo?'Bo'+p.bo:'–'}</td><td class="n">${pool.length||'–'}</td></tr>`}).join('')}</tbody></table></div>
     </section>
     ${normasHtml(S.normas?.text||defaultNormas())}
-    ${(()=>{const roles=['host','admin','referee','staff'].map(r=>[r==='host'?'Host':r==='admin'?'Admins':r==='referee'?'Árbitros':'Staff',(S.team||[]).filter(x=>x.role===r).map(x=>x.username||'')]).filter(([,ps])=>ps.length);
-      const all=[...roles,...(C.staff||[])];
-      return all.length?`<section><h2>Equipo</h2><div class="steps">${all.map(([rol,ps])=>`<div class="step"><span class="eyebrow">${esc(rol)}</span><b>${ps.map(esc).join(', ')}</b></div>`).join('')}</div></section>`:''})()}`;
+    ${(()=>{const roles=['host','admin','referee','staff'].map(r=>[r==='host'?'Host':r==='admin'?'Admins':r==='referee'?'Árbitros':'Staff',(S.team||[]).filter(x=>x.role===r).map(x=>pname({id:x.id,username:x.username||''}))]).filter(([,ps])=>ps.length);
+      const all=[...roles,...(C.staff||[]).map(([rol,ps])=>[rol,ps.map(esc)])];
+      return all.length?`<section><h2>Equipo</h2><div class="steps">${all.map(([rol,ps])=>`<div class="step"><span class="eyebrow">${esc(rol)}</span><b>${ps.join(', ')}</b></div>`).join('')}</div></section>`:''})()}`;
   },
 
   jugadores(){
     const {qual,C}=T;
+    if(UI.ficha!=null&&T.players.has(UI.ficha)) return fichaHtml(T.players.get(UI.ficha));
     const head=`<section><div class="sec-head"><div><span class="eyebrow">${S.players.length} inscritos · ${C.clasificados} plazas</span><h2>Jugadores</h2></div>
       <div class="tabs" role="tablist"><button class="tab" role="tab" data-jug="lista" aria-selected="${UI.jug==='lista'}">Inscritos</button><button class="tab" role="tab" data-jug="clasif" aria-selected="${UI.jug==='clasif'}">Clasificatorios</button></div></div>`;
     if(UI.jug==='clasif'){
@@ -899,14 +1110,14 @@ const VIEWS={
       const zs=C.metodoClasif!=='suma';
       return head+hiddenNote+`<p class="muted">${zs?`Orden por Z-sum: en cada mapa se mide cuántas desviaciones típicas se aleja tu score de la media, y se suman los ${qual.pool.length} mapas.`:'Orden por la suma de scores de todos los mapas.'} ${T.seedsFinal?'La línea discontinua marca el corte.':'Clasificación provisional.'}</p>
       <div class="tbl-wrap"><table><thead><tr><th class="n">Seed</th><th>Jugador</th><th class="n">Rango</th><th class="n">${zs?'Z-sum':'Total'}</th>${qual.pool.map(m=>`<th class="n">${esc(m.slot)}</th>`).join('')}</tr></thead><tbody>
-      ${qual.rows.map(r=>`<tr class="${r.seed===C.clasificados?'cut':''}"><td class="n">${r.seed}</td><td><span class="who2">${av(r.player)}${esc(r.player.username)}</span></td><td class="n">#${nf.format(r.player.rank||0)}</td><td class="n"><b>${zs?dec(r.z,2):nf.format(r.total)}</b></td>${r.scores.map(s=>`<td class="n">${s?nf.format(s):'–'}</td>`).join('')}</tr>`).join('')}
+      ${qual.rows.map(r=>`<tr class="${r.seed===C.clasificados?'cut':''}"><td class="n">${r.seed}</td><td><span class="who2">${av(r.player)}${fname(r.player)}</span></td><td class="n">#${nf.format(r.player.rank||0)}</td><td class="n"><b>${zs?dec(r.z,2):nf.format(r.total)}</b></td>${r.scores.map(s=>`<td class="n">${s?nf.format(s):'–'}</td>`).join('')}</tr>`).join('')}
       </tbody></table></div></section>`;
     }
     const q=UI.q.trim().toLowerCase();
     const list=[...T.players.values()].filter(p=>!q||p.username.toLowerCase().includes(q)).sort((a,b)=>(a.qseed||999)-(b.qseed||999)||a.rank-b.rank);
     const cls={reg:'',in:'acc',lower:'low',out:'',champ:'acc'};
-    return head+`<div class="tools"><label class="eyebrow" for="q">Buscar</label><input type="search" id="q" placeholder="Nombre de usuario" value="${esc(UI.q)}"></div>
-      ${S.players.length?`<div class="pgrid">${list.map(p=>{const s=T.status.get(p.id);return `<div class="pc">${av(p,'lg')}<b>${esc(p.username)}</b><span class="sub">#${nf.format(p.rank||0)}${p.country?' · '+esc(p.country):''}</span><span class="sub" style="grid-column:2">Inscrito el ${corto(p.registered_at)}</span><span class="pill ${cls[s.k]}">${esc(s.txt)}</span></div>`}).join('')||'<div class="empty">Nadie coincide con la búsqueda.</div>'}</div>`:'<div class="empty">Todavía no hay nadie inscrito.</div>'}</section>`;
+    return head+(UI.ficha!=null?'<p class="note">Ese enlace no corresponde a ningún inscrito.</p>':'')+`<div class="tools"><label class="eyebrow" for="q">Buscar</label><input type="search" id="q" placeholder="Nombre de usuario" value="${esc(UI.q)}"></div>
+      ${S.players.length?`<div class="pgrid">${list.map(p=>{const s=T.status.get(p.id);return `<div class="pc">${av(p,'lg')}<b>${fname(p,'pl-card')}</b><span class="sub">#${nf.format(p.rank||0)}${p.country?' · '+esc(p.country):''}</span><span class="sub" style="grid-column:2">Inscrito el ${corto(p.registered_at)}</span><span class="pill ${cls[s.k]}">${esc(s.txt)}</span></div>`}).join('')||'<div class="empty">Nadie coincide con la búsqueda.</div>'}</div>`:'<div class="empty">Todavía no hay nadie inscrito.</div>'}</section>`;
   },
 
   mappool(){
@@ -931,10 +1142,16 @@ const VIEWS={
   partidos(){
     const ps=T.phases.filter(p=>T.matches.some(m=>m.fase===p.key));
     if(!UI.fase||!ps.some(p=>p.key===UI.fase)){const c=ps.find(p=>p.estado==='now')||ps.find(p=>p.estado==='future')||ps[ps.length-1];UI.fase=c.key}
+    // Selector de jugador: todos los inscritos, también antes de que haya cruces (la ficha del jugador enlaza aquí).
+    const pj=UI.pj!=null?T.players.get(UI.pj)||null:null;
+    const opts=[...T.players.values()].sort((a,b)=>a.username.localeCompare(b.username,'es',{sensitivity:'base'}));
+    const picker=opts.length?`<div class="tools pj-tools"><label class="eyebrow" for="pj">Jugador</label><select id="pj"><option value="">Todos los partidos</option>${opts.map(x=>`<option value="${x.id}"${pj&&x.id===pj.id?' selected':''}>${esc(x.username)}</option>`).join('')}</select></div>`:'';
+    if(pj) return playerMatches(pj,picker);
     const p=T.phaseBy[UI.fase];
     const list=T.matches.filter(m=>m.fase===UI.fase).sort((a,b)=>(a.time||9e15)-(b.time||9e15));
     return `<section><div class="sec-head"><div><span class="eyebrow">${rangoFechas(p.start,p.end)} · ${list.length} partidos · Bo${p.bo}</span><h2>Partidos</h2></div>
       <span class="muted" style="font-size:.85rem"><span class="slot wa">A</span> mapa del jugador de la izquierda · <span class="slot wb">B</span> del de la derecha</span></div>
+      ${picker}${UI.pj!=null?'<p class="note">Ese enlace no corresponde a ningún inscrito. Se muestran todos los partidos.</p>':''}
       <div class="tabs" role="tablist">${ps.map(x=>`<button class="tab" role="tab" data-fase="${x.key}" aria-selected="${x.key===p.key}">${esc(x.nombre)}</button>`).join('')}</div>
       ${T.seedsFinal?'':T.NOW>T.phaseBy.qualifiers.end&&!qualOut()?`<p class="note">Los cruces se completan cuando se publiquen los resultados de los clasificatorios${S.qual.results!=null?' ('+corto(S.qual.results)+')':''}.</p>`:`<p class="note">Los cruces se completan cuando terminen los clasificatorios (${corto(T.phaseBy.qualifiers.end)}).</p>`}
       <div class="list">${list.map(matchCard).join('')}</div></section>`;
@@ -1024,7 +1241,7 @@ const VIEWS={
         ?`<button class="btn btn-ghost btn-sm" type="button" data-act="qs-claim" data-id="${x.id}" data-on="0">Dejar de arbitrar</button>`
         :x.ref_id?'':`<button class="btn btn-ghost btn-sm" type="button" data-act="qs-claim" data-id="${x.id}" data-on="1">Arbitrar</button>`;
       return `<div class="qr ${isMine?'mine':''}"><div class="qr-id"><b>${esc(x.name)}</b><span class="muted num">${hora(x.time)}</span></div>
-        <div class="qs-p">${x.players.map(id=>{const p=names.get(id),wait=x.pending.includes(id);return p?`<span class="qs-n ${id===me?.id?'me':''} ${wait?'pend':''}">${av(p)}${esc(p.username)}${wait?' <small>pendiente</small>':''}</span>`:''}).join('')||`<span class="muted" style="font-size:.85rem">${started?'Sin jugadores':'Libre'}</span>`}</div>
+        <div class="qs-p">${x.players.map(id=>{const p=names.get(id),wait=x.pending.includes(id);return p?`<span class="qs-n ${id===me?.id?'me':''} ${wait?'pend':''}">${av(p)}${pname(p)}${wait?' <small>pendiente</small>':''}</span>`:''}).join('')||`<span class="muted" style="font-size:.85rem">${started?'Sin jugadores':'Libre'}</span>`}</div>
         <div class="qr-m muted"><span class="num">${x.players.length}/${x.size}</span> · ${x.ref_name?'Árbitro: '+esc(x.ref_name):'Sin árbitro'}${x.mp?` · <a href="${mpUrl(x.mp)}" target="_blank" rel="noopener">MP</a>`:''}</div>
         <div class="qs-r">${started||x.manual?SLOT_PILL[x.state]||SLOT_PILL.started:full&&!isMine?'<span class="pill">Lleno</span>':''}${x.manual&&me?.referee?'<span class="muted" style="font-size:.78rem">puesto a mano</span>':''}${play}${ref}${me?.referee?`<button class="btn btn-ghost btn-sm" type="button" data-act="qs-fix" data-id="${x.id}" aria-expanded="${UI.slotFix===x.id}">${UI.slotFix===x.id?'Cerrar':'Corregir'}</button>`:''}</div>
         ${me?.referee&&UI.slotFix===x.id?slotFix(x,names):''}</div>`;
@@ -1608,8 +1825,16 @@ const NAV=[['inicio','Inicio'],['info','Info'],['jugadores','Jugadores'],['mappo
 const app=document.getElementById('app');
 let timer=null, relTimer=null;
 // La URL guarda la vista y su pestaña (#mappool/semis, #partidos/cuartos, #jugadores/clasif), para enlazarlas.
-function route(){const [v,sub]=location.hash.slice(1).split('/');let s=null;try{s=sub?decodeURIComponent(sub):null}catch(_){}return {v,sub:s}}
-function readRoute(){const {v,sub}=route();if(!sub) return;if(v==='partidos') UI.fase=sub;else if(v==='mappool') UI.pool=sub;else if(v==='jugadores'&&(sub==='lista'||sub==='clasif')) UI.jug=sub}
+// Los partidos de un jugador tienen su propia dirección: #partidos/jugador/<ID de osu!>.
+function route(){const [v,...parts]=location.hash.slice(1).split('/');const d=s=>{try{return s?decodeURIComponent(s):null}catch(_){return null}};return {v,sub:d(parts[0]),arg:d(parts[1])}}
+function readRoute(){
+  const {v,sub,arg}=route();
+  if(v==='partidos') UI.pj=sub==='jugador'&&/^\d{1,10}$/.test(arg||'')?+arg:null; // #partidos sin más quita el filtro
+  if(v==='jugadores') UI.ficha=sub==='ficha'&&/^\d{1,10}$/.test(arg||'')?+arg:null; // ficha: #jugadores/ficha/<ID>
+  if(!sub) return;
+  if(v==='partidos'){if(sub!=='jugador') UI.fase=sub}else if(v==='mappool') UI.pool=sub;else if(v==='jugadores'&&(sub==='lista'||sub==='clasif')) UI.jug=sub;
+}
+const setPlayerHash=id=>{try{history.replaceState(null,'',id?`#partidos/jugador/${id}`:`#partidos${UI.fase?'/'+encodeURIComponent(UI.fase):''}`)}catch(_){}};
 // Cambiar de pestaña no cambia de vista ni mueve la página: solo se reescribe la URL.
 const setSub=sub=>{try{history.replaceState(null,'',`#${currentView()}/${encodeURIComponent(sub)}`)}catch(_){}};
 function currentView(){const h=route().v;if(h==='admin'&&!S.me?.admin||h==='arbitrar'&&!S.me?.referee) return 'inicio';return VIEWS[h]?h:'inicio'}
@@ -1629,6 +1854,7 @@ function render(){
   // En el panel, el navegador no debe rellenar ni ofrecer guardar lo que se escribe (no son datos de acceso).
   if(v==='admin') app.querySelectorAll('form').forEach(f=>f.setAttribute('autocomplete','off'));
   if(v==='arbitrar') app.querySelectorAll('.rlog').forEach(e=>e.scrollTop=e.scrollHeight);
+  app.querySelectorAll('.rk-plot').forEach(pl=>{pl.addEventListener('pointermove',rankHover);pl.addEventListener('pointerleave',rankLeave)});
   refStream(v==='arbitrar');
   document.getElementById('foot').innerHTML=`<span>${esc(T.C.nombre)} · ${esc(T.C.comunidad)} · Datos de osu! obtenidos con su API pública</span><nav>${T.C.enlaces.filter(([,u])=>u).map(([n,u])=>`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(n)}</a>`).join('')}</nav>`;
   renderLive();
@@ -1665,7 +1891,9 @@ async function load(){
 setInterval(async()=>{
   if(!S||DEMO||document.hidden||UI.busy||['admin','arbitrar'].includes(currentView())||document.activeElement?.id==='q'||(currentView()==='qualis'&&(app.querySelector('input:focus')||[...app.querySelectorAll('#q-xn,#q-xt,[id^=qa-r],[id^=qx-r]')].some(e=>e.value)))) return;
   const sel='.bracket,.tbl-wrap', pos=[...document.querySelectorAll(sel)].map(e=>e.scrollLeft);
+  const pjFocus=document.activeElement?.id==='pj'; // el selector de jugador conserva el foco (los resultados se siguen actualizando)
   await load();
+  if(pjFocus) document.getElementById('pj')?.focus({preventScroll:true});
   document.querySelectorAll(sel).forEach((e,i)=>{if(pos[i]) e.scrollLeft=pos[i]});
 },60e3);
 
@@ -1705,11 +1933,12 @@ app.addEventListener('click',e=>{
   const b=e.target.closest('[data-fase],[data-pool],[data-jug],[data-ref],[data-qday],[data-act]'); if(!b) return;
   if(b.dataset.qday){UI.qday=b.dataset.qday;UI.slotDel=null;UI.slotEmpty=null;return keepRender()}
   if(b.dataset.ref){UI.ref=b.dataset.ref;UI.flash=null;UI.refForce=false;render();return scrollTo(0,0)}
-  if(b.dataset.fase){UI.fase=b.dataset.fase;setSub(UI.fase);return render()}
+  if(b.dataset.fase){UI.fase=b.dataset.fase;UI.pj=null;setSub(UI.fase);return render()}
   if(b.dataset.pool){UI.pool=b.dataset.pool;setSub(UI.pool);return render()}
-  if(b.dataset.jug){UI.jug=b.dataset.jug;setSub(UI.jug);return render()}
+  if(b.dataset.jug){UI.jug=b.dataset.jug;UI.ficha=null;setSub(UI.jug);return render()}
   const a=b.dataset.act;
   if(a==='copy-id') return copyId(b);
+  if(a==='pj-clear'){UI.pj=null;setPlayerHash(null);render();return document.getElementById('pj')?.focus()}
   if(a==='pool-del') return act(()=>post('/api/admin/pool/delete',{round:b.dataset.round,slot:b.dataset.slot}),'Mapa quitado.');
   if(a==='sync') return act(()=>post('/api/admin/sync',{id:b.dataset.id}),'Resultado actualizado desde osu!.');
   if(a==='qual-del') return act(()=>post('/api/admin/qual/delete',{mp:b.dataset.mp}),'Lobby quitado.');
@@ -1825,6 +2054,8 @@ app.addEventListener('input',e=>{
   if(e.target.id==='q'){UI.q=e.target.value;const pos=e.target.selectionStart;render();const i=document.getElementById('q');if(i){i.focus();try{i.setSelectionRange(pos,pos)}catch(_){}}}
 });
 app.addEventListener('change',e=>{
+  // Elegir jugador cambia la URL sin saltar arriba ni mover el foco (hashchange haría las dos cosas).
+  if(e.target.id==='pj'){UI.pj=e.target.value?+e.target.value:null;setPlayerHash(UI.pj);render();return document.getElementById('pj')?.focus()}
   if(e.target.id==='a-mid'){UI.admMatch=e.target.value;UI.flash=null;render()}
   if(e.target.dataset.slotState) return act(()=>post('/api/ref/qual-slot/state',{id:+e.target.dataset.slotState,state:e.target.value}),e.target.value==='auto'?'El estado del lobby vuelve a ser automático.':`Lobby marcado como ${SLOT_NAME[e.target.value]}.`);
   if(e.target.dataset.slotRef) return act(()=>post('/api/admin/qual-slot/ref',{id:+e.target.dataset.slotRef,ref:e.target.value?+e.target.value:null}),'Árbitro guardado.');
@@ -1928,7 +2159,7 @@ app.addEventListener('submit',e=>{
     return act(()=>post('/api/admin/match',{id:val('a-mid'),time:t?zoned(t,false,T.C.zona):null,ref:val('a-ref'),mp:mpId(val('a-mp'))||null,ff:val('a-ff')||null,bans:val('a-bans').split(/[,\s]+/).filter(Boolean)}),'Partido guardado.');
   }
 });
-document.getElementById('sim').addEventListener('change',e=>{SIM=e.target.value;S=demoState();UI.fase=null;UI.pool=null;render()});
+document.getElementById('sim').addEventListener('change',e=>{SIM=e.target.value;S=demoState();PROF.clear();UI.fase=null;UI.pool=null;render()});
 // Menú «Más»: las secciones que no caben en la cabecera pasan a un desplegable. La actual se queda fuera
 // mientras quepa; si ni así cabe (móvil), el botón lleva su nombre y el desplegable muestra todas.
 function fitNav(){

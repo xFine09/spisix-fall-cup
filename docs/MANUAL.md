@@ -15,12 +15,16 @@ Detalle completo para quien instala y mantiene la web. El resumen está en el [R
 - **Enlaces del pie**: Discord y Twitch. Discord es solo un enlace, sin integración. Están en `enlaces`, en `config.json`, y se pueden cambiar desde el panel, en **Textos de la web** → **Enlaces del pie**.
 - **Contenido editable**: desde el panel, los admins cambian el nombre del torneo, la comunidad, la presentación de Inicio, «Cómo funciona», las explicaciones de Qualis y Registro, los enlaces del pie y las rondas (nombre, fechas, SR y best of). Se guarda en la base de datos y se superpone a `config.json`, que sigue siendo el valor original al que se puede volver. Las rondas cambian el torneo de verdad, no solo lo que se ve.
 - **Roles**: el host (`ADMIN_IDS`) asigna desde el panel quién es admin, árbitro o staff. Se aplica al momento. Staff ve las mappools antes de publicarse, sin entrar en el panel.
-- **Resultados**: el admin pega el enlace del MP y la web cuenta los mapas ganados por cada jugador. Ignora los warmups (solo cuenta mapas del pool de la ronda) y aplica EZ ×1,8 y EZHD ×2 (en clasificatorios no hay multiplicadores). Mientras se juega, se actualiza sola cada 5 minutos.
+- **Resultados**: el admin pega el enlace del MP y la web cuenta los mapas ganados por cada jugador. De cada jugador y mapa guarda también la puntuación, la precisión, el combo, los 300/100/50/fallos y los mods (en los clasificatorios, los de su mejor score). Ignora los warmups (solo cuenta mapas del pool de la ronda) y aplica EZ ×1,8 y EZHD ×2 (en clasificatorios no hay multiplicadores). Mientras se juega, se actualiza sola cada 5 minutos.
 - **Clasificatorios**: se añaden los MP de los lobbies; se toma el mejor score de cada jugador en cada mapa y se ordena por Z-sum. Solo cuentan los mapas jugados en head to head: un MP por equipos se rechaza, y si solo algunos mapas se jugaron así, el panel lo indica. Los resultados no son públicos hasta la hora que programe la organización; los admins y los árbitros los ven siempre, y son los únicos que ven los enlaces a los MP.
 - **Arbitraje con bot de IRC**: los árbitros conectan su cuenta de osu! a Bancho desde la página **Arbitrar**. La página tiene dos paneles: el chat del lobby, donde el árbitro lee a los jugadores y escribe lo que quiera, y una botonera. Cada botón manda su comando `!mp` o su mensaje en el momento en que se pulsa; la web no hace nada sola en el lobby ni propone nada. Solo enseña el estado (quién hay, si están todos listos, el mapa puesto), lleva el turno de protects, bans y picks según las reglas de cada ronda, pone cada mapa con sus mods (FM y TB en FreeMod) y lee el resultado de cada mapa en la API de osu!. Todo lo apuntado se puede deshacer paso a paso o empezar de cero. También lleva lobbies de clasificatorios.
 - **Cuadro de doble eliminación de 16**: los cruces y los ganadores avanzan solos a partir de las seeds y los resultados.
+- **Ficha del jugador**: en Jugadores, al pulsar a un inscrito (en Inscritos o en la tabla de Clasificatorios) se abre su ficha: avatar, país, rango global y de país, pp, precisión, partidas jugadas y una gráfica de su rango en los últimos 90 días, con «Ver sus partidos» y el enlace a su perfil de osu!. Su dirección es `#jugadores/ficha/<ID de osu!>`. Los datos no se piden a osu! al abrir la ficha: la sincronización automática guarda una vez al día una foto del perfil público de cada inscrito (`GET /users/{id}/osu`, uno a uno por la cola de 1 petición por segundo; `/users/lookup` no trae el historial de rango, el rango de país ni las pp) y la ficha enseña la última y su fecha. Al importar inscritos, la foto de los nuevos se toma en ese momento. Si osu! falla, se queda la foto anterior y ese jugador se vuelve a intentar pasada una hora. **Actualizar rangos**, en el panel, también renueva las fotos.
+- **o!TR en la ficha** (opcional, con `OTR_API_KEY`): una sección «o!TR · otros torneos» con el rating de torneo (TR), el tier, el percentil y el rango global en o!TR, los torneos jugados, el % de partidos ganados. Se ve también antes de que se publiquen los resultados de clasificatorios, porque no sale de este torneo. Quien no tiene torneos verificados sale como «Sin rating de o!TR». Una vez al día, después de las fotos de osu!, la web pide `GET /api/players/{id}/stats` de cada inscrito (y al importar, de los nuevos), por su propia cola de una petición cada 1,5 segundos, y guarda la última foto buena. Si o!TR falla, se queda la anterior; también si responde 404 para alguien que ya tenía datos, porque es más probable un cambio en su API que una baja. **Actualizar rangos** también la renueva.
+- **Skills en el torneo**: la ficha muestra 5 barras (aim, velocidad, precisión, accuracy y resistencia) con el percentil frente al resto de inscritos con datos («mejor que el 70 % del torneo») y una flecha con el cambio, en puntos de percentil, desde los clasificatorios. Debajo, el **rendimiento por mod** (NM, HD, HR, DT y FM; el TB cuenta como FM), con el origen de cada columna: z medio en los mapas de clasificatorios de ese mod, mapas ganados en el cuadro y, de o!TR, mapas y puntuación media en otros torneos. Todo sale de partidos de torneo; no se usan las puntuaciones del perfil de osu!. Lo sacado de los clasificatorios (skills, columnas de clasificatorios y cuadro) no se enseña hasta que se publiquen sus resultados (los árbitros y admins lo ven antes, como los resultados); hasta entonces la ficha solo tiene o!TR. Se recalcula todo desde cero cada vez que cambian los datos, así que corregir un resultado deja las skills bien. El cálculo, en «Skills del torneo».
+- **Partidos de un jugador**: en Partidos, el selector **Jugador** muestra todos los partidos de un inscrito en todas las rondas, con el resultado, el rival, la ronda y el enlace al MP, y un resumen de partidos y mapas ganados y perdidos. Sale de los datos que la web ya tiene, sin pedir nada a osu!. Su dirección es `#partidos/jugador/<ID de osu!>`.
 - **Directo de Twitch** (opcional): cuando el canal está en directo, la web lo anuncia en la cabecera y muestra una ventana pequeña con la miniatura del directo, que se puede abrir como reproductor en la propia web.
-- **Web**: tema claro u oscuro (el del sistema, o el que se elija con el botón de la cabecera, que se recuerda en ese navegador). Las pestañas van en la dirección, así que se pueden enlazar: `#mappool/semis`, `#partidos/cuartos`, `#jugadores/clasif`. Al compartir el enlace, Discord y otras redes muestran `public/og.png`; si se cambia el nombre del torneo, esa imagen hay que rehacerla a mano. En Admin y Registro, el navegador avisa antes de cerrar la página si hay algo escrito sin guardar.
+- **Web**: tema claro u oscuro (el del sistema, o el que se elija con el botón de la cabecera, que se recuerda en ese navegador). Las pestañas van en la dirección, así que se pueden enlazar: `#mappool/semis`, `#partidos/cuartos`, `#jugadores/clasif`, `#jugadores/ficha/<ID>`, `#partidos/jugador/<ID>`. Al compartir el enlace, Discord y otras redes muestran `public/og.png`; si se cambia el nombre del torneo, esa imagen hay que rehacerla a mano. En Admin y Registro, el navegador avisa antes de cerrar la página si hay algo escrito sin guardar.
 
 Sin dependencias: solo Node.js 22.13 o superior (usa `fetch` y `node:sqlite`, incluidos en Node). La imagen Docker usa Node 24.
 
@@ -44,14 +48,22 @@ OSU_CLIENT_SECRET=
 ADMIN_IDS=
 TWITCH_CLIENT_ID=
 TWITCH_CLIENT_SECRET=
+OTR_API_KEY=
 ```
 
 - `BASE_URL`: la dirección de Tailscale, sin barra final e igual que en el callback de osu! (el apartado 3 explica cómo saberla).
 - `OSU_CLIENT_ID` y `OSU_CLIENT_SECRET`: los de la aplicación de osu!.
 - `ADMIN_IDS`: IDs de osu! de los hosts, separados por comas (el número de la URL de cada perfil).
 - `TWITCH_CLIENT_ID` y `TWITCH_CLIENT_SECRET`: opcionales.
+- `OTR_API_KEY`: opcional, la clave de la API de o!TR (apartado «o!TR»).
 
 Los datos del torneo están en `config.json`: fechas de cada fase (hora de Madrid), SR, best of de cada ronda, rango permitido, países (`paises`: por ejemplo `["ES"]`, o `null` para no limitar), método de clasificatorios (`"zsum"` o `"suma"`), enlace del formulario de inscripción (`formulario`), enlaces del pie de página y más miembros del equipo que no tengan cuenta en la web (`"staff": [["Mappoolers", ["nombre1", "nombre2"]]]`). Las excepciones de rango se añaden desde la pestaña Admin; `rango.excepciones` en `config.json` sigue funcionando y se suma a las del panel.
+
+### o!TR (opcional)
+
+La ficha del jugador puede mostrar sus datos de [o!TR](https://otr.stagec.net) (osu! Tournament Rating). Su API necesita una clave: inicia sesión en o!TR, ve a **Settings** (`https://otr.stagec.net/settings`) y crea una (hasta 3 por cuenta; solo se ve una vez, cópiala al crearla). Ponla en `OTR_API_KEY` y reinicia la web. La clave solo se manda a o!TR en la cabecera `Authorization`; no se guarda en la base de datos ni sale en el log. o!TR deja 60 peticiones por minuto por clave y la web hace como mucho 40 al minuto, así que también caben las que haga otra herramienta con la misma clave. Sin clave, la web funciona igual sin esa sección (al arrancar lo dice en el log).
+
+La web de o!TR está detrás de una protección de Cloudflare. Comprueba desde el servidor que la API responde: `curl -s -o /dev/null -w '%{http_code}\n' https://otr.stagec.net/api/health` debe dar `200`.
 
 ### Twitch (opcional)
 
@@ -228,9 +240,10 @@ Las seeds se calculan a partir de los inscritos. Quitar a un jugador después de
 | Login | `GET /oauth/authorize`, `POST /oauth/token` (`authorization_code`) | Ninguno |
 | Perfil de quien inicia sesión | `GET /api/v2/me/osu` | del usuario (scope `identify`) |
 | Rango al importar / actualizar rangos | `GET /api/v2/users/{id}/osu` | de aplicación (`client_credentials`, scope `public`) |
+| Ficha del jugador (una foto al día de cada inscrito) | `GET /api/v2/users/{id}/osu` | de aplicación |
 | Importar el formulario | `GET /api/v2/users/lookup` (50 nombres por petición) y `GET /api/v2/users/@{nombre}/osu` | de aplicación |
 | Datos del mapa | `GET /api/v2/beatmaps/{id}` | de aplicación |
-| SR con HR o DT | `POST /api/v2/beatmaps/{id}/attributes` | de aplicación |
+| SR con HR o DT, y atributos de cada mapa para las skills (una vez por mapa) | `POST /api/v2/beatmaps/{id}/attributes` | de aplicación |
 | Resultados y clasificatorios | `GET /api/v2/matches/{id}` (con `before` para partidos de más de 100 eventos) | de aplicación |
 
 Se hace como mucho una petición por segundo, como pide la documentación de osu! (máximo 60 por minuto). Cada partido en juego se relee cada 5 minutos, por encima del mínimo de un minuto que piden los términos de uso de la API. Las respuestas se piden en el formato por defecto (sin `x-api-version`), en el que cada score trae `score` y `mods` como lista de siglas.
@@ -240,6 +253,31 @@ Se hace como mucho una petición por segundo, como pide la documentación de osu
 `!mp make`, `!mp set 2 3 2` (TeamVS, ScoreV2, 2 plazas) o `!mp set 0 3 16` (clasificatorios), `!mp invite #<id>`, `!mp team #<id> red|blue`, `!mp map <id> 0`, `!mp mods`, `!mp timer`, `!mp aborttimer`, `!mp start 5`, `!mp abort`, `!mp settings` y `!mp close`. Lee los mensajes de BanchoBot del canal `#mp_<id>`: jugadores que entran o salen, cambios de equipo, `!roll`, cambios de mapa, «All players are ready», scores al terminar y «The match has finished!».
 
 A los jugadores del cuadro se les invita y se les cambia de equipo por su ID (`#<id>`), que funciona aunque el nombre tenga espacios o haya cambiado. El anti-spam de Bancho puede descartar un comando igual al anterior, así que, como hace [bancho.js](https://bancho.js.org), los comandos `map`, `mods`, `set`, `timer`, `start`, `abort`, `aborttimer`, `settings` y `close` llevan al final una palabra al azar que Bancho no lee (por ejemplo `!mp start 5 k3x9qa`). Se ve así en el chat del lobby, pero no en el registro de la página.
+
+## Skills del torneo
+
+Están en `server/skills.js` y solo usan datos de torneo.
+
+**1. Perfil de cada mapa.** De `/beatmaps/{id}/attributes`, con los mods del slot (HR o DT; el resto, sin mods), se guardan `aim_difficulty`, `speed_difficulty`, `slider_factor` y `speed_note_count`. HR y DT los traen al añadirse; el resto de mapas, y los que ya estaban en los pools, los pide la web de fondo, una vez por mapa. Cada mapa tiene un valor bruto por skill: aim = `aim_difficulty`, velocidad = `speed_difficulty`, precisión = CS, accuracy = OD y resistencia = `speed_note_count` (notas rápidas en todo el mapa: crece con la duración y con la densidad). Cada valor se convierte en su percentil *p* frente a todos los mapas publicados del torneo (los empates cuentan a medias) y el peso de cada skill es **(p + 0,1)² / Σ(p + 0,1)²**: los pesos de un mapa suman 1 y la skill que más destaca pesa más.
+
+**2. Base con los clasificatorios.** En cada mapa, z-score de cada jugador frente a los que lo jugaron (los que no lo jugaron no cuentan, a diferencia del Z-sum). La base de cada skill es la media de sus z ponderada por el peso de cada mapa en esa skill, limitada a ±3.
+
+**3. Elo por skill con el cuadro.**
+- Fuerza general **G** = 1500 + 300 · z: con el TR de o!TR (z frente a los inscritos con TR) o, si no tiene, con su seed (z = Φ⁻¹(1 − (seed − 0,5)/N), con N los jugadores con clasificatorios).
+- Rating inicial de cada skill: **R = G + 150 · base**.
+- Cada mapa del cuadro es un duelo entre A y B. Fuerza en el mapa F = Σ peso · R; resultado esperado E = 1 / (1 + 10^((F_B − F_A)/400)); cada skill cambia **K · m · peso · (resultado − E)** con K = 80 (B, al revés). m = 1, 0,5 en FM y TB (FreeMod) y ×0,5 si alguno de los dos jugó con EZ.
+- Los forfeits no cuentan.
+- Las skills de la ficha son el percentil de cada R frente al resto de inscritos con datos (un empate no cuenta como mejor).
+
+**4. Historial.** La tabla `skill_history` guarda las skills de todos tras los clasificatorios y tras cada partido, en el orden en que se jugaron.
+
+## Endpoints de o!TR que se usan
+
+| Para qué | Endpoint |
+|---|---|
+| Datos de un jugador por su ID de osu! (rating, tier, torneos y `modStats`) | `GET https://otr.stagec.net/api/players/{id}/stats?keyType=osu&ruleset=0`, con `Authorization: Bearer <OTR_API_KEY>` |
+
+`modStats` trae, por combinación de mods (máscara de bits de osu!), cuántos mapas y la puntuación media. La web junta las que solo se diferencian en NF y cuenta NC como DT. Si o!TR no conoce al jugador (404), la ficha lo dice. La API de o!TR avisa de que todavía puede cambiar sin previo aviso.
 
 ## Endpoints de Twitch que se usan
 
@@ -254,7 +292,7 @@ A los jugadores del cuadro se les invita y se les cambia de equipo por su ID (`#
 npm test
 ```
 
-Levanta una API de osu!, un Twitch y un Bancho simulados y comprueba login, rechazo por rango, excepciones, importación del formulario y de mappools, lobbies de clasificatorios, roles, permisos del panel, mappool, resultados (warmups, paginación, EZ ×1,8), clasificatorios, publicación programada de mappools, peticiones malformadas. Después arranca un segundo servidor con el reloj adelantado a octavos, 16 inscritos y un clasificatorio, para probar el aviso de directo de Twitch, que las pools se publiquen solas pasado el showcase y los partidos de octavos con forfeit y con resultado desde el MP. Con un Bancho simulado, juega también un partido entero desde la página Arbitrar:
+Levanta una API de osu!, un Twitch y un Bancho simulados y comprueba que los scripts de la web no tienen errores de sintaxis, login, rechazo por rango, excepciones, importación del formulario y de mappools, lobbies de clasificatorios, roles, permisos del panel, mappool, resultados (warmups, paginación, EZ ×1,8), clasificatorios, publicación programada de mappools, peticiones malformadas, y la ficha del jugador (la foto automática del perfil, que solo lleva datos públicos, que abrir la ficha no llama a osu! y que si osu! falla se conserva la última foto), y los datos de o!TR con un o!TR simulado (mods agrupados, jugador sin rating y jugador que o!TR no conoce, o!TR caído, la web sin clave y que la clave no aparece en la web ni en el log), y las skills: cada fórmula por separado, unos clasificatorios simulados (P01 arriba en todo, P16 abajo), un partido del cuadro que mueve las skills en la dirección esperada, el historial, que el público no ve nada de los clasificatorios hasta que se publican y el detalle por jugador y mapa del MP. Después arranca un segundo servidor con el reloj adelantado a octavos, 16 inscritos y un clasificatorio, para probar el aviso de directo de Twitch, que las pools se publiquen solas pasado el showcase y los partidos de octavos con forfeit y con resultado desde el MP. Con un Bancho simulado, juega también un partido entero desde la página Arbitrar:
 
 - contraseña IRC rechazada y aceptada;
 - lobby, equipos y `!roll`;
@@ -275,6 +313,8 @@ server/results.js    cálculo de mapas, partidos y clasificatorios
 server/import.js     interpretación de hojas: respuestas del formulario y mappools (slots, rondas, IDs)
 server/sheet.js      lectura de archivos .xlsx, .ods y .csv, sin dependencias
 server/twitch.js     estado del directo de Twitch (Helix)
+server/otr.js        cliente de la API de o!TR (con su propia cola) y resumen de los datos de cada jugador
+server/skills.js     skills del torneo: pesos de cada mapa, base con clasificatorios y Elo con el cuadro
 server/bracket.js    seeds y cruces en el servidor, para el arbitraje (misma lógica que compute() de la web)
 server/irc.js        cliente IRC de Bancho (con cola para el límite de mensajes)
 server/refflow.js    turnos del partido: roll, orden, protects, bans ABBA, picks y TB

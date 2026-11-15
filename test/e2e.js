@@ -8,6 +8,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
+import { DatabaseSync } from 'node:sqlite';
+import { mapWeights, duel, mapFactor, inverseNormal, qualZ, qualBase, percentiles, generalStrength } from '../server/skills.js';
 
 // ---------- API de osu! simulada ----------
 const USERS = {
@@ -16,7 +18,10 @@ const USERS = {
   78: { id: 78, username: 'RankBuffer', country_code: 'ES', statistics: { global_rank: 92000 } },
   503: { id: 503, username: 'Jugador C', country_code: 'ES', statistics: { global_rank: 400000 } },
   504: { id: 504, username: 'NombreNuevo', country_code: 'AR', statistics: { global_rank: 500000 } },
-  501: { id: 501, username: 'JugadorA', country_code: 'ES', statistics: { global_rank: 150000 } },
+  // Perfil completo, como GET /users/{id}/osu: estadísticas, rango de país e historial de rango (0 = día sin rango)
+  501: { id: 501, username: 'JugadorA', avatar_url: 'https://a.ppy.sh/501', country_code: 'ES', country: { code: 'ES', name: 'Spain' },
+    statistics: { global_rank: 150000, country_rank: 4100, pp: 3123.45, hit_accuracy: 98.1234, play_count: 25000 },
+    rank_history: { mode: 'osu', data: [...Array(10).fill(0), ...Array.from({ length: 80 }, (_, i) => 160000 - i * 125)] } },
   502: { id: 502, username: 'JugadorB', country_code: 'ES', statistics: { global_rank: 300000 } }
 };
 // 16 jugadores para el cuadro (segunda parte: reloj en octavos)
@@ -27,7 +32,21 @@ for (let i = 1; i <= 16; i++) {
 const OLD_NAMES = { nombreviejo: 504 }; // historial de cambios de nombre
 const byName = (n) => Object.values(USERS).find((u) => u.username.toLowerCase() === n.toLowerCase());
 let nextLogin = 4242;
+// Atributos de dificultad de cada mapa (aim, velocidad, notas rápidas) para el perfil de skills.
+const ATTR = { 101: [3.2, 1.6, 150], 102: [1.5, 3.1, 520], 103: [2.4, 2.4, 300], 104: [2.8, 1.9, 200], 105: [3.0, 2.0, 260], 106: [2.2, 3.4, 610], 201: [3.3, 1.5, 160], 202: [1.6, 3.2, 540] };
 const calls = [];
+const failProfiles = new Set(); // IDs cuyo perfil responde 500
+const profileCalls = []; // IDs pedidos a /users/{id}/osu
+// o!TR simulado: estadísticas por ID de osu! (sin entrada = 404). mods es la máscara de bits de osu! (1 = NF, 8 = HD, 576 = NC).
+const OTR = {
+  501: { playerInfo: { id: 77001 }, matchStats: null,
+    rating: { rating: 1234.56, percentile: 87.5, globalRank: 3210, countryRank: 45, tournamentsPlayed: 7, matchesPlayed: 60, winRate: 0.55, isProvisional: false, tierProgress: { currentTier: 'gold', currentSubTier: 2 } },
+    modStats: [{ mods: 1, count: 10, averageScore: 500000 }, { mods: 0, count: 30, averageScore: 600000 }, { mods: 9, count: 20, averageScore: 550000 }, { mods: 8, count: 20, averageScore: 650000 }, { mods: 576, count: 5, averageScore: 700000 }] },
+  502: { playerInfo: { id: 77002 }, rating: null, matchStats: null, modStats: [] }, // en o!TR, pero sin torneos verificados
+  4242: { playerInfo: { id: 77003 }, rating: { rating: 900, tierProgress: {} }, matchStats: null, modStats: [] }
+};
+let otrFail = false;
+const otrCalls = []; // IDs pedidos a o!TR
 // Twitch: directo que devuelve /helix/streams (null = sin directo)
 let twitchLive = null;
 
@@ -105,6 +124,15 @@ const mock = http.createServer(async (req, res) => {
   let body = '';
   for await (const c of req) body += c;
   const auth = req.headers.authorization || '';
+  const otrPath = url.pathname.match(/^\/api\/players\/(\d+)\/stats$/); // o!TR (su clave, no la de osu!)
+  if (otrPath) {
+    assert.equal(url.searchParams.get('keyType'), 'osu');
+    assert.equal(url.searchParams.get('ruleset'), '0');
+    if (auth !== 'Bearer otr-clave') return send(401, { error: 'An API key is required to access this endpoint.' });
+    otrCalls.push(+otrPath[1]);
+    if (otrFail) return send(500, {});
+    return OTR[otrPath[1]] ? send(200, OTR[otrPath[1]]) : send(404, { error: 'Player not found' });
+  }
   if (url.pathname === '/oauth2/token') { // Twitch, token de aplicación
     const p = new URLSearchParams(body);
     assert.equal(p.get('grant_type'), 'client_credentials');
@@ -152,12 +180,15 @@ const mock = http.createServer(async (req, res) => {
   }
   if ((m = url.pathname.match(/^\/api\/v2\/users\/(\d+)\/osu$/))) {
     if (m[1] === '1234') return send(200, { ...USERS[501], id: 501, username: '1234' }); // sin ID 1234: osu! encuentra al usuario llamado "1234"
+    if (failProfiles.has(+m[1])) return send(500, {}); // osu! caído para ese perfil
+    profileCalls.push(+m[1]);
     return USERS[m[1]] ? send(200, USERS[m[1]]) : send(404, {});
   }
   if ((m = url.pathname.match(/^\/api\/v2\/beatmaps\/(\d+)$/))) return +m[1] === 404404 ? send(404, {}) : send(200, beatmap(+m[1]));
   if ((m = url.pathname.match(/^\/api\/v2\/beatmaps\/(\d+)\/attributes$/))) {
     const mods = JSON.parse(body).mods;
-    return send(200, { attributes: { star_rating: mods.includes('DT') ? 7.12 : 5.78 } });
+    const [aim, speed, notes] = ATTR[m[1]] || [2, 2, 300];
+    return send(200, { attributes: { star_rating: mods.includes('DT') ? 7.12 : 5.78, aim_difficulty: aim, speed_difficulty: speed, speed_note_count: notes, slider_factor: 0.98 } });
   }
   if (url.pathname === '/api/v2/matches/555') return send(200, page(match555(), url));
   if (url.pathname === '/api/v2/matches/900') return send(200, page(qual900(), url));
@@ -302,6 +333,7 @@ function startServer(name, fakeNow) {
     env: {
       ...process.env, PORT: String(port), BASE_URL: base, OSU_BASE: MOCK, OSU_CLIENT_ID: '123', OSU_CLIENT_SECRET: 'secreto', ADMIN_IDS: '4242',
       DB_PATH: join(dir, name + '.db'),
+      ...(name === 'test' ? { OTR_API_KEY: 'otr-clave', OTR_BASE: MOCK, OTR_GAP_MS: '0' } : {}), // el segundo servidor, sin clave de o!TR
       TWITCH_BASE: MOCK, TWITCH_CLIENT_ID: 'tw-id', TWITCH_CLIENT_SECRET: 'tw-secreto',
       BANCHO_HOST: '127.0.0.1', BANCHO_PORT: String(bancho.address().port), BANCHO_RATE_MS: '300', OSU_MATCH_GAP_MS: '300'
     },
@@ -333,6 +365,11 @@ try {
   // Etiquetas para compartir con la dirección completa de la web, y su imagen e icono
   assert.ok(r.body.includes(`<meta property="og:image" content="${BASE}/og.png">`), 'og:image con BASE_URL');
   assert.ok(!r.body.includes('__BASE_URL__'), 'no queda el marcador sin sustituir');
+  // La web no tiene compilación: al menos, que sus scripts se puedan interpretar sin errores de sintaxis.
+  const scripts = [...r.body.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map((x) => x[1]);
+  assert.ok(scripts.length >= 1, 'la página lleva su script');
+  scripts.forEach((code, i) => assert.doesNotThrow(() => new Function(code), `el script ${i + 1} de la página tiene un error de sintaxis`));
+  assert.ok(r.body.includes('#partidos/jugador/'), 'los partidos de un jugador tienen su propia dirección');
   r = await anon('/og.png');
   assert.deepEqual([r.status, r.headers.get('content-type')], [200, 'image/png']);
   r = await anon('/favicon.svg');
@@ -459,6 +496,99 @@ try {
   assert.deepEqual(r.body.imported, ['JugadorB'], JSON.stringify(r.body));
   console.log('✓ importación del formulario de Google');
 
+  // Ficha del jugador: la sincronización automática (cada 5 minutos, y en cuanto se importan inscritos) guarda una
+  // foto del perfil de cada inscrito con más de un día. La ficha la lee de /api/profile, sin pedir nada a osu!.
+  const profileOf = async (id) => (await anon('/api/profile?id=' + id)).body;
+  for (let i = 0; i < 250 && !(await profileOf(501)).profile; i++) await new Promise((res) => setTimeout(res, 100));
+  r = await anon('/api/profile?id=501');
+  assert.equal(r.status, 200);
+  const snap = r.body;
+  assert.ok(snap.taken_at > 0, 'la foto lleva la fecha');
+  assert.deepEqual(snap.profile, {
+    username: 'JugadorA', avatar_url: 'https://a.ppy.sh/501', country: 'ES', country_name: 'Spain', global_rank: 150000, country_rank: 4100,
+    pp: 3123.45, accuracy: 98.1234, play_count: 25000,
+    rank_history: [...Array(10).fill(null), ...Array.from({ length: 80 }, (_, i) => 160000 - i * 125)]
+  }, 'solo datos públicos de osu!; los días sin rango quedan en null');
+  const calls501 = () => profileCalls.filter((id) => id === 501).length; // la sincronización sigue con los demás de fondo
+  const before = calls501();
+  for (let i = 0; i < 3; i++) await anon('/api/profile?id=501');
+  assert.equal(calls501(), before, 'abrir la ficha no pide nada a osu!');
+  assert.equal((await anon('/api/profile?id=77')).status, 404, 'solo hay fichas de inscritos');
+  assert.equal((await anon('/api/profile?id=abc')).status, 400);
+  // Si osu! falla, se queda la última foto buena (Actualizar rangos también toma la foto).
+  failProfiles.add(501);
+  r = await adm('/api/admin/refresh', { method: 'POST', json: {} });
+  assert.match(r.body.warning || '', /JugadorA/);
+  const kept = await profileOf(501);
+  assert.deepEqual([kept.profile, kept.taken_at], [snap.profile, snap.taken_at], 'con osu! fallando no se pierde la foto');
+  failProfiles.delete(501);
+  USERS[501].statistics.pp = 3200;
+  r = await adm('/api/admin/refresh', { method: 'POST', json: {} });
+  assert.equal(r.status, 200);
+  const snap2 = await profileOf(501);
+  assert.equal(snap2.profile.pp, 3200, 'Actualizar rangos renueva la foto');
+  assert.ok(snap2.taken_at > snap.taken_at);
+  console.log('✓ ficha del jugador: foto diaria del perfil de osu!, sin datos privados, y se conserva si osu! falla');
+
+  // Skills: fórmulas (server/skills.js)
+  const w2 = mapWeights([{ key: 'A', comp: { aim: 3, speed: 3, prec: 4, acc: 8, stamina: 500 } }, { key: 'B', comp: { aim: 2, speed: 2, prec: 5, acc: 9, stamina: 300 } }]).get('A');
+  assert.ok(Math.abs(w2.aim - 1.21 / 3.65) < 1e-12 && Math.abs(w2.prec - 0.01 / 3.65) < 1e-12, 'peso = (p + 0,1)² / Σ(p + 0,1)²');
+  const eq = { aim: 1500, speed: 1500, prec: 1500, acc: 1500, stamina: 1500 };
+  const d1 = duel(eq, eq, { aim: 0.1, speed: 0.6, prec: 0.1, acc: 0.1, stamina: 0.1 }, true);
+  assert.deepEqual([d1.a.speed, d1.a.aim, d1.b.speed, d1.b.aim], [1524, 1504, 1476, 1496], 'K = 80: entre iguales, +40 repartidos por peso');
+  const d2 = duel({ ...eq, speed: 1700 }, eq, { aim: 0, speed: 1, prec: 0, acc: 0, stamina: 0 }, false);
+  assert.ok(d2.b.speed - 1500 > 40, 'ganar a un rival más fuerte da más puntos');
+  assert.deepEqual([mapFactor('NM1', false), mapFactor('FM2', false), mapFactor('TB', false), mapFactor('HD1', true), mapFactor('FM1', true)], [1, 0.5, 0.5, 0.5, 0.25]);
+  assert.ok(Math.abs(inverseNormal(0.975) - 1.959964) < 1e-6 && inverseNormal(0.5) === 0);
+  const zs = qualZ({ 1: { 10: 900 }, 2: { 10: 700 }, 3: { 10: 0 } }, [10]);
+  assert.deepEqual([...zs.get('10')], [[1, 1], [2, -1]], 'z solo entre quienes jugaron el mapa');
+  const bs = qualBase(zs, [{ bid: 10, key: 'K' }], new Map([['K', { aim: 0.5, speed: 0.2, prec: 0.1, acc: 0.1, stamina: 0.1 }]]));
+  assert.deepEqual(bs.get(1), { aim: 1, speed: 1, prec: 1, acc: 1, stamina: 1 });
+  assert.deepEqual(percentiles(new Map([[1, eq], [2, { ...eq, aim: 1400 }], [3, { ...eq, aim: 1400 }]]), 1).aim, 100);
+  assert.deepEqual(percentiles(new Map([[1, eq], [2, eq]]), 1).aim, 0, 'un empate no cuenta como mejor');
+  // Fuerza general: con TR (z frente a los que tienen TR) y, si no, con la seed. Con un solo TR no hay con qué comparar.
+  const gs = generalStrength({ ids: [1, 2, 3, 4], tr: new Map([[1, 1000], [2, 1400]]), seeds: new Map([[3, 1], [4, 8]]), ranked: 16 });
+  assert.deepEqual([gs.get(1), gs.get(2), [...gs.fromTr]], [1200, 1800, [1, 2]], 'TR: 1500 ± 300 · z');
+  assert.ok(Math.abs(gs.get(3) - (1500 + 300 * inverseNormal(1 - 0.5 / 16))) < 1e-9 && gs.get(4) > 1500 && gs.get(4) < gs.get(3), 'seed: la 1 arriba');
+  assert.equal(generalStrength({ ids: [1, 2], tr: new Map([[1, 1000]]), seeds: new Map([[1, 2]]), ranked: 4 }).fromTr.size, 0, 'un solo TR: se usa la seed');
+
+  // o!TR: foto diaria de cada inscrito (también al importar), con su clave y sin que la clave salga en ningún sitio.
+  const otrOf = async (id) => (await profileOf(id)).otr;
+  const waitFor = async (cond, what) => { for (let i = 0; i < 300; i++) { if (await cond()) return; await new Promise((res) => setTimeout(res, 100)); } throw new Error('No llegó a pasar: ' + what); };
+  const notInOtr = (await anon('/api/state')).body.players.find((p) => !OTR[p.id]);
+  await waitFor(async () => (await otrOf(501)) && (await otrOf(502)) && (await otrOf(notInOtr.id)), 'datos de o!TR');
+  const o501 = await otrOf(501);
+  assert.ok(o501.taken_at > 0);
+  assert.deepEqual({ ...o501, taken_at: 0 }, {
+    found: true, otr_id: 77001, rating: 1234.56, percentile: 87.5, global_rank: 3210, country_rank: 45, tier: 'gold', sub_tier: 2,
+    provisional: false, tournaments: 7, matches: 60, win_rate: 0.55, taken_at: 0, url: MOCK + '/players/77001',
+    mods: [{ mods: 'NM', count: 40, average: 575000 }, { mods: 'HD', count: 40, average: 600000 }, { mods: 'DT', count: 5, average: 700000 }]
+  }, 'NF no cuenta, NC es DT y la media se pondera por partidas');
+  assert.deepEqual([(await otrOf(502)).found, (await otrOf(502)).rating], [true, null], 'en o!TR sin rating');
+  assert.deepEqual([(await otrOf(notInOtr.id)).found, (await otrOf(notInOtr.id)).rating], [false, null], 'o!TR no lo conoce (404)');
+  for (const path of ['/api/profile?id=501', '/api/state']) assert.ok(!JSON.stringify((await adm(path)).body).includes('otr-clave'), 'la clave de o!TR no sale en ' + path);
+  // Si o!TR falla, se queda la última foto buena. Actualizar rangos también la renueva.
+  otrFail = true;
+  OTR[501].rating.rating = 1300; // si o!TR respondiera, se vería este valor
+  let c0 = otrCalls.length;
+  await adm('/api/admin/refresh', { method: 'POST', json: {} });
+  await waitFor(() => otrCalls.slice(c0).includes(501), 'petición fallida a o!TR');
+  await new Promise((res) => setTimeout(res, 200));
+  assert.equal((await otrOf(501)).rating, 1234.56, 'con o!TR fallando no se pierde la foto');
+  // Un 404 de alguien que o!TR tenía tampoco la pisa (puede ser un cambio de su API).
+  otrFail = false;
+  const saved = OTR[501];
+  delete OTR[501];
+  c0 = otrCalls.length;
+  await adm('/api/admin/refresh', { method: 'POST', json: {} });
+  await waitFor(() => otrCalls.slice(c0).includes(501), 'petición con 404 a o!TR');
+  await new Promise((res) => setTimeout(res, 200));
+  assert.deepEqual([(await otrOf(501)).found, (await otrOf(501)).rating], [true, 1234.56], 'un 404 no borra lo que había');
+  OTR[501] = saved;
+  await adm('/api/admin/refresh', { method: 'POST', json: {} });
+  await waitFor(async () => (await otrOf(501)).rating === 1300, 'Actualizar rangos renueva o!TR');
+  assert.ok(!log.includes('otr-clave'), 'la clave de o!TR no sale en el log');
+  console.log('✓ o!TR: foto diaria por jugador, mods agrupados, jugadores sin rating, se conserva si o!TR falla y la clave no sale');
 
   // Mappool: el SR con DT se pide a /attributes y se ajustan BPM, duración y AR
   r = await adm('/api/admin/pool', { method: 'POST', json: { round: 'octavos', slot: 'dt1', beatmap: 'https://osu.ppy.sh/beatmapsets/1#osu/106' } });
@@ -773,6 +903,16 @@ try {
   await adm('/api/admin/qual-results', { method: 'POST', json: { now: true } });
   console.log('✓ resultados de clasificatorios: publicación programada y MP privados');
 
+  // Skills con TR de o!TR (JugadorA y Organizador lo tienen) y rendimiento por mod con clasificatorios y o!TR juntos.
+  {
+    let sk = null;
+    for (let i = 0; i < 300 && !(sk = (await adm('/api/profile?id=501')).body).skills; i++) await new Promise((res) => setTimeout(res, 100));
+    assert.equal(sk.skills.tr, true, 'con TR de o!TR como punto de partida');
+    const nm = sk.mods.find((m) => m.mod === 'NM');
+    assert.ok(nm.qual && nm.otr, 'NM: columna de clasificatorios y de o!TR');
+    assert.deepEqual(nm.otr, { count: 40, average: 575000 });
+  }
+
   // La práctica ya no existe
   assert.equal((await adm('/api/practice', { method: 'POST', json: { round: 'octavos', beatmap_id: 103 } })).status, 404);
   assert.equal((await adm('/api/state')).body.practice, undefined);
@@ -904,8 +1044,11 @@ try {
   assert.deepEqual(await slots(), []);
   // El último día no sale el lobby que empezaría al fijarse las seeds
   r = (await adm('/api/state')).body.config.fases.find((f) => f.key === 'qualifiers').fin;
-  const lastDay = await gen({ days: [r], times: ['23:00', '23:59'] });
-  assert.deepEqual([lastDay.body.created, lastDay.body.late], [1, 1], JSON.stringify(lastDay.body));
+  // Usa el último día real de la fase: pasadas sus 23:00 (hora de Madrid) ya no se puede comprobar.
+  if (Date.now() < Date.parse(r + 'T23:00:00+01:00')) {
+    const lastDay = await gen({ days: [r], times: ['23:00', '23:59'] });
+    assert.deepEqual([lastDay.body.created, lastDay.body.late], [1, 1], JSON.stringify(lastDay.body));
+  }
   for (const x of await slots()) await adm('/api/admin/qual-slot/delete', { method: 'POST', json: { id: x.id } });
   console.log('✓ lobbies de clasificatorios: rejilla y árbitros');
 
@@ -1190,6 +1333,10 @@ try {
   const names16 = Array.from({ length: 16 }, (_, i) => USERS[601 + i].username);
   r = await adm2('/api/admin/import', { method: 'POST', json: { text: 'osu name\tdiscord\tdisponibilidad\n' + names16.map((n) => `${n}\t${n.toLowerCase()}\ttardes`).join('\n') } });
   assert.equal(r.body.imported.length, 16, JSON.stringify(r.body));
+  // Sin OTR_API_KEY no se pide nada a o!TR y la ficha funciona igual.
+  r = await anon2('/api/profile?id=601');
+  assert.equal(r.status, 200);
+  assert.equal(r.body.otr, null, 'sin clave de o!TR, la ficha va sin o!TR');
   for (const [round, slot, bid] of [['qualifiers', 'NM1', 201], ['qualifiers', 'NM2', 202], ['octavos', 'NM1', 101], ['octavos', 'NM2', 102],
     ['octavos', 'FM1', 103], ['octavos', 'HD1', 104], ['octavos', 'HR1', 105], ['octavos', 'DT1', 106]]) {
     await adm2('/api/admin/pool', { method: 'POST', json: { round, slot, beatmap: String(bid) } });
@@ -1211,6 +1358,43 @@ try {
   await adm2('/api/admin/sync', { method: 'POST', json: { id: 'u1-2' } });
   await adm2('/api/admin/match', { method: 'POST', json: { id: 'u1-2', time: fakeNow - 3600e3, mp: '556', ref: 'otro' } });
   console.log('✓ partidos de octavos: forfeit y resultado desde el MP');
+
+  // Skills del torneo: base con los clasificatorios (901: P01 el mejor en los dos mapas) y Elo con el cuadro (U1-2).
+  const prof2 = async (c, id) => (await c('/api/profile?id=' + id)).body;
+  const wait2 = async (cond, what) => { for (let i = 0; i < 300; i++) { if (await cond()) return; await new Promise((res) => setTimeout(res, 100)); } throw new Error('No llegó a pasar: ' + what); };
+  await wait2(async () => (await prof2(adm2, 608)).skills?.maps === 6, 'atributos de los mapas y skills tras U1-2');
+  let pf = await prof2(adm2, 601);
+  assert.deepEqual(pf.skills.percentiles, { aim: 100, speed: 100, prec: 100, acc: 100, stamina: 100 }, 'P01, el mejor de los clasificatorios');
+  assert.deepEqual([pf.skills.players, pf.skills.tr, pf.skills.change], [16, false, null], 'sin o!TR, la seed; sin partidos, sin flecha');
+  assert.deepEqual((await prof2(adm2, 616)).skills.percentiles, { aim: 0, speed: 0, prec: 0, acc: 0, stamina: 0 }, 'P16, el último');
+  assert.deepEqual(pf.mods.find((m) => m.mod === 'NM').qual.maps, 2, 'rendimiento por mod: los dos NM de clasificatorios');
+  // Antes de publicar los resultados de clasificatorios, el público no ve nada sacado de ellos.
+  pf = await prof2(anon2, 601);
+  assert.deepEqual([pf.skills, pf.mods], [null, []], 'sin publicar: ni skills ni mods del torneo (y sin o!TR no hay nada)');
+  await adm2('/api/admin/qual-results', { method: 'POST', json: { now: true } });
+  assert.equal((await prof2(anon2, 601)).skills.percentiles.aim, 100, 'publicados: el público ya los ve');
+  await adm2('/api/admin/qual-results', { method: 'POST', json: { hide: true } });
+  // U1-2: P08 gana 5–1 a P09. P09 solo gana el NM1 (101, el mapa de más aim); los de velocidad (102 y 106) los gana P08.
+  // En conjunto P08 sube y P09 baja; P08 sube sobre todo en velocidad, y P09 pierde menos aim que velocidad.
+  const p08 = await prof2(adm2, 608);
+  assert.equal(p08.skills.maps, 6);
+  const nm = p08.mods.find((m) => m.mod === 'NM').bracket;
+  assert.deepEqual(nm, { played: 2, won: 1 }, 'NM1 lo pierde y NM2 lo gana');
+  const hist = (() => { const d = new DatabaseSync(join(dir, 'octavos.db'), { readOnly: true }); try { return d.prepare('SELECT step, data FROM skill_history ORDER BY ord').all().map((x) => ({ step: x.step, r: JSON.parse(x.data) })); } finally { d.close(); } })();
+  assert.deepEqual(hist.map((x) => x.step), ['qual', 'u1-2'], 'historial: tras los clasificatorios y tras U1-2 (el forfeit de U1-1 no cuenta)');
+  const [q0, q1] = hist.map((x) => x.r);
+  const sum = (r) => Object.values(r).reduce((x, y) => x + y, 0);
+  const dl = (uid, k) => q1[uid][k] - q0[uid][k];
+  assert.ok(sum(q1[608]) > sum(q0[608]) && sum(q1[609]) < sum(q0[609]), 'gana P08: sube en conjunto; P09 baja');
+  assert.ok(dl(608, 'speed') > 0 && dl(609, 'speed') < 0, 'velocidad: sube P08, baja P09');
+  assert.ok(dl(608, 'speed') > dl(608, 'aim'), 'P08 sube más en velocidad que en aim');
+  assert.ok(dl(609, 'aim') > dl(609, 'speed'), 'P09 pierde menos aim (ganó el mapa de aim) que velocidad');
+  assert.equal(q1[601].aim, q0[601].aim, 'quien no ha jugado no cambia');
+  // Detalle por jugador y mapa guardado al leer el MP (sin pedir nada nuevo a osu!).
+  const m12 = (await adm2('/api/state')).body.matches['u1-2'].result.maps[0];
+  assert.deepEqual(Object.keys(m12.stats).sort(), ['608', '609']);
+  assert.deepEqual([m12.stats[609].score, m12.stats[609].mods], [900000, ['NF']], 'puntuación y mods de cada jugador');
+  console.log('✓ skills del torneo: pesos, base con clasificatorios, Elo con el cuadro, historial y visibilidad');
 
   // ---------- Arbitraje con bot de IRC (Bancho simulado) ----------
   const refc = await login(s2.base, 503); // «Jugador C»: no juega el torneo
@@ -1550,6 +1734,7 @@ try {
   mock.close();
   bancho.close();
   for (const c of irc.conns) c.sock.destroy();
-  rmSync(dir, { recursive: true, force: true });
+  // En Windows el servidor tarda un momento en soltar la base de datos tras kill(): se reintenta.
+  rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   process.exitCode = failed ? 1 : 0;
 }

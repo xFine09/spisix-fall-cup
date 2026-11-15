@@ -4,10 +4,10 @@ Web del torneo 1v1 de osu! de la comunidad SpiSix: inscritos, mappools, clasific
 
 ## Qué hace
 
-- **Jugadores:** entran con su cuenta de osu!. La inscripción se hace en un formulario de Google, y la web importa las respuestas y comprueba el rango de cada uno.
+- **Jugadores:** entran con su cuenta de osu!. La inscripción se hace en un formulario de Google, y la web importa las respuestas y comprueba el rango de cada uno. Cada inscrito tiene una ficha con sus datos de osu! (rango, pp, precisión y la evolución de su rango) y de [o!TR](https://otr.stagec.net) (su rating de otros torneos), que se actualiza una vez al día, y sus skills en el torneo (aim, velocidad, precisión, accuracy y resistencia) calculadas solo con partidos de torneo: los clasificatorios, el cuadro y o!TR.
 - **Mappools:** se suben a mano o desde una hoja de cálculo, y se publican a la hora programada.
 - **Clasificatorios:** los jugadores se apuntan a un lobby, un árbitro aprueba cada plaza y las seeds se calculan por Z-sum.
-- **Cuadro:** doble eliminación de 16, con cruces y resultados que avanzan solos.
+- **Cuadro:** doble eliminación de 16, con cruces y resultados que avanzan solos. En Partidos se pueden ver todos los de un jugador.
 - **Arbitraje:** un bot de IRC manda los comandos `!mp` y lleva rolls, protects, bans y picks.
 - **Panel de organización:** roles, normas, textos, fechas de las rondas y anuncios.
 - **Inicio:** recordatorios automáticos de partidos, resultados y mappools, y aviso cuando hay directo en Twitch.
@@ -23,6 +23,7 @@ Web del torneo 1v1 de osu! de la comunidad SpiSix: inscritos, mappools, clasific
 | HTTPS | Tailscale Funnel; no hace falta dominio ni abrir puertos |
 | osu! | API v2 (login y datos) e IRC de Bancho (bot de arbitraje) |
 | Twitch | API Helix, opcional, para saber si hay directo |
+| o!TR | API pública con clave propia, opcional, para el rating de torneos en la ficha |
 
 ```
 server.js      rutas HTTP, sesiones y sincronización automática
@@ -51,7 +52,7 @@ git clone https://github.com/xFine09/spisix-fall-cup.git
 cd spisix-fall-cup
 ```
 
-Crea un archivo `.env` en esa carpeta. Los ajustes de Twitch son opcionales:
+Crea un archivo `.env` en esa carpeta. Los ajustes de Twitch y de o!TR son opcionales:
 
 ```bash
 BASE_URL=https://NOMBRE.TAILNET.ts.net
@@ -60,6 +61,7 @@ OSU_CLIENT_SECRET=
 ADMIN_IDS=              # IDs de osu! de los hosts, separados por comas
 TWITCH_CLIENT_ID=
 TWITCH_CLIENT_SECRET=
+OTR_API_KEY=            # opcional: clave de https://otr.stagec.net/settings
 ```
 
 Arranca y publica:

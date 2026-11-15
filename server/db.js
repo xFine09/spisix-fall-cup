@@ -101,6 +101,22 @@ db.exec(`
     round TEXT PRIMARY KEY,
     data  TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS skill_history ( -- skills de todos los jugadores tras los clasificatorios y tras cada partido
+    step TEXT PRIMARY KEY,                   -- 'qual' o el ID del partido (u1-1…)
+    ord  INTEGER NOT NULL,                   -- orden en que se jugaron
+    at   INTEGER,
+    data TEXT NOT NULL                       -- JSON { uid: { aim, speed, prec, acc, stamina } }
+  );
+  CREATE TABLE IF NOT EXISTS otr (         -- última foto buena de los datos de o!TR de cada jugador (JSON)
+    user_id  INTEGER PRIMARY KEY,
+    data     TEXT NOT NULL,
+    taken_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS profiles (    -- última foto buena del perfil público de osu! de cada jugador (JSON)
+    user_id  INTEGER PRIMARY KEY,
+    data     TEXT NOT NULL,
+    taken_at INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS exceptions (  -- admitidos fuera del rango
     user_id    INTEGER PRIMARY KEY,
     username   TEXT,
@@ -221,6 +237,17 @@ const st = {
   delSlotSignups: db.prepare('DELETE FROM qual_signups WHERE slot_id = ?'),
   roundRules: db.prepare('SELECT * FROM round_rules'),
   setRoundRules: db.prepare('INSERT INTO round_rules (round, data) VALUES (?, ?) ON CONFLICT(round) DO UPDATE SET data = excluded.data'),
+  profile: db.prepare('SELECT data, taken_at FROM profiles WHERE user_id = ?'),
+  profileTimes: db.prepare('SELECT user_id, taken_at FROM profiles'),
+  setProfile: db.prepare(`INSERT INTO profiles (user_id, data, taken_at) VALUES (?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, taken_at = excluded.taken_at`),
+  skillHistory: db.prepare('SELECT * FROM skill_history ORDER BY ord'),
+  delSkillHistory: db.prepare('DELETE FROM skill_history'),
+  addSkillHistory: db.prepare('INSERT INTO skill_history (step, ord, at, data) VALUES (?, ?, ?, ?)'),
+  otrOf: db.prepare('SELECT data, taken_at FROM otr WHERE user_id = ?'),
+  otrTimes: db.prepare('SELECT user_id, taken_at FROM otr'),
+  setOtr: db.prepare(`INSERT INTO otr (user_id, data, taken_at) VALUES (?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, taken_at = excluded.taken_at`),
   ping: db.prepare('SELECT 1 AS ok')
 };
 

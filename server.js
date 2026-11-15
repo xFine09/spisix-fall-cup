@@ -7,11 +7,13 @@ import { fileURLToPath } from 'node:url';
 import { db, q, backup } from './server/db.js';
 import * as osu from './server/osu.js';
 import { CONFIG, phase, zoned, MATCH_IDS, phaseOfMatch, bestOf, slotSort } from './server/config.js';
-import { loadBeatmap, parseMatch, parseQual } from './server/results.js';
+import { loadBeatmap, parseMatch, parseQual, attrOf, slotMods } from './server/results.js';
+import { mapComponents, mapWeights, computeSkills, percentiles } from './server/skills.js';
 import { parseResponses, readPools, parsePoolText, sameMap } from './server/import.js';
 import { readSpreadsheet, SheetError } from './server/sheet.js';
 import * as twitch from './server/twitch.js';
-import { resolveBracket, roundName } from './server/bracket.js';
+import * as otr from './server/otr.js';
+import { resolveBracket, roundName, qualRanking } from './server/bracket.js';
 import { createReferee } from './server/referee.js';
 import { DEFAULT_RULES } from './server/refflow.js';
 
@@ -132,6 +134,222 @@ function requireRef(req) {
 }
 function saveUser(u) {
   q.upsertUser.run(u.id, u.username, u.avatar_url, u.country_code, u.statistics?.global_rank ?? null, Date.now());
+}
+
+// ---------- fotos de perfil (ficha del jugador) ----------
+// Una vez al día se guarda una foto de los datos públicos del perfil de osu! de cada inscrito (GET /users/{id}/osu).
+// /users/lookup y /users?ids[] no traen el historial de rango, el rango de país ni las pp, así que va uno a uno.
+// Las peticiones pasan por la cola de server/osu.js (1 por segundo). Si osu! falla, se queda la última foto buena.
+const PROFILE_EVERY = 23 * 3600e3;
+const PROFILE_RETRY = 3600e3; // tras un fallo, ese jugador no se vuelve a pedir hasta pasada una hora
+const profileTried = new Map();
+function saveProfile(u) {
+  const s = u.statistics || {};
+  const hist = Array.isArray(u.rank_history?.data) ? u.rank_history.data.slice(-90).map((n) => (Number.isFinite(n) && n > 0 ? n : null)) : [];
+  q.setProfile.run(u.id, JSON.stringify({
+    username: u.username, avatar_url: u.avatar_url ?? null, country: u.country_code ?? null, country_name: u.country?.name ?? null,
+    global_rank: s.global_rank ?? null, country_rank: s.country_rank ?? s.rank?.country ?? null, pp: s.pp ?? null,
+    accuracy: s.hit_accuracy ?? null, play_count: s.play_count ?? null, rank_history: hist
+  }), Date.now());
+}
+// Una sola vuelta a la vez: si se pide otra mientras hay una en marcha (p. ej. una importación), se hace al acabar.
+let profilesRun = null;
+let profilesAgain = false;
+function syncProfiles() {
+  if (profilesRun) { profilesAgain = true; return profilesRun; }
+  profilesRun = (async () => {
+    try { do { profilesAgain = false; await profilesRound(); } while (profilesAgain); } finally { profilesRun = null; }
+  })();
+  return profilesRun;
+}
+async function profilesRound() {
+  const now = Date.now();
+  const taken = new Map(q.profileTimes.all().map((r) => [r.user_id, r.taken_at]));
+  const due = q.registered.all().filter((p) => now - (taken.get(p.id) || 0) >= PROFILE_EVERY && now - (profileTried.get(p.id) || 0) >= PROFILE_RETRY);
+  let failed = 0;
+  for (const p of due) {
+    profileTried.set(p.id, Date.now());
+    try {
+      const u = await osu.user(p.id);
+      if (u?.id !== p.id) throw new Error('otro usuario'); // si no existe ese ID, osu! busca un nombre igual
+      saveProfile(u);
+    } catch { failed++; }
+  }
+  if (due.length) console.log(`[perfiles] ${due.length - failed} de ${due.length} fotos nuevas${failed ? '; de los demás se mantiene la última' : ''}`);
+}
+
+// ---------- o!TR (ficha del jugador) ----------
+// Una vez al día, después de las fotos de osu!: los datos de o!TR de cada inscrito (rating, tier, torneos y
+// estadísticas por mod de otros torneos). Solo con OTR_API_KEY. Va de fondo, con su propia cola (server/otr.js),
+// y si o!TR falla se queda la última foto buena. force: pide a todos aunque tengan la foto del día (Actualizar rangos).
+const OTR_EVERY = 23 * 3600e3;
+const OTR_RETRY = 3600e3;
+const otrTried = new Map();
+let otrRun = null;
+let otrAgain = false;
+let otrErr = '';
+function syncOtr({ force = false } = {}) {
+  if (!otr.configured()) return Promise.resolve();
+  if (otrRun) { if (force) otrAgain = true; return otrRun; }
+  otrRun = (async () => {
+    let f = force;
+    try {
+      do {
+        otrAgain = false;
+        await otrRound(f).catch((e) => console.warn('[o!TR]', e.message));
+        f = true;
+      } while (otrAgain);
+    } finally { otrRun = null; }
+  })();
+  return otrRun;
+}
+async function otrRound(force) {
+  const now = Date.now();
+  const taken = new Map(q.otrTimes.all().map((r) => [r.user_id, r.taken_at]));
+  const due = q.registered.all().filter((p) => force || (now - (taken.get(p.id) || 0) >= OTR_EVERY && now - (otrTried.get(p.id) || 0) >= OTR_RETRY));
+  let failed = 0;
+  let err = '';
+  for (const p of due) {
+    otrTried.set(p.id, Date.now());
+    try {
+      const st = await otr.playerStats(p.id);
+      // Un 404 de alguien que o!TR sí tenía es más probable que sea un cambio de su API que una baja: no se pisa la foto.
+      if (!st && JSON.parse(q.otrOf.get(p.id)?.data || '{}').found) throw new Error('o!TR respondió 404 para un jugador que sí tenía');
+      q.setOtr.run(p.id, JSON.stringify(otr.summarize(st)), Date.now());
+    } catch (e) { failed++; err = e.message; }
+  }
+  if (err && err !== otrErr) console.warn('[o!TR]', err); // cada error distinto, una vez (nunca lleva la clave)
+  otrErr = err;
+  if (due.length) console.log(`[o!TR] ${due.length - failed} de ${due.length} jugadores al día${failed ? '; de los demás se mantiene la última foto' : ''}`);
+}
+function otrFor(id) {
+  if (!otr.configured()) return null;
+  const row = q.otrOf.get(id);
+  if (!row) return null;
+  const d = JSON.parse(row.data);
+  return { ...d, taken_at: row.taken_at, url: d.otr_id ? `${otr.site}/players/${d.otr_id}` : null };
+}
+
+// ---------- skillsets (ficha del jugador): solo datos de torneo ----------
+// Atributos de los mapas del pool (aim, velocidad, notas rápidas) para su perfil de skills. HR y DT los traen al
+// añadirse; el resto se piden aquí de fondo, una vez por mapa (también los que ya estaban en los pools).
+const attrTried = new Map();
+let attrRun = null;
+function backfillAttrs() {
+  if (attrRun) return attrRun;
+  attrRun = (async () => {
+    let filled = 0;
+    for (const r of q.pool.all()) {
+      const k = `${r.round}:${r.slot}:${r.beatmap_id}`;
+      try {
+        if (JSON.parse(r.data).attr) continue;
+        if (Date.now() - (attrTried.get(k) || 0) < 3600e3) continue;
+        attrTried.set(k, Date.now());
+        const attr = attrOf(await osu.attributes(r.beatmap_id, slotMods(r.slot)));
+        if (!attr) { console.warn('[mapas]', r.round, r.slot, 'osu! no ha dado aim, velocidad o notas rápidas: este mapa no cuenta para las skills'); continue; }
+        // Se vuelve a leer el slot: mientras tanto el admin puede haberlo cambiado o quitado.
+        const cur = q.poolRound.all(r.round).find((x) => x.slot === r.slot && x.beatmap_id === r.beatmap_id);
+        if (cur) { q.upsertPool.run(r.round, r.slot, r.beatmap_id, JSON.stringify({ ...JSON.parse(cur.data), attr })); filled++; }
+      } catch (e) { console.warn('[mapas]', r.round, r.slot, e.message); }
+    }
+    if (filled) console.log(`[mapas] atributos de ${filled} ${filled === 1 ? 'mapa' : 'mapas'} para las skills`);
+  })().catch((e) => console.warn('[mapas]', e.message)).finally(() => { attrRun = null; });
+  return attrRun;
+}
+
+const MOD_ROWS = ['NM', 'HD', 'HR', 'DT', 'FM'];
+const modFamily = (slot) => (slot === 'TB' ? 'FM' : slot.slice(0, 2)); // el TB es FreeMod
+// Calcula skills, rendimiento por mod e historial con los datos que hay ahora. El historial se guarda en SQLite
+// cuando cambia (se recalcula todo desde cero, así que corregir un resultado deja el historial bien).
+let historySaved = '';
+function skillsData() {
+  const players = new Map(q.registered.all().map((p) => [p.id, p]));
+  const ids = [...players.keys()];
+  const rel = releases();
+  const poolRows = q.pool.all().filter((r) => isPublic(r.round, rel));
+  const weights = mapWeights(poolRows.map((r) => ({ key: `${r.round}:${r.slot}`, comp: mapComponents(JSON.parse(r.data)) })));
+  const qualRows = poolRows.filter((r) => r.round === 'qualifiers').sort(slotSort);
+  const qualMaps = qualRows.map((r) => ({ bid: r.beatmap_id, key: `qualifiers:${r.slot}`, slot: r.slot }));
+  const { scores } = qualScores();
+  const ranking = qualRanking(players, scores, qualRows.map((r) => String(r.beatmap_id)));
+  const seeds = new Map(ranking.map((r, i) => [r.player.id, i + 1]));
+  const tr = new Map();
+  if (otr.configured()) for (const id of ids) { const o = q.otrOf.get(id); const v = o && JSON.parse(o.data).rating; if (typeof v === 'number') tr.set(id, v); }
+  const recs = new Map(q.matches.all().map((m) => [m.id, m]));
+  const order = (id) => MATCH_IDS.indexOf(id);
+  const matches = [];
+  for (const [id, m] of Object.entries(currentBracket().matches)) {
+    const rec = recs.get(id);
+    const res = rec?.result ? JSON.parse(rec.result) : null;
+    if (!m.a || !m.b || rec?.ff || !res?.maps?.length) continue;
+    const round = phaseOfMatch(id);
+    matches.push({
+      id, at: rec.time || rec.updated_at || null, a: m.a.id, b: m.b.id,
+      maps: res.maps.map((x) => ({ key: `${round}:${x.slot}`, slot: x.slot, w: x.w, ez: Object.values(x.stats || {}).some((s) => s.mods?.includes('EZ')) }))
+    });
+  }
+  matches.sort((x, y) => (x.at ?? 9e15) - (y.at ?? 9e15) || order(x.id) - order(y.id));
+  const out = computeSkills({ ids, tr, seeds, ranked: ranking.length, qualScores: scores, qualMaps, weights, matches });
+  // Rendimiento por mod en este torneo: z medio en clasificatorios y mapas ganados en el cuadro.
+  const mods = new Map();
+  const row = (uid, fam) => {
+    const m = mods.get(uid) || {};
+    m[fam] ??= { zSum: 0, qn: 0, played: 0, won: 0 };
+    mods.set(uid, m);
+    return m[fam];
+  };
+  for (const qm of qualMaps) for (const [uid, zi] of out.z.get(String(qm.bid)) || []) { const r = row(uid, modFamily(qm.slot)); r.zSum += zi; r.qn++; }
+  for (const mt of matches) for (const x of mt.maps) for (const uid of [mt.a, mt.b]) { const r = row(uid, modFamily(x.slot)); r.played++; if (x.w === uid) r.won++; }
+  // Historial: se guarda solo si ha cambiado.
+  const steps = [{ step: 'qual', at: phase('qualifiers')?.end ?? null, ratings: out.qual }, ...out.history];
+  const fp = JSON.stringify(steps);
+  if (fp !== historySaved && out.ratings.size) {
+    db.exec('BEGIN');
+    try {
+      q.delSkillHistory.run();
+      steps.forEach((s, i) => q.addSkillHistory.run(s.step, i, s.at, JSON.stringify(s.ratings)));
+      db.exec('COMMIT');
+      historySaved = fp;
+    } catch (e) { db.exec('ROLLBACK'); console.warn('[skills]', e.message); }
+  }
+  return { ...out, mods, tr };
+}
+// Lo que enseña la ficha: percentil de cada skill frente al resto de inscritos con datos y su cambio desde los
+// clasificatorios (en puntos de percentil), más el rendimiento por mod. seeQual: si puede ver datos de clasificatorios
+// (públicos, o es árbitro o admin). Sin eso, solo o!TR.
+function safeSkills(id, seeQual) {
+  try { return skillsFor(id, seeQual); } catch (e) { console.warn('[skills]', e.message); return { skills: null, mods: [] }; }
+}
+function skillsFor(id, seeQual) {
+  const otrRow = otr.configured() ? q.otrOf.get(id) : null;
+  const otrMods = new Map((otrRow ? JSON.parse(otrRow.data).mods || [] : []).map((m) => [m.mods, m]));
+  if (!seeQual) {
+    return { skills: null, mods: [...otrMods.values()].map((m) => ({ mod: m.mods, qual: null, bracket: null, otr: { count: m.count, average: m.average } })) };
+  }
+  const S = skillsData();
+  let skills = null;
+  const now = percentiles(S.ratings, id);
+  if (now) {
+    const qual = percentiles(new Map(Object.entries(S.qual).map(([k, v]) => [+k, v])), id);
+    const played = S.mapsOf.get(id) || 0;
+    skills = {
+      percentiles: now,
+      change: played && qual ? Object.fromEntries(Object.keys(now).map((k) => [k, now[k] - qual[k]])) : null,
+      players: S.ratings.size, maps: played, tr: S.fromTr.has(id)
+    };
+  }
+  const t = S.mods.get(id) || {};
+  const labels = [...MOD_ROWS, ...[...otrMods.keys()].filter((k) => !MOD_ROWS.includes(k))];
+  const mods = labels.map((mod) => {
+    const r = t[mod], o = otrMods.get(mod);
+    return {
+      mod,
+      qual: r?.qn ? { z: Math.round((r.zSum / r.qn) * 100) / 100, maps: r.qn } : null,
+      bracket: r?.played ? { played: r.played, won: r.won } : null,
+      otr: o ? { count: o.count, average: o.average } : null
+    };
+  }).filter((m) => m.qual || m.bracket || m.otr);
+  return { skills, mods };
 }
 
 // IDs admitidos fuera del rango: los de config.json más los añadidos desde el panel.
@@ -426,7 +644,7 @@ function currentBracket() {
   return resolveBracket({ players, scores: qualScores().scores, bids, matches });
 }
 
-// Cada 5 minutos: partidos en juego, lobbies de clasificatorios mientras dura la fase y copia diaria de la base de datos.
+// Cada 5 minutos: partidos en juego, lobbies de clasificatorios mientras dura la fase, fotos de perfil (una al día por jugador) y copia diaria de la base de datos.
 let syncing = false;
 async function autoSync() {
   if (syncing) return; // la vuelta anterior sigue en marcha (osu! va lento)
@@ -446,6 +664,11 @@ async function syncAll() {
       try { await syncQual(l.mp); } catch (e) { console.warn('[sync qual]', l.mp, e.message); }
     }
   }
+  // Después de partidos y clasificatorios, que tienen prisa: las fotos de perfil que tengan más de un día.
+  try { await syncProfiles(); } catch (e) { console.warn('[perfiles]', e.message); }
+  syncOtr(); // sin esperar: tiene su propia cola
+  backfillAttrs(); // sin esperar: atributos de los mapas que aún no los tienen
+  try { skillsData(); } catch (e) { console.warn('[skills]', e.message); } // guarda el historial si ha cambiado
   q.purgeSessions.run(now);
   try {
     const file = backup();
@@ -501,6 +724,14 @@ const routes = {
   'GET /api/state': (req, res) => sendJson(res, 200, buildState(sessionUser(req))),
 
   // Para el healthcheck de Docker o un monitor externo.
+  // Ficha del jugador: la última foto de su perfil de osu! (no se pide nada a osu! al abrirla). Solo de inscritos.
+  'GET /api/profile': (req, res, url) => {
+    const id = parseId(url.searchParams.get('id'), 'del jugador');
+    const seeQual = isRef(sessionUser(req)) || qualResultsPublic();
+    if (!q.getUser.get(id)?.registered_at) throw new HttpError(404, 'Ese jugador no está inscrito.');
+    const row = q.profile.get(id);
+    sendJson(res, 200, { id, taken_at: row?.taken_at ?? null, profile: row ? JSON.parse(row.data) : null, otr: otrFor(id), ...safeSkills(id, seeQual) });
+  },
   'GET /healthz': (req, res) => sendJson(res, 200, { ok: q.ping.get().ok === 1 }),
 
   // Apuntarse a un lobby de clasificatorios. Quien ya estaba en otro se cambia a este.
@@ -637,6 +868,7 @@ const routes = {
     const data = await loadBeatmap(bid, slot);
     q.upsertPool.run(round, slot, bid, JSON.stringify(data));
     sendJson(res, 200, { ok: true, data });
+    backfillAttrs();
   },
 
   // Varios mapas a la vez, pegados desde una hoja. Se leen todos de osu! antes de guardar nada.
@@ -694,6 +926,7 @@ const routes = {
       .map((m) => `${m.slot}: la hoja dice «${m.text}», pero el ID ${m.beatmap} es «${m.data.artist} - ${m.data.title} [${m.data.version}]».`);
     if (round !== 'qualifiers' && !seen.has('TB')) warnings.push('Esta ronda no tiene TB.');
     sendJson(res, 200, { ok: true, added: loaded.map((m) => m.slot), warnings });
+    backfillAttrs();
   },
 
   // Programar la publicación de una mappool ({ round, at }) o publicarla ya ({ round, now: true }).
@@ -990,9 +1223,14 @@ const routes = {
     const list = q.registered.all();
     const failed = [];
     for (const p of list) {
-      try { saveUser(await osu.user(p.id)); } catch { failed.push(p.username); }
+      try {
+        const u = await osu.user(p.id);
+        saveUser(u);
+        if (u.id === p.id) saveProfile(u); // ya que se pide el perfil, se aprovecha para la ficha
+      } catch { failed.push(p.username); }
     }
     sendJson(res, 200, { ok: true, updated: list.length - failed.length, warning: failed.length ? 'No se pudo leer el perfil de: ' + failed.join(', ') : null });
+    syncOtr({ force: true }); // de fondo: o!TR tiene su propia cola
   },
 
   // Inscritos del formulario de Google: se pega la hoja de respuestas. Se puede repetir sin duplicar a nadie.
@@ -1038,6 +1276,8 @@ const routes = {
       out.imported.push(u.username);
     }
     sendJson(res, 200, { ok: true, ...out });
+    // Los nuevos tienen su ficha en unos segundos, sin esperar a la siguiente vuelta de la sincronización.
+    if (out.imported.length) syncProfiles().catch((e) => console.warn('[perfiles]', e.message)).then(() => syncOtr());
   },
 
   // Excepciones de rango sin tocar config.json.
@@ -1215,6 +1455,7 @@ server.listen(PORT, () => {
   if (!osu.configured()) console.warn('Aviso: faltan OSU_CLIENT_ID y OSU_CLIENT_SECRET; el login y la API no funcionarán.');
   if (!HOST_IDS.size) console.warn('Aviso: ADMIN_IDS está vacío; no hay host, así que nadie podrá usar el panel de administración.');
   if (CONFIG.twitch && !/^\w{3,25}$/.test(CONFIG.twitch)) console.warn('Aviso: "twitch" en config.json debe ser el nombre del canal (p. ej. spi6_osu), no el enlace.');
+  if (!otr.configured()) console.log('o!TR: sin OTR_API_KEY; la ficha del jugador va sin datos de o!TR.');
   if (CONFIG.twitch && !twitch.configured()) console.warn('Aviso: faltan TWITCH_CLIENT_ID y TWITCH_CLIENT_SECRET; la web no sabrá cuándo hay directo.');
   if (process.env.NODE_ENV === 'production' && !SECURE) console.warn('Aviso: BASE_URL no empieza por https://; el login con osu! y la cookie de sesión necesitan HTTPS en producción.');
 });

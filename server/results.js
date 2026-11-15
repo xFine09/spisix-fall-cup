@@ -11,14 +11,27 @@ function arDT(ar) {
 }
 const odDT = (od) => (80 - (80 - 6 * od) / 1.5) / 6;
 
-// Datos de un mapa del pool. El SR con HR o DT se pide a /beatmaps/{id}/attributes.
+// Mods con los que se calculan los atributos de cada slot: HR y DT cambian la dificultad; HD, FM y TB, no.
+export const slotMods = (slot) => (['HR', 'DT'].includes(slot.slice(0, 2)) ? [slot.slice(0, 2)] : []);
+// Lo que se guarda de /beatmaps/{id}/attributes para el perfil del mapa (skills). null si falta algo.
+export function attrOf(res) {
+  const a = res?.attributes || {};
+  const ok = (v) => typeof v === 'number' && Number.isFinite(v);
+  const out = { aim: a.aim_difficulty, speed: a.speed_difficulty, slider_factor: ok(a.slider_factor) ? a.slider_factor : null, speed_notes: a.speed_note_count };
+  return ok(out.aim) && ok(out.speed) && ok(out.speed_notes) ? out : null;
+}
+
+// Datos de un mapa del pool. El SR con HR o DT se pide a /beatmaps/{id}/attributes; de ahí salen también los
+// atributos del perfil del mapa (attr). En el resto de slots, attr lo rellena después el servidor de fondo.
 export async function loadBeatmap(id, slot) {
   const b = await osu.beatmap(id);
   const mod = slot.slice(0, 2);
   let sr = b.difficulty_rating;
+  let attr = null;
   if (mod === 'HR' || mod === 'DT') {
     const a = await osu.attributes(id, [mod]);
     sr = a.attributes?.star_rating ?? sr;
+    attr = attrOf(a);
   }
   let { cs, ar, accuracy: od, bpm, total_length: length } = b;
   if (mod === 'HR') { cs = Math.min(10, cs * 1.3); ar = Math.min(10, ar * 1.4); od = Math.min(10, od * 1.4); }
@@ -28,7 +41,18 @@ export async function loadBeatmap(id, slot) {
   return {
     artist: b.beatmapset?.artist, title: b.beatmapset?.title, title_unicode: b.beatmapset?.title_unicode, version: b.version, creator: mappers || b.beatmapset?.creator,
     sr: Math.round(sr * 100) / 100, bpm: Math.round(bpm), length, cs: round1(cs), ar: round1(ar), od: round1(od),
-    cover: b.beatmapset?.covers?.card || null, url: `https://osu.ppy.sh/b/${id}`
+    cover: b.beatmapset?.covers?.card || null, url: `https://osu.ppy.sh/b/${id}`,
+    ...(attr ? { attr } : {})
+  };
+}
+
+// Detalle de un score de un MP: puntuación, precisión, combo, 300/100/50/fallos y mods.
+function detail(game, score, value) {
+  const st = score.statistics || {};
+  return {
+    score: value, acc: score.accuracy ?? null, combo: score.max_combo ?? null,
+    n300: st.count_300 ?? st.great ?? null, n100: st.count_100 ?? st.ok ?? null, n50: st.count_50 ?? st.meh ?? null, miss: st.count_miss ?? st.miss ?? null,
+    mods: modList(game, score)
   };
 }
 
@@ -53,10 +77,11 @@ export function parseMatch(data, poolBySlot, mult) {
     const slot = poolBySlot.get(g.beatmap_id);
     if (!slot) continue;
     const scores = {};
-    for (const s of g.scores) scores[s.user_id] = points(g, s, mult);
+    const stats = {};
+    for (const s of g.scores) { scores[s.user_id] = points(g, s, mult); stats[s.user_id] = detail(g, s, s.score ?? s.legacy_total_score ?? s.total_score ?? 0); }
     const ids = Object.keys(scores).sort((a, b) => scores[b] - scores[a]);
     if (ids.length < 2 || scores[ids[0]] === scores[ids[1]]) continue;
-    byBeatmap.set(g.beatmap_id, { bid: g.beatmap_id, slot, w: +ids[0], scores });
+    byBeatmap.set(g.beatmap_id, { bid: g.beatmap_id, slot, w: +ids[0], scores, stats });
   }
   const maps = [...byBeatmap.values()];
   const wins = {};
@@ -68,6 +93,7 @@ export function parseMatch(data, poolBySlot, mult) {
 // en head to head: un mapa por equipos no se puede comparar y se deja fuera (skipped dice cuántos).
 export function parseQual(data, poolBySlot) {
   const scores = {};
+  const details = {}; // el detalle del mejor score de cada jugador en cada mapa
   let skipped = 0;
   for (const ev of data.events || []) {
     const g = ev.game;
@@ -77,10 +103,12 @@ export function parseQual(data, poolBySlot) {
       const uid = s.user_id;
       const val = s.score ?? s.legacy_total_score ?? s.total_score ?? 0;
       scores[uid] ??= {};
+      details[uid] ??= {};
+      if (!(scores[uid][g.beatmap_id] >= val)) details[uid][g.beatmap_id] = detail(g, s, val);
       scores[uid][g.beatmap_id] = Math.max(scores[uid][g.beatmap_id] || 0, val);
     }
   }
   // end_time: osu! lo pone al cerrar el lobby (!mp close, o solo tras un rato sin nadie).
   const ended = data.match?.end_time ? Date.parse(data.match.end_time) || null : null;
-  return { scores, name: data.match?.name || null, skipped, ended };
+  return { scores, details, name: data.match?.name || null, skipped, ended };
 }
