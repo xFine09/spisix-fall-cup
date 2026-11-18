@@ -379,6 +379,12 @@ try {
   assert.deepEqual([r.status, r.headers.get('content-type')], [200, 'image/png']);
   r = await anon('/favicon.svg');
   assert.deepEqual([r.status, r.headers.get('content-type')], [200, 'image/svg+xml']);
+  // Guía pública de /api/overlay, con la dirección de la web ya puesta
+  r = await anon('/api.html');
+  assert.deepEqual([r.status, r.headers.get('content-type')], [200, 'text/html; charset=utf-8']);
+  assert.ok(r.body.includes(`${BASE}/api/overlay?match=u1-6`), 'la guía lleva la dirección completa de la ruta');
+  assert.ok(!r.body.includes('__BASE_URL__'), 'no queda el marcador sin sustituir en la guía');
+  [...r.body.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].forEach((x) => assert.doesNotThrow(() => new Function(x[1]), 'script de la guía'));
   r = await anon('/../server.js');
   assert.equal(r.status, 404, 'no se puede salir de public/');
   r = await anon('/api/state');

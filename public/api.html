@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>API de partidos · SpiSix: Fall Cup</title>
+<meta name="description" content="Cómo leer los datos públicos de un partido del cuadro de SpiSix: Fall Cup desde otra web o desde OBS.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<script>try{var t=localStorage.getItem('spisix-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@800;900&family=Atkinson+Hyperlegible+Next:wght@400;600;700&family=Atkinson+Hyperlegible+Mono:wght@400;600&display=swap">
+<style>
+/* Guía de /api/overlay: mismos colores y letras que la web, en una sola columna de lectura. */
+:root{
+  --bg:#EDF0F5; --surface:#FFFFFF; --surface-2:#E4E8EF; --ink:#141827; --muted:#555C72; --line:#D6DBE5;
+  --accent:#B23F0E; --accent-ink:#FFFFFF; --red:#BF2F25; --blue:#1D6B86;
+  --f-display:'M PLUS Rounded 1c','Arial Rounded MT Bold',system-ui,sans-serif;
+  --f-body:'Atkinson Hyperlegible Next',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --f-mono:'Atkinson Hyperlegible Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F121C; --surface:#171B28; --surface-2:#212637; --ink:#ECEEF5; --muted:#9BA2B7; --line:#2A3043;
+  --accent:#FF8A4C; --accent-ink:#1C0B03; --red:#FF7A6B; --blue:#5CC2DF;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F121C; --surface:#171B28; --surface-2:#212637; --ink:#ECEEF5; --muted:#9BA2B7; --line:#2A3043;
+  --accent:#FF8A4C; --accent-ink:#1C0B03; --red:#FF7A6B; --blue:#5CC2DF;
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:var(--accent)}
+.wrap{max-width:780px;margin:0 auto;padding-block:36px 64px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:grid;gap:34px}
+header{display:grid;gap:10px}
+.back{font-size:14px}
+.eyebrow{font:600 12px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+h1,h2,h3{font-family:var(--f-display);line-height:1.15;text-wrap:balance;margin:0}
+h1{font-size:clamp(1.8rem,5vw,2.4rem);font-weight:900}
+h2{font-size:1.35rem;font-weight:900}
+h3{font-size:1.02rem;font-weight:800}
+p,ul{margin:0;max-width:68ch}
+ul{padding-left:20px;display:grid;gap:6px}
+section{display:grid;gap:14px;min-width:0}
+.lead{color:var(--muted);font-size:16px}
+code{font:13.5px/1.5 var(--f-mono);background:var(--surface-2);padding:1px 5px;border-radius:4px}
+pre{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto}
+pre code{background:none;padding:0}
+.endpoint{display:flex;flex-wrap:wrap;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+.verb{font:600 12px/1 var(--f-mono);color:var(--accent-ink);background:var(--accent);padding:5px 8px;border-radius:4px}
+.url{font:14px/1.4 var(--f-mono);word-break:break-all;min-width:0}
+.table{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+.red{color:var(--red);font-weight:700}
+.blue{color:var(--blue);font-weight:700}
+footer{color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <a class="back" href="/">← SpiSix: Fall Cup</a>
+    <span class="eyebrow">API pública</span>
+    <h1>Datos de un partido del cuadro</h1>
+    <p class="lead">Una sola ruta de solo lectura que devuelve en JSON el cruce, la mappool de la ronda y los protects, bans y picks apuntados por el árbitro. No necesita login ni clave.</p>
+  </header>
+
+  <section>
+    <h2>La ruta</h2>
+    <div class="endpoint"><span class="verb">GET</span><span class="url">__BASE_URL__/api/overlay?match=u1-6</span></div>
+    <ul>
+      <li>Se puede pedir desde cualquier web o desde una fuente de navegador de OBS: lleva <code>Access-Control-Allow-Origin: *</code>.</li>
+      <li>Solo <code>GET</code> y sin cookies: no mandes <code>credentials: "include"</code>.</li>
+      <li>La respuesta se guarda 5 segundos en caché (<code>Cache-Control: public, max-age=5</code>). Pedirla cada 5 segundos es suficiente; más a menudo no da datos más nuevos.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>IDs de los partidos</h2>
+    <p>El parámetro <code>match</code> es el ID del partido tal como sale en la web. Da igual en mayúsculas o minúsculas (<code>U1-6</code> o <code>u1-6</code>); la respuesta siempre lo devuelve en minúsculas.</p>
+    <div class="table"><table>
+      <thead><tr><th>Partidos</th><th><code>round</code></th><th><code>bestOf</code></th></tr></thead>
+      <tbody>
+        <tr><td><code>u1-1</code> … <code>u1-8</code></td><td><code>octavos</code></td><td class="num">9</td></tr>
+        <tr><td><code>u2-1</code> … <code>u2-4</code>, <code>l1-1</code> … <code>l1-4</code></td><td><code>cuartos</code></td><td class="num">9</td></tr>
+        <tr><td><code>u3-1</code>, <code>u3-2</code>, <code>l2-1</code> … <code>l2-4</code>, <code>l3-1</code>, <code>l3-2</code></td><td><code>semis</code></td><td class="num">11</td></tr>
+        <tr><td><code>u4-1</code>, <code>l4-1</code>, <code>l4-2</code>, <code>l5-1</code></td><td><code>finals</code></td><td class="num">11</td></tr>
+        <tr><td><code>l6-1</code>, <code>gf</code></td><td><code>gf</code></td><td class="num">13</td></tr>
+      </tbody>
+    </table></div>
+    <p><code>u</code> es el upper bracket y <code>l</code> el lower bracket.</p>
+  </section>
+
+  <section>
+    <h2>Respuesta</h2>
+<pre><code>{
+  "matchId": "u1-6",
+  "scheduledAt": 1795195800000,
+  "round": "octavos",
+  "bestOf": 9,
+  "players": {
+    "red":  { "id": 32031654, "username": "suutee" },
+    "blue": { "id": 22443532, "username": "Ouwo Cronii" }
+  },
+  "pool": [
+    { "slot": "NM1", "beatmap_id": 4956966, "data": { "artist": "…", "title": "…", "version": "…", "sr": 5.21, … } }
+  ],
+  "rundown": [
+    { "actor": "RED",  "action": "PROTECT", "pick": "NM1" },
+    { "actor": "BLUE", "action": "BAN",     "pick": "DT2" },
+    { "actor": "RED",  "action": "PICK",    "pick": "HD1" }
+  ]
+}</code></pre>
+    <div class="table"><table>
+      <thead><tr><th>Campo</th><th>Qué es</th></tr></thead>
+      <tbody>
+        <tr><td><code>scheduledAt</code></td><td>Hora del partido en milisegundos desde 1970 (UTC), para <code>new Date(scheduledAt)</code>. <code>null</code> si aún no tiene hora. El torneo va en hora de Madrid.</td></tr>
+        <tr><td><code>players.red</code></td><td>El jugador A del cruce, el que el árbitro pone en el equipo <span class="red">rojo</span> con <code>!mp team</code>.</td></tr>
+        <tr><td><code>players.blue</code></td><td>El jugador B, en el equipo <span class="blue">azul</span>.</td></tr>
+        <tr><td><code>pool</code></td><td>Los mapas de la ronda, ordenados por slot: NM, HD, HR, DT, FM y TB.</td></tr>
+        <tr><td><code>rundown</code></td><td>Protects, bans y picks en el orden en que se apuntaron.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Cuándo cambia cada cosa</h2>
+    <h3>players</h3>
+    <ul>
+      <li>Un jugador que todavía no está decidido sale como <code>null</code>; por ejemplo, el ganador de un partido que aún no ha terminado.</li>
+      <li>Hasta que la organización publica los resultados de los clasificatorios, todos los jugadores salen como <code>null</code>, igual que en la web.</li>
+    </ul>
+    <h3>pool</h3>
+    <ul>
+      <li>Es <code>[]</code> hasta que se publica la mappool de esa ronda. En cuanto es pública, salen todos los mapas.</li>
+      <li>Para cada mapa: <code>slot</code>, <code>beatmap_id</code> y <code>data</code>.</li>
+      <li><code>data</code> trae, entre otros: <code>artist</code>, <code>title</code>, <code>version</code> (la dificultad), <code>creator</code>, <code>sr</code>, <code>bpm</code>, <code>length</code> (en segundos), <code>cs</code>, <code>ar</code>, <code>od</code>, <code>cover</code> (imagen del set) y <code>url</code> (enlace al mapa). En HR y DT, SR, BPM, duración y stats ya vienen con el mod aplicado.</li>
+      <li>Puede traer más campos; ignora los que no uses y no des por hecho que todos existen en todos los mapas.</li>
+    </ul>
+    <h3>rundown</h3>
+    <ul>
+      <li><code>actor</code>: <span class="red">RED</span> o <span class="blue">BLUE</span>. <code>action</code>: <code>PROTECT</code>, <code>BAN</code> o <code>PICK</code>. <code>pick</code>: el slot (<code>NM1</code>, <code>DT2</code>…).</li>
+      <li>El pick del tiebreaker sale como <code>{ "actor": null, "action": "PICK", "pick": "TB" }</code>: no lo elige ninguno de los dos.</li>
+      <li>Si el árbitro deshace algo, desaparece del rundown. No guardes el rundown anterior y añadas lo nuevo: sustituye la lista entera en cada petición.</li>
+      <li>Es <code>[]</code> si no hay nada apuntado. No incluye el roll, ni el orden elegido, ni el marcador ni las puntuaciones.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Errores</h2>
+    <p>Siempre en JSON, con <code>{ "error": "…" }</code> y también con CORS:</p>
+    <div class="table"><table>
+      <thead><tr><th>Código</th><th>Cuándo</th></tr></thead>
+      <tbody>
+        <tr><td class="num">400</td><td>Falta el parámetro <code>match</code>.</td></tr>
+        <tr><td class="num">404</td><td>Ese partido no existe (por ejemplo, <code>u9-9</code>).</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>Ejemplo en JavaScript</h2>
+<pre><code>const URL_API = '__BASE_URL__/api/overlay?match=u1-6';
+
+async function actualizar() {
+  try {
+    const res = await fetch(URL_API);
+    const datos = await res.json();
+    if (!res.ok) throw new Error(datos.error);
+    const rojo = datos.players.red?.username ?? 'Por decidir';
+    const azul = datos.players.blue?.username ?? 'Por decidir';
+    // pintar rojo, azul, datos.pool y datos.rundown…
+  } catch (e) {
+    console.warn('Sin datos del partido:', e.message); // se reintenta en la siguiente vuelta
+  }
+}
+
+actualizar();
+setInterval(actualizar, 5000);</code></pre>
+  </section>
+
+  <footer>Los datos son los mismos que se ven en la web del torneo: nada de lo que devuelve la ruta es privado.</footer>
+</main>
+</body>
+</html>

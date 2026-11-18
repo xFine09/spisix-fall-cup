@@ -237,6 +237,8 @@ Las seeds se calculan a partir de los inscritos. Quitar a un jugador después de
 
 `GET /api/overlay?match=<id>` devuelve en JSON los datos públicos de un partido del cuadro (`u1-1` … `gf`; da igual mayúsculas o minúsculas). Es de solo lectura, no usa la sesión y se puede leer desde cualquier web: lleva `Access-Control-Allow-Origin: *` (solo `GET`, sin cookies) y responde a `OPTIONS`. Las respuestas se pueden guardar en caché 5 segundos (`Cache-Control: public, max-age=5`). Ninguna otra ruta lleva CORS.
 
+Para quien vaya a usarla hay una guía pública en `/api.html` (`public/api.html`), con la dirección de la web ya puesta. Si cambias la ruta, actualiza también esa página.
+
 ```json
 {
   "matchId": "u1-6",
@@ -355,6 +357,7 @@ server/config.js     lectura de config.json y fechas en hora de Madrid
 public/index.html    la web (sin servidor muestra datos de ejemplo)
 public/og.png        imagen al compartir el enlace (1200×630)
 public/favicon.svg   icono de la pestaña
+public/api.html      guía pública de /api/overlay (en /api.html)
 docs/DESIGN.md       dirección visual de la web y razón de cada decisión
 test/e2e.js          prueba completa con osu!, Twitch y Bancho simulados
 scripts/backup.js    copia manual de la base de datos
