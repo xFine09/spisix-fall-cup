@@ -24,6 +24,8 @@ const SECURE = BASE_URL.startsWith('https://');
 // ADMIN_IDS son los hosts: los únicos que asignan roles, y no se les pueden quitar desde la web.
 const HOST_IDS = new Set((process.env.ADMIN_IDS || '').split(',').map((s) => +s.trim()).filter(Boolean));
 const PUBLIC_DIR = fileURLToPath(new URL('./public/', import.meta.url));
+// Guía de /api/overlay: fuera de public/ para que solo se sirva a quien tiene permiso (ruta GET /api.html).
+const API_GUIDE = fileURLToPath(new URL('./server/api-guide.html', import.meta.url));
 const SESSION_DAYS = 30;
 const POOL_SLOT = /^(NM|HD|HR|DT|FM)\d{1,2}$|^TB$/;
 const POOL_FILE_MAX = 20 * 1024 * 1024;
@@ -137,6 +139,8 @@ function requireRef(req) {
   if (!isRef(u)) throw new HttpError(403, 'Esta página es solo para los árbitros del torneo.');
   return u;
 }
+// La guía de la API la ven el host, los admins y quien añadan en el panel. No da ningún otro permiso.
+const canSeeApiGuide = (u) => Boolean(u && (isAdminId(u.id) || q.hasApiAccess.get(u.id)));
 function saveUser(u) {
   q.upsertUser.run(u.id, u.username, u.avatar_url, u.country_code, u.statistics?.global_rank ?? null, Date.now());
 }
@@ -552,7 +556,7 @@ function buildState(user) {
     me: user ? {
       id: user.id, username: user.username, avatar_url: user.avatar_url, country: user.country, rank: user.rank,
       availability: user.availability,
-      registered: Boolean(user.registered_at), admin, referee: isRef(user), host: HOST_IDS.has(user.id),
+      registered: Boolean(user.registered_at), admin, referee: isRef(user), host: HOST_IDS.has(user.id), apiGuide: canSeeApiGuide(user),
       qualRequest: q.requestOf.get(user.id) || null,
       qualRejection: q.rejectionOf.get(user.id) || null
     } : null,
@@ -571,7 +575,8 @@ function buildState(user) {
     fasesEditadas: Boolean(q.siteText.get('fases')),
     ...(isRef(user) ? { qualRequests: q.pendingRequests.all(), qualPlayed: [...qualPlayers()] } : {}),
     ...(admin ? {
-      exceptions: q.exceptions.all().map((e) => ({ id: e.user_id, username: e.username }))
+      exceptions: q.exceptions.all().map((e) => ({ id: e.user_id, username: e.username })),
+      apiAccess: q.apiAccess.all().map((e) => ({ id: e.user_id, username: e.username }))
     } : {})
   };
 }
@@ -763,6 +768,24 @@ const routes = {
     overlayCors(res);
     res.writeHead(204, { 'Access-Control-Max-Age': '86400' });
     res.end();
+  },
+
+  // Guía de /api/overlay: solo con sesión y permiso (admins y la lista del panel). La ruta en sí sigue siendo pública.
+  'GET /api.html': async (req, res) => {
+    const u = sessionUser(req);
+    const headers = { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' };
+    if (!canSeeApiGuide(u)) {
+      const text = u
+        ? 'Tu cuenta no tiene acceso a esta página. Pídeselo a la organización del torneo.'
+        : 'Para ver esta página, <a href="/auth/osu">inicia sesión con osu!</a> y vuelve a abrir este enlace.';
+      res.writeHead(u ? 403 : 401, headers);
+      return res.end(`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Acceso restringido · SpiSix: Fall Cup</title>
+<style>:root{color-scheme:light dark}body{margin:0;font:16px/1.6 system-ui,sans-serif;background:Canvas;color:CanvasText}main{max-width:560px;margin:0 auto;padding:48px 16px;display:grid;gap:12px}h1{font-size:1.5rem;margin:0}p{margin:0}</style></head>
+<body><main><h1>Acceso restringido</h1><p>${text}</p><p><a href="/">Volver a SpiSix: Fall Cup</a></p></main></body></html>`);
+    }
+    const html = String(await readFile(API_GUIDE)).replaceAll('__BASE_URL__', BASE_URL);
+    res.writeHead(200, headers);
+    res.end(html);
   },
 
   // Para el healthcheck de Docker o un monitor externo.
@@ -1341,6 +1364,24 @@ const routes = {
     requireAdmin(req);
     const b = await readJson(req);
     q.delException.run(+b.id);
+    sendJson(res, 200, { ok: true });
+  },
+
+  // Acceso a la guía de la API (/api.html). { user: nombre, ID o enlace de osu! }.
+  'POST /api/admin/api-access': async (req, res) => {
+    requireAdmin(req);
+    const b = await readJson(req);
+    const raw = String(b.user ?? '').trim();
+    if (!raw) throw new HttpError(400, 'Escribe el nombre o el ID de osu!.');
+    const u = await findOsuUser(raw);
+    q.addApiAccess.run(u.id, u.username, Date.now());
+    sendJson(res, 200, { ok: true, id: u.id, username: u.username });
+  },
+
+  'POST /api/admin/api-access/delete': async (req, res) => {
+    requireAdmin(req);
+    const b = await readJson(req);
+    q.delApiAccess.run(+b.id);
     sendJson(res, 200, { ok: true });
   },
 

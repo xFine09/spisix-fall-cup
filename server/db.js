@@ -117,6 +117,11 @@ db.exec(`
     data     TEXT NOT NULL,
     taken_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS api_access (  -- quién puede abrir la guía de /api/overlay (/api.html), aparte de los admins
+    user_id    INTEGER PRIMARY KEY,
+    username   TEXT,
+    added_at   INTEGER
+  );
   CREATE TABLE IF NOT EXISTS exceptions (  -- admitidos fuera del rango
     user_id    INTEGER PRIMARY KEY,
     username   TEXT,
@@ -181,6 +186,11 @@ const st = {
   addException: db.prepare(`INSERT INTO exceptions (user_id, username, added_at) VALUES (?, ?, ?)
     ON CONFLICT(user_id) DO UPDATE SET username = excluded.username`),
   delException: db.prepare('DELETE FROM exceptions WHERE user_id = ?'),
+  apiAccess: db.prepare('SELECT * FROM api_access ORDER BY added_at'),
+  hasApiAccess: db.prepare('SELECT 1 AS ok FROM api_access WHERE user_id = ?'),
+  addApiAccess: db.prepare(`INSERT INTO api_access (user_id, username, added_at) VALUES (?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET username = excluded.username`),
+  delApiAccess: db.prepare('DELETE FROM api_access WHERE user_id = ?'),
   releases: db.prepare('SELECT * FROM pool_release'),
   setRelease: db.prepare('INSERT INTO pool_release (round, at) VALUES (?, ?) ON CONFLICT(round) DO UPDATE SET at = excluded.at'),
   getRelease: db.prepare('SELECT at FROM pool_release WHERE round = ?'),

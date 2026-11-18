@@ -379,12 +379,12 @@ try {
   assert.deepEqual([r.status, r.headers.get('content-type')], [200, 'image/png']);
   r = await anon('/favicon.svg');
   assert.deepEqual([r.status, r.headers.get('content-type')], [200, 'image/svg+xml']);
-  // Guía pública de /api/overlay, con la dirección de la web ya puesta
+  // Guía de /api/overlay: sin sesión no se ve, ni dando un rodeo por los archivos estáticos
   r = await anon('/api.html');
-  assert.deepEqual([r.status, r.headers.get('content-type')], [200, 'text/html; charset=utf-8']);
-  assert.ok(r.body.includes(`${BASE}/api/overlay?match=u1-6`), 'la guía lleva la dirección completa de la ruta');
-  assert.ok(!r.body.includes('__BASE_URL__'), 'no queda el marcador sin sustituir en la guía');
-  [...r.body.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].forEach((x) => assert.doesNotThrow(() => new Function(x[1]), 'script de la guía'));
+  assert.deepEqual([r.status, r.headers.get('content-type'), r.headers.get('cache-control')], [401, 'text/html; charset=utf-8', 'no-store']);
+  assert.match(r.body, /inicia sesión con osu!/);
+  assert.ok(!r.body.includes('/api/overlay'), 'sin permiso no sale nada de la guía');
+  for (const p of ['/api%2Ehtml', '/api.html/', '/server/api-guide.html', '/api-guide.html']) assert.equal((await anon(p)).status, 404, p);
   r = await anon('/../server.js');
   assert.equal(r.status, 404, 'no se puede salir de public/');
   r = await anon('/api/state');
@@ -448,6 +448,31 @@ try {
   assert.equal(r.status, 200);
   assert.deepEqual((await adm('/api/state')).body.exceptions, []);
   console.log('✓ excepciones de rango desde el panel');
+
+  // Guía de la API: la ven los admins y quien añadan en el panel; los demás, aunque tengan sesión, no
+  r = await strong('/api.html');
+  assert.equal(r.status, 403);
+  assert.ok(!r.body.includes('/api/overlay'));
+  assert.equal((await strong('/api/state')).body.me.apiGuide, false);
+  r = await adm('/api.html');
+  assert.deepEqual([r.status, r.headers.get('content-type'), r.headers.get('cache-control')], [200, 'text/html; charset=utf-8', 'no-store']);
+  assert.ok(r.body.includes(`${BASE}/api/overlay?match=u1-6`), 'la guía lleva la dirección completa de la ruta');
+  assert.ok(!r.body.includes('__BASE_URL__'), 'no queda el marcador sin sustituir en la guía');
+  [...r.body.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].forEach((x) => assert.doesNotThrow(() => new Function(x[1]), 'script de la guía'));
+  assert.equal((await strong('/api/admin/api-access', { method: 'POST', json: { user: '77' } })).status, 403, 'solo los admins dan acceso');
+  assert.equal((await adm('/api/admin/api-access', { method: 'POST', json: { user: '' } })).status, 400);
+  r = await adm('/api/admin/api-access', { method: 'POST', json: { user: '77' } });
+  assert.deepEqual(r.body, { ok: true, id: 77, username: 'DemasiadoBueno' });
+  assert.deepEqual((await adm('/api/state')).body.apiAccess, [{ id: 77, username: 'DemasiadoBueno' }]);
+  assert.equal((await strong('/api/state')).body.apiAccess, undefined, 'la lista es solo para admins');
+  r = await strong('/api/state');
+  assert.deepEqual([r.body.me.apiGuide, r.body.me.admin], [true, false], 'acceso a la guía, sin ningún otro permiso');
+  assert.equal((await strong('/api.html')).status, 200);
+  assert.equal((await strong('/api/admin/exception', { method: 'POST', json: { user: '78' } })).status, 403, 'sigue sin poder usar el panel');
+  assert.equal((await adm('/api/admin/api-access/delete', { method: 'POST', json: { id: 77 } })).status, 200);
+  assert.equal((await strong('/api.html')).status, 403, 'al quitarlo, deja de verla');
+  assert.deepEqual((await adm('/api/state')).body.apiAccess, []);
+  console.log('✓ guía de la API: solo para admins y quien se añada en el panel');
 
   // Importación del formulario de Google (funciona con los registros abiertos o cerrados)
   const sheet = [

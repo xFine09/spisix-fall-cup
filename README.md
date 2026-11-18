@@ -17,7 +17,7 @@ Web del torneo 1v1 de osu! de la comunidad SpiSix: inscritos, mappools, clasific
 | Pieza | Qué se usa |
 |---|---|
 | Servidor | Node.js 22.13 o superior, sin dependencias externas |
-| Web | Una sola página: `public/index.html`, sin compilación. Aparte, `public/api.html`: guía de `/api/overlay` para quien lea los datos de un partido desde otra web |
+| Web | Una sola página: `public/index.html`, sin compilación. Aparte, `/api.html`: guía de `/api/overlay` (`server/api-guide.html`), solo para los admins y quien se autorice en el panel |
 | Datos | SQLite, con copia automática al arrancar y cada día (guarda las 14 últimas) |
 | Despliegue | Docker Compose, con la web solo en `127.0.0.1:3000` |
 | HTTPS | Tailscale Funnel; no hace falta dominio ni abrir puertos |

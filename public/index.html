@@ -1310,6 +1310,11 @@ const VIEWS={
           <form class="f" data-form="exc"><div class="row"><div class="field"><label for="a-exc">Jugador</label><input type="text" id="a-exc" placeholder="ID o enlace del perfil de osu!"></div><button class="btn btn-primary btn-sm" type="submit">Añadir</button></div></form>
           <div class="mini">${(S.exceptions||[]).length?S.exceptions.map(x=>`<div class="it"><span>${esc(x.username||'')} · ID ${x.id}</span><button class="btn btn-ghost btn-sm" type="button" data-act="exc-del" data-id="${x.id}">Quitar</button></div>`).join(''):'<p class="muted">Ninguna todavía.</p>'}</div>
         </section>
+        <section class="card adm"><h3>Guía de la API</h3>
+          <p class="muted" style="font-size:.85rem">Quién puede abrir <a href="/api.html" target="_blank" rel="noopener">la guía de /api/overlay</a> (la ruta para leer los datos de un partido desde otra web). Los admins la ven siempre. No da ningún otro permiso: ni el panel ni las mappools sin publicar.</p>
+          <form class="f" data-form="api"><div class="row"><div class="field"><label for="a-api">Persona</label><input type="text" id="a-api" placeholder="Nombre, ID o enlace del perfil de osu!"></div><button class="btn btn-primary btn-sm" type="submit">Añadir</button></div></form>
+          <div class="mini">${(S.apiAccess||[]).length?S.apiAccess.map(x=>`<div class="it"><span>${esc(x.username||'')} · ID ${x.id}</span><button class="btn btn-ghost btn-sm" type="button" data-act="api-del" data-id="${x.id}">Quitar</button></div>`).join(''):'<p class="muted">Nadie más todavía.</p>'}</div>
+        </section>
         <section class="card adm"><h3>Importar del formulario de Google</h3>
           <p class="muted" style="font-size:.85rem">En la hoja de respuestas del formulario pulsa Ctrl+A y Ctrl+C, y pégalo aquí (con la fila de títulos). Se puede repetir cuantas veces haga falta: nadie se duplica.</p>
           <form class="f" data-form="imp"><div class="field"><label for="a-imp">Respuestas</label><textarea id="a-imp" spellcheck="false" placeholder="Marca temporal&#9;osu In game name&#9;Disponibilidad…">${esc(UI.impText)}</textarea><span class="hint">Cada jugador se busca en osu! y pasa la misma comprobación de rango que en la web. Puede tardar unos segundos.</span></div>
@@ -1974,6 +1979,7 @@ app.addEventListener('click',e=>{
   if(a==='pv-close'){UI.poolRead=null;UI.flash=null;return keepRender()}
   if(a==='pv-import') return poolImport();
   if(a==='exc-del') return act(()=>post('/api/admin/exception/delete',{id:+b.dataset.id}),'Excepción quitada.');
+  if(a==='api-del') return act(()=>post('/api/admin/api-access/delete',{id:+b.dataset.id}),'Ya no puede abrir la guía de la API.');
   if(a==='role-del') return act(()=>post('/api/admin/role',{id:+b.dataset.id,role:''}),'Rol quitado.');
   if(a==='qs-join') return act(()=>post('/api/qual/signup',{slot:+b.dataset.id}),'Plaza pedida: falta que la aprueben.');
   if(a==='qs-leave') return act(()=>post('/api/qual/leave'),'Ya no estás en ese lobby.');
@@ -2094,6 +2100,7 @@ app.addEventListener('submit',e=>{
       r=>`Importación terminada: ${r.imported.length} inscritos nuevos.`+(r.notFound.length||r.rejected.length?' Revisa abajo los que faltan.':''));
   }
   if(kind==='exc') return act(()=>post('/api/admin/exception',{user:val('a-exc')}),'Excepción añadida: ya puede inscribirse aunque su rango esté fuera del límite.');
+  if(kind==='api') return act(()=>post('/api/admin/api-access',{user:val('a-api')}),r=>`${r.username} ya puede abrir la guía de la API (${location.origin}/api.html).`);
   if(kind==='role') return act(()=>post('/api/admin/role',{user:val('a-ru'),role:val('a-rr')}),r=>`${r.username} ya es ${ROLE_TXT[r.role].toLowerCase()}.`);
   if(kind==='qs-add') return act(()=>post('/api/admin/qual-slot/assign',{id:+val('a-qal'),user:+val('a-qap')}),'Jugador añadido al lobby.');
   if(kind==='site'){

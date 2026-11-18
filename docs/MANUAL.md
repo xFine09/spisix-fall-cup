@@ -200,6 +200,7 @@ docker compose start web
 | Antes de los clasificatorios | **Lobbies de clasificatorios**: **Crear la rejilla** con días, horas y plazas, y **Un lobby suelto** para horas especiales. Los jugadores se apuntan en Qualis; aquí se puede añadir o quitar a cualquiera y elegir el árbitro de cada lobby. Si sobran, **Quitar los vacíos de este día**. |
 | Si alguien no se presenta | **Forfeit** → gana A o B. |
 | Alguien fuera de rango que sí puede jugar no entra al importar | **Excepciones de rango**: pegar el enlace de su perfil, y volver a importar. |
+| Alguien va a leer los datos de los partidos desde otra web u OBS | **Guía de la API**: su nombre o enlace de osu!, y pasarle el enlace `/api.html`. Tiene que iniciar sesión con esa cuenta para verla. No le da ningún otro permiso. |
 | Hay inscritos en el formulario de Google | **Importar del formulario**: en la hoja de respuestas, Ctrl+A, Ctrl+C y pegar. Si la hoja tiene una columna de Discord, se ignora. |
 
 La importación busca los nombres exactos de 50 en 50 (`GET /users/lookup`) y los que falten uno a uno con `GET /users/@nombre/osu`, que también encuentra nombres antiguos y no distingue espacios de guiones bajos. Quien esté fuera de rango no se inscribe: sale en el informe para añadirle una excepción y volver a importar. Quien ya estuviera inscrito por la web conserva sus datos, y quien se borró o quitó la organización no vuelve a entrar al importar.
@@ -237,7 +238,7 @@ Las seeds se calculan a partir de los inscritos. Quitar a un jugador después de
 
 `GET /api/overlay?match=<id>` devuelve en JSON los datos públicos de un partido del cuadro (`u1-1` … `gf`; da igual mayúsculas o minúsculas). Es de solo lectura, no usa la sesión y se puede leer desde cualquier web: lleva `Access-Control-Allow-Origin: *` (solo `GET`, sin cookies) y responde a `OPTIONS`. Las respuestas se pueden guardar en caché 5 segundos (`Cache-Control: public, max-age=5`). Ninguna otra ruta lleva CORS.
 
-Para quien vaya a usarla hay una guía pública en `/api.html` (`public/api.html`), con la dirección de la web ya puesta. Si cambias la ruta, actualiza también esa página.
+Para quien vaya a usarla hay una guía en `/api.html`, con la dirección de la web ya puesta. La guía no es pública: solo la ven, con la sesión iniciada, los admins y quien se añada en **Guía de la API** (pestaña Admin, tabla `api_access`). Sin sesión responde 401 y sin permiso 403, sin nada de su contenido. El archivo está en `server/api-guide.html`, fuera de `public/`, para que no se pueda abrir como archivo estático. La ruta `/api/overlay` sigue siendo pública: la guía solo la explica. Si cambias la ruta, actualiza también esa página.
 
 ```json
 {
@@ -325,7 +326,7 @@ Están en `server/skills.js` y solo usan datos de torneo.
 npm test
 ```
 
-La prueba fija su propio reloj (`TEST_NOW` en `test/e2e.js`: 14 de noviembre de 2026, con los clasificatorios en marcha), así que da lo mismo el día en que se ejecute. Levanta una API de osu!, un Twitch y un Bancho simulados y comprueba que los scripts de la web no tienen errores de sintaxis, login, rechazo por rango, excepciones, importación del formulario y de mappools, lobbies de clasificatorios, roles, permisos del panel, mappool, resultados (warmups, paginación, EZ ×1,8), clasificatorios, publicación programada de mappools, peticiones malformadas, y la ficha del jugador (la foto automática del perfil, que solo lleva datos públicos, que abrir la ficha no llama a osu! y que si osu! falla se conserva la última foto), y los datos de o!TR con un o!TR simulado (mods agrupados, jugador sin rating y jugador que o!TR no conoce, o!TR caído, la web sin clave y que la clave no aparece en la web ni en el log), y las skills: cada fórmula por separado, unos clasificatorios simulados (P01 arriba en todo, P16 abajo), un partido del cuadro que mueve las skills en la dirección esperada, el historial, que el público no ve nada de los clasificatorios hasta que se publican y el detalle por jugador y mapa del MP. Después arranca un segundo servidor con el reloj adelantado a octavos, 16 inscritos y un clasificatorio, para probar el aviso de directo de Twitch, que las pools se publiquen solas pasado el showcase, los partidos de octavos con forfeit y con resultado desde el MP, y `/api/overlay` (cruces solo con los resultados de clasificatorios publicados, pool solo si la mappool es pública, rundown en orden, errores y CORS). Con un Bancho simulado, juega también un partido entero desde la página Arbitrar:
+La prueba fija su propio reloj (`TEST_NOW` en `test/e2e.js`: 14 de noviembre de 2026, con los clasificatorios en marcha), así que da lo mismo el día en que se ejecute. Levanta una API de osu!, un Twitch y un Bancho simulados y comprueba que los scripts de la web no tienen errores de sintaxis, login, rechazo por rango, excepciones, importación del formulario y de mappools, lobbies de clasificatorios, roles, permisos del panel, mappool, resultados (warmups, paginación, EZ ×1,8), clasificatorios, publicación programada de mappools, peticiones malformadas, y la ficha del jugador (la foto automática del perfil, que solo lleva datos públicos, que abrir la ficha no llama a osu! y que si osu! falla se conserva la última foto), y los datos de o!TR con un o!TR simulado (mods agrupados, jugador sin rating y jugador que o!TR no conoce, o!TR caído, la web sin clave y que la clave no aparece en la web ni en el log), que la guía de la API solo la vean los admins y quien se añada en el panel, y las skills: cada fórmula por separado, unos clasificatorios simulados (P01 arriba en todo, P16 abajo), un partido del cuadro que mueve las skills en la dirección esperada, el historial, que el público no ve nada de los clasificatorios hasta que se publican y el detalle por jugador y mapa del MP. Después arranca un segundo servidor con el reloj adelantado a octavos, 16 inscritos y un clasificatorio, para probar el aviso de directo de Twitch, que las pools se publiquen solas pasado el showcase, los partidos de octavos con forfeit y con resultado desde el MP, y `/api/overlay` (cruces solo con los resultados de clasificatorios publicados, pool solo si la mappool es pública, rundown en orden, errores y CORS). Con un Bancho simulado, juega también un partido entero desde la página Arbitrar:
 
 - contraseña IRC rechazada y aceptada;
 - lobby, equipos y `!roll`;
@@ -357,7 +358,7 @@ server/config.js     lectura de config.json y fechas en hora de Madrid
 public/index.html    la web (sin servidor muestra datos de ejemplo)
 public/og.png        imagen al compartir el enlace (1200×630)
 public/favicon.svg   icono de la pestaña
-public/api.html      guía pública de /api/overlay (en /api.html)
+server/api-guide.html  guía de /api/overlay (en /api.html, solo para quien tenga permiso)
 docs/DESIGN.md       dirección visual de la web y razón de cada decisión
 test/e2e.js          prueba completa con osu!, Twitch y Bancho simulados
 scripts/backup.js    copia manual de la base de datos
