@@ -11,6 +11,11 @@ import { deflateRawSync } from 'node:zlib';
 import { DatabaseSync } from 'node:sqlite';
 import { mapWeights, duel, mapFactor, inverseNormal, qualZ, qualBase, percentiles, generalStrength } from '../server/skills.js';
 
+// Reloj fijo: la prueba y el primer servidor creen que es el 14 de noviembre de 2026 a las 13:00 (hora de Madrid),
+// con los clasificatorios en marcha, sea cual sea la fecha real. El segundo servidor va a octavos con su propio reloj.
+const TEST_NOW = '2026-11-14T12:00:00Z';
+{ const o = Date.parse(TEST_NOW) - Date.now(), n = Date.now; Date.now = () => n() + o; }
+
 // ---------- API de osu! simulada ----------
 const USERS = {
   4242: { id: 4242, username: 'Organizador', avatar_url: 'https://a.ppy.sh/4242', country_code: 'ES', statistics: { global_rank: 234567 } },
@@ -350,7 +355,7 @@ const until = async (cond, what) => {
 async function ready(base) {
   for (let i = 0; i < 50; i++) { try { await fetch(base + '/api/state'); return; } catch { await new Promise((r) => setTimeout(r, 100)); } }
 }
-const { proc: srv, port: PORT, base: BASE } = startServer('test');
+const { proc: srv, port: PORT, base: BASE } = startServer('test', TEST_NOW);
 let srv2 = null;
 
 let failed = false;
@@ -1544,6 +1549,67 @@ try {
   assert.deepEqual(r.body.matches['u1-3'].bans, ['DT1', 'HR1']);
   assert.deepEqual(r.body.matches['u1-3'].protects, ['NM1', 'HD1']);
   assert.deepEqual(r.body.matches['u1-3'].result.wins, { [f3.a.id]: 1, [f3.b.id]: 1 });
+
+  // /api/overlay: datos públicos de un partido para otras webs (sin sesión, CORS abierto)
+  const overlay = async (qs, init = {}) => {
+    const res = await fetch(s2.base + '/api/overlay' + qs, { headers: { Origin: 'https://otra-web.example' }, ...init });
+    const ct = res.headers.get('content-type') || '';
+    return { status: res.status, headers: res.headers, body: ct.includes('json') ? await res.json() : await res.text() };
+  };
+  r = await overlay('?match=U1-3');
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual(Object.keys(r.body), ['matchId', 'scheduledAt', 'round', 'bestOf', 'players', 'pool', 'rundown']);
+  assert.deepEqual([r.body.matchId, r.body.scheduledAt, r.body.round, r.body.bestOf], ['u1-3', fakeNow + 3 * 3600e3, 'octavos', 9]);
+  assert.deepEqual(r.body.players, { red: null, blue: null }, 'sin resultados de clasificatorios publicados, el público no ve los cruces');
+  assert.deepEqual(r.body.rundown, [
+    { actor: 'RED', action: 'PROTECT', pick: 'NM1' }, { actor: 'BLUE', action: 'PROTECT', pick: 'HD1' },
+    { actor: 'BLUE', action: 'BAN', pick: 'DT1' }, { actor: 'RED', action: 'BAN', pick: 'HR1' },
+    { actor: 'BLUE', action: 'PICK', pick: 'NM2' }, { actor: 'RED', action: 'PICK', pick: 'FM1' }, { actor: 'BLUE', action: 'PICK', pick: 'HD1' }
+  ], 'rundown en el orden apuntado, A en rojo y B en azul, sin el roll');
+  assert.deepEqual(r.body.pool.map((p) => [p.slot, p.beatmap_id]), [['NM1', 101], ['NM2', 102], ['HD1', 104], ['HR1', 105], ['DT1', 106], ['FM1', 103]], 'pool publicada, ordenada por slot');
+  assert.deepEqual(Object.keys(r.body.pool[0]), ['slot', 'beatmap_id', 'data']);
+  assert.equal(r.body.pool[0].data.title, 'Titulo 101', 'data tal como se guarda');
+  // Cabeceras: CORS abierto, solo GET, sin cookies y caché de unos segundos
+  assert.equal(r.headers.get('access-control-allow-origin'), '*');
+  assert.equal(r.headers.get('access-control-allow-methods'), 'GET, OPTIONS');
+  assert.equal(r.headers.get('access-control-allow-credentials'), null);
+  assert.equal(r.headers.get('set-cookie'), null);
+  assert.equal(r.headers.get('cache-control'), 'public, max-age=5');
+  r = await overlay('?match=u1-3', { method: 'OPTIONS', headers: { Origin: 'https://otra-web.example', 'Access-Control-Request-Method': 'GET' } });
+  assert.equal(r.status, 204);
+  assert.equal(r.headers.get('access-control-allow-origin'), '*');
+  assert.equal(r.headers.get('access-control-allow-methods'), 'GET, OPTIONS');
+  assert.equal(r.headers.get('access-control-allow-credentials'), null);
+  assert.equal((await anon2('/api/state')).headers.get('access-control-allow-origin'), null, 'CORS solo en /api/overlay');
+  // Errores, también con CORS
+  r = await overlay('');
+  assert.equal(r.status, 400);
+  assert.match(r.body.error, /Falta el parámetro match/);
+  assert.equal(r.headers.get('access-control-allow-origin'), '*');
+  r = await overlay('?match=u9-9');
+  assert.equal(r.status, 404);
+  assert.equal(r.body.error, 'No existe ese partido.');
+  assert.equal((await overlay('?match=qual:901')).status, 404, 'los lobbies de clasificatorios no son partidos del cuadro');
+  // Con los resultados publicados: A en rojo y B en azul, como los pone !mp team; quien aún no está decidido, null
+  await adm2('/api/admin/qual-results', { method: 'POST', json: { now: true } });
+  r = await overlay('?match=u1-3');
+  assert.deepEqual(r.body.players, { red: { id: f3.a.id, username: f3.a.username }, blue: { id: f3.b.id, username: f3.b.username } });
+  r = await overlay('?match=u2-2');
+  assert.deepEqual([r.body.round, r.body.bestOf, r.body.scheduledAt, r.body.rundown], ['cuartos', 9, null, []], 'partido sin guardar: sin hora ni rundown');
+  assert.deepEqual(r.body.players, { red: null, blue: null }, 'U1-3 y U1-4 sin terminar');
+  r = await overlay('?match=u2-1');
+  assert.ok(r.body.players.red && r.body.players.blue, 'ganadores de U1-1 (forfeit) y U1-2');
+  await adm2('/api/admin/qual-results', { method: 'POST', json: { hide: true } });
+  // Mappool sin publicar: pool vacío; publicada: con sus mapas
+  await adm2('/api/admin/pool', { method: 'POST', json: { round: 'cuartos', slot: 'HD1', beatmap: '112' } });
+  await adm2('/api/admin/pool', { method: 'POST', json: { round: 'cuartos', slot: 'NM1', beatmap: '111' } });
+  assert.deepEqual((await overlay('?match=u2-1')).body.pool, [], 'antes del showcase de cuartos, sin pool');
+  await adm2('/api/admin/pool/release', { method: 'POST', json: { round: 'cuartos', now: true } });
+  assert.deepEqual((await overlay('?match=u2-1')).body.pool.map((p) => [p.slot, p.beatmap_id, p.data.title]), [['NM1', 111, 'Titulo 111'], ['HD1', 112, 'Titulo 112']]);
+  await adm2('/api/admin/pool/release', { method: 'POST', json: { round: 'cuartos', at: Date.parse('2026-11-22T23:00:00Z') } });
+  assert.deepEqual((await overlay('?match=u2-1')).body.pool, []);
+  console.log('✓ /api/overlay: partido, cruces públicos, pool publicada, rundown, errores y CORS');
+
   // Deshacer (solo en la web, sin mandar nada al lobby) y apuntar a mano saltándose las reglas
   const sentBefore = sentTo(CH).length;
   r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'undo' } });

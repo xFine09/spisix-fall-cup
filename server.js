@@ -53,6 +53,11 @@ function sendJson(res, status, data) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(data));
 }
+// CORS de /api/overlay (y solo de esa ruta): cualquier web puede leerla, solo con GET y sin cookies.
+function overlayCors(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+}
 function redirect(res, location) {
   res.writeHead(302, { Location: location });
   res.end();
@@ -636,12 +641,14 @@ function finished(rec) {
 const matchLabel = (id) => `${id.toUpperCase()} · ${roundName(id)}`;
 
 // Quién juega cada partido según las seeds y los resultados (lo mismo que dibuja la web).
-function currentBracket() {
+// Con publicOnly, lo que ve cualquiera: sin resultados de clasificatorios publicados, no hay seeds ni cruces.
+function currentBracket({ publicOnly = false } = {}) {
   const players = new Map(q.registered.all().map((p) => [p.id, p]));
   const matches = {};
   for (const m of q.matches.all()) matches[m.id] = { ff: m.ff, result: m.result ? JSON.parse(m.result) : null };
   const bids = q.poolRound.all('qualifiers').sort(slotSort).map((r) => String(r.beatmap_id));
-  return resolveBracket({ players, scores: qualScores().scores, bids, matches });
+  const scores = publicOnly && !qualResultsPublic() ? {} : qualScores().scores;
+  return resolveBracket({ players, scores, bids, matches });
 }
 
 // Cada 5 minutos: partidos en juego, lobbies de clasificatorios mientras dura la fase, fotos de perfil (una al día por jugador) y copia diaria de la base de datos.
@@ -722,6 +729,41 @@ const routes = {
   },
 
   'GET /api/state': (req, res) => sendJson(res, 200, buildState(sessionUser(req))),
+
+  // Datos de un partido del cuadro para leerlos desde otras webs (solo lectura, sin sesión, CORS abierto).
+  // Solo lo que ya es público: cruces como en la web pública, mappool si ya está publicada y lo apuntado en el arbitraje.
+  'GET /api/overlay': (req, res, url) => {
+    overlayCors(res);
+    const raw = url.searchParams.get('match');
+    if (!raw || !raw.trim()) throw new HttpError(400, 'Falta el parámetro match (por ejemplo, ?match=u1-1).');
+    const id = raw.trim().toLowerCase();
+    if (!MATCH_IDS.includes(id)) throw new HttpError(404, 'No existe ese partido.');
+    const round = phaseOfMatch(id);
+    const m = currentBracket({ publicOnly: true }).matches[id];
+    const player = (p) => (p ? { id: p.id, username: p.username } : null);
+    const ACTOR = { a: 'RED', b: 'BLUE' };
+    const ACTION = { protect: 'PROTECT', ban: 'BAN', pick: 'PICK' };
+    const st = q.getRefState.get(id);
+    const rundown = (st ? JSON.parse(st.data).actions || [] : [])
+      .filter((x) => ACTION[x.type])
+      .map((x) => ({ actor: ACTOR[x.by] ?? null, action: ACTION[x.type], pick: x.slot }));
+    const body = {
+      matchId: id,
+      scheduledAt: q.getMatch.get(id)?.time ?? null,
+      round,
+      bestOf: bestOf(id),
+      players: { red: player(m.a), blue: player(m.b) },
+      pool: isPublic(round) ? poolOf(round).map((p) => ({ slot: p.slot, beatmap_id: p.beatmap_id, data: p.data })) : [],
+      rundown
+    };
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=5' });
+    res.end(JSON.stringify(body));
+  },
+  'OPTIONS /api/overlay': (req, res) => {
+    overlayCors(res);
+    res.writeHead(204, { 'Access-Control-Max-Age': '86400' });
+    res.end();
+  },
 
   // Para el healthcheck de Docker o un monitor externo.
   // Ficha del jugador: la última foto de su perfil de osu! (no se pide nada a osu! al abrirla). Solo de inscritos.

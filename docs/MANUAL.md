@@ -233,6 +233,37 @@ El cuadro se completa al terminar los clasificatorios (y solo si al menos 16 ins
 
 Las seeds se calculan a partir de los inscritos. Quitar a un jugador después de los clasificatorios sube al 17.º al cuadro, lo cual sirve para sustituir a alguien que se retira antes de octavos; una vez empezados los partidos, usa un forfeit en su lugar o los cruces ya jugados cambiarían.
 
+## Datos de un partido para otras webs (`GET /api/overlay`)
+
+`GET /api/overlay?match=<id>` devuelve en JSON los datos públicos de un partido del cuadro (`u1-1` … `gf`; da igual mayúsculas o minúsculas). Es de solo lectura, no usa la sesión y se puede leer desde cualquier web: lleva `Access-Control-Allow-Origin: *` (solo `GET`, sin cookies) y responde a `OPTIONS`. Las respuestas se pueden guardar en caché 5 segundos (`Cache-Control: public, max-age=5`). Ninguna otra ruta lleva CORS.
+
+```json
+{
+  "matchId": "u1-6",
+  "scheduledAt": 1795195800000,
+  "round": "octavos",
+  "bestOf": 9,
+  "players": {
+    "red":  { "id": 32031654, "username": "suutee" },
+    "blue": { "id": 22443532, "username": "Ouwo Cronii" }
+  },
+  "pool": [ { "slot": "NM1", "beatmap_id": 4956966, "data": { "artist": "…", "title": "…", "version": "…", "sr": 5.21 } } ],
+  "rundown": [
+    { "actor": "RED",  "action": "PROTECT", "pick": "NM1" },
+    { "actor": "BLUE", "action": "BAN",     "pick": "DT2" },
+    { "actor": "RED",  "action": "PICK",    "pick": "HD1" }
+  ]
+}
+```
+
+- `scheduledAt`: hora del partido en milisegundos, o `null` si no tiene.
+- `round` y `bestOf`: la clave de la fase en `config.json` y su `bo`.
+- `players`: `red` es el jugador A del cruce y `blue` el B, igual que los coloca **Arbitrar** con `!mp team`. Mientras un jugador no esté decidido, vale `null`. Igual que en la web, los cruces no aparecen hasta que se publican los resultados de clasificatorios.
+- `pool`: los mapas de la ronda ordenados por slot, con `data` tal como se guarda. Si la mappool de la ronda aún no es pública, `[]`.
+- `rundown`: protects, bans y picks apuntados en **Arbitrar**, en el orden en que se apuntaron (lo deshecho desaparece). `RED` es el jugador A y `BLUE` el B. El pick del tiebreaker lleva `"actor": null`. El roll y el orden no salen. Sin nada apuntado, `[]`.
+
+Si falta `match` responde 400, y si el partido no existe, 404, siempre con `{ "error": "…" }`.
+
 ## Endpoints de la API de osu! que se usan
 
 | Para qué | Endpoint | Token |
@@ -292,7 +323,7 @@ Están en `server/skills.js` y solo usan datos de torneo.
 npm test
 ```
 
-Levanta una API de osu!, un Twitch y un Bancho simulados y comprueba que los scripts de la web no tienen errores de sintaxis, login, rechazo por rango, excepciones, importación del formulario y de mappools, lobbies de clasificatorios, roles, permisos del panel, mappool, resultados (warmups, paginación, EZ ×1,8), clasificatorios, publicación programada de mappools, peticiones malformadas, y la ficha del jugador (la foto automática del perfil, que solo lleva datos públicos, que abrir la ficha no llama a osu! y que si osu! falla se conserva la última foto), y los datos de o!TR con un o!TR simulado (mods agrupados, jugador sin rating y jugador que o!TR no conoce, o!TR caído, la web sin clave y que la clave no aparece en la web ni en el log), y las skills: cada fórmula por separado, unos clasificatorios simulados (P01 arriba en todo, P16 abajo), un partido del cuadro que mueve las skills en la dirección esperada, el historial, que el público no ve nada de los clasificatorios hasta que se publican y el detalle por jugador y mapa del MP. Después arranca un segundo servidor con el reloj adelantado a octavos, 16 inscritos y un clasificatorio, para probar el aviso de directo de Twitch, que las pools se publiquen solas pasado el showcase y los partidos de octavos con forfeit y con resultado desde el MP. Con un Bancho simulado, juega también un partido entero desde la página Arbitrar:
+La prueba fija su propio reloj (`TEST_NOW` en `test/e2e.js`: 14 de noviembre de 2026, con los clasificatorios en marcha), así que da lo mismo el día en que se ejecute. Levanta una API de osu!, un Twitch y un Bancho simulados y comprueba que los scripts de la web no tienen errores de sintaxis, login, rechazo por rango, excepciones, importación del formulario y de mappools, lobbies de clasificatorios, roles, permisos del panel, mappool, resultados (warmups, paginación, EZ ×1,8), clasificatorios, publicación programada de mappools, peticiones malformadas, y la ficha del jugador (la foto automática del perfil, que solo lleva datos públicos, que abrir la ficha no llama a osu! y que si osu! falla se conserva la última foto), y los datos de o!TR con un o!TR simulado (mods agrupados, jugador sin rating y jugador que o!TR no conoce, o!TR caído, la web sin clave y que la clave no aparece en la web ni en el log), y las skills: cada fórmula por separado, unos clasificatorios simulados (P01 arriba en todo, P16 abajo), un partido del cuadro que mueve las skills en la dirección esperada, el historial, que el público no ve nada de los clasificatorios hasta que se publican y el detalle por jugador y mapa del MP. Después arranca un segundo servidor con el reloj adelantado a octavos, 16 inscritos y un clasificatorio, para probar el aviso de directo de Twitch, que las pools se publiquen solas pasado el showcase, los partidos de octavos con forfeit y con resultado desde el MP, y `/api/overlay` (cruces solo con los resultados de clasificatorios publicados, pool solo si la mappool es pública, rundown en orden, errores y CORS). Con un Bancho simulado, juega también un partido entero desde la página Arbitrar:
 
 - contraseña IRC rechazada y aceptada;
 - lobby, equipos y `!roll`;
