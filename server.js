@@ -1424,9 +1424,14 @@ const routes = {
       if (v === '' || v == null || !Number.isInteger(n) || n < min || n > max) throw new HttpError(400, `${what}: un número de ${min} a ${max}.`);
       return n;
     };
+    // Los campos del bot son opcionales: si no llegan, se queda el valor que ya tenía la ronda.
+    const cur = rulesOf(b.round);
+    const opt = (k, min, max, what) => int(b[k] ?? cur[k], min, max, what);
     const rules = {
       bans: int(b.bans, 0, 4, 'Bans por jugador'), protects: int(b.protects, 0, 2, 'Protects por jugador'),
-      banEvery: int(b.banEvery, 1, 10, 'Mapas entre tandas de bans'), pickTimer: int(b.pickTimer, 0, 300, 'Segundos para elegir')
+      banEvery: int(b.banEvery, 1, 10, 'Mapas entre tandas de bans'), pickTimer: int(b.pickTimer, 0, 300, 'Segundos para elegir'),
+      readyTimer: opt('readyTimer', 10, 300, 'Segundos para el ready'), absentLimit: opt('absentLimit', 1, 60, 'Minutos de ausencia'),
+      reinviteEvery: opt('reinviteEvery', 15, 600, 'Segundos entre invitaciones'), maxWarnings: opt('maxWarnings', 1, 10, 'Advertencias antes de avisar al staff')
     };
     q.setRoundRules.run(b.round, JSON.stringify(rules));
     referee.push();

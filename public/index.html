@@ -563,6 +563,25 @@ form.f{display:grid;gap:14px;max-width:560px}
 .rgrp{display:grid;gap:8px}
 .rgrp+.rgrp{padding-top:12px;border-top:1px solid var(--line)}
 .rgrp h4{margin:0;font-size:.78rem;font-weight:700;letter-spacing:.02em;color:var(--muted)}
+/* Bot de arbitraje: modo, fase, temporizadores, pasos y log */
+.rbot{display:grid;gap:12px}
+.rbot-h{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.rbot-h h3{margin:0}
+.rbot-st{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:3px;background:var(--surface-2)}
+.seg button{border:0;background:transparent;color:var(--muted);font:inherit;font-weight:700;font-size:.84rem;padding:7px 16px;border-radius:999px;cursor:pointer;min-height:36px}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.rsteps{display:grid;gap:8px}
+.rstep{display:grid;gap:3px;text-align:left;width:100%;padding:12px 16px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:inherit;font:inherit;cursor:pointer}
+.rstep.main{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.rstep b{font-size:1rem}
+.rstep small{font-family:var(--f-mono);font-size:.76rem;opacity:.85;overflow-wrap:anywhere}
+.rstep:disabled{opacity:.55;cursor:default}
+.rstep:not(:disabled):active{transform:translateY(1px)}
+.rnext{font-size:.88rem;padding:10px 14px;border-radius:10px;background:var(--surface-2)}
+.ralert{display:grid;gap:8px}
+.ralert .row{gap:6px}
+.rlog .bt b{color:var(--good)}
 </style>
 </head>
 <body>
@@ -1335,8 +1354,8 @@ const VIEWS={
       </div></section>`;
   }
 };
-const RULES_DEF={bans:2,protects:1,banEvery:4,pickTimer:90};
-const rulesOf=k=>S.rules?.[k]||RULES_DEF;
+const RULES_DEF={bans:2,protects:1,banEvery:4,pickTimer:90,readyTimer:30,absentLimit:15,reinviteEvery:60,maxWarnings:3};
+const rulesOf=k=>({...RULES_DEF,...S.rules?.[k]});
 function banLines(){
   const rs=T.phases.filter(p=>p.bo).map(p=>({p,r:rulesOf(p.key)})), every=[...new Set(rs.map(x=>x.r.banEvery))];
   return [`- Los bans van por tandas, uno cada jugador en cada tanda: la primera al empezar y otra cada ${every.length===1?every[0]+' mapas jugados':'pocos mapas (según la ronda)'}, hasta completar los bans de la ronda.`,
@@ -1451,10 +1470,10 @@ function textAdmin(){
 function rulesAdmin(){
   const rows=T.phases.filter(p=>p.bo).map(p=>{
     const r=rulesOf(p.key), n=(k,min,max,lab)=>`<input type="number" id="a-ru-${p.key}-${k}" value="${r[k]}" min="${min}" max="${max}" style="width:84px" aria-label="${lab} en ${esc(p.nombre)}">`;
-    return `<tr><td>${esc(p.nombre)} <span class="muted">Bo${p.bo}</span></td><td>${n('bans',0,4,'Bans por jugador')}</td><td>${n('protects',0,2,'Protects por jugador')}</td><td>${n('banEvery',1,10,'Mapas entre tandas de bans')}</td><td>${n('pickTimer',0,300,'Segundos para elegir')}</td><td><button class="btn btn-ghost btn-sm" type="button" data-act="rules-set" data-round="${p.key}">Guardar</button></td></tr>`;
+    return `<tr><td>${esc(p.nombre)} <span class="muted">Bo${p.bo}</span></td><td>${n('bans',0,4,'Bans por jugador')}</td><td>${n('protects',0,2,'Protects por jugador')}</td><td>${n('banEvery',1,10,'Mapas entre tandas de bans')}</td><td>${n('pickTimer',0,300,'Segundos para elegir')}</td><td>${n('readyTimer',10,300,'Segundos para el ready')}</td><td>${n('absentLimit',1,60,'Minutos de ausencia')}</td><td>${n('reinviteEvery',15,600,'Segundos entre invitaciones')}</td><td>${n('maxWarnings',1,10,'Advertencias antes de avisar al staff')}</td><td><button class="btn btn-ghost btn-sm" type="button" data-act="rules-set" data-round="${p.key}">Guardar</button></td></tr>`;
   }).join('');
-  return `<p class="muted" style="font-size:.85rem">La página Arbitrar sigue estas reglas en cada ronda. Los bans van por tandas de uno por jugador en orden ABBA: la primera al empezar y cada siguiente tras jugarse los mapas indicados. Con 0 segundos no se pone temporizador para elegir. ${S.normas?'Las normas de Info están reescritas: si cambias algo aquí, cámbialo también allí.':'La pestaña Info se actualiza sola.'}</p>
-    <div class="tbl-wrap"><table><thead><tr><th>Ronda</th><th>Bans por jugador</th><th>Protects por jugador</th><th>Mapas entre tandas</th><th>Segundos para elegir</th><th><span class="sr-only">Acciones</span></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<p class="muted" style="font-size:.85rem">La página Arbitrar y su bot siguen estas reglas en cada ronda. Los bans van por tandas de uno por jugador en orden ABBA: la primera al empezar y cada siguiente tras jugarse los mapas indicados. Con 0 segundos no se pone temporizador para elegir. El bot da los segundos del ready a cada mapa, reinvita a quien falte cada tantos segundos y, pasados los minutos de ausencia, avisa al staff. Tras las advertencias indicadas por no estar listo, también avisa al staff: nunca sanciona solo. ${S.normas?'Las normas de Info están reescritas: si cambias algo aquí, cámbialo también allí.':'La pestaña Info se actualiza sola.'}</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Ronda</th><th>Bans por jugador</th><th>Protects por jugador</th><th>Mapas entre tandas</th><th>Segundos para elegir</th><th>Segundos para el ready</th><th>Minutos de ausencia</th><th>Segundos entre invitaciones</th><th>Advertencias hasta avisar</th><th><span class="sr-only">Acciones</span></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 /* ---------------- arbitraje ---------------- */
@@ -1703,6 +1722,50 @@ function chatPanel(l){
     <form class="row" data-form="ref-wu"><input type="text" id="r-wu" placeholder="Warmup: enlace o ID de la dificultad" style="flex:1 1 200px" aria-label="Warmup"><button class="btn btn-ghost btn-sm" type="submit">Poner warmup</button></form>
   </div>`;
 }
+// Bot de arbitraje del partido: modo AUTO/SEMI, fase y paso, temporizadores, avisos, pasos y log.
+// En SEMI (o con el bot en pausa o esperando al árbitro) cada paso es un botón con el texto exacto que se mandará.
+const BOT_TIMER={pick:'Pick',ready:'Ready',absent:'Ausencia'};
+const mmss=ms=>{const s=Math.max(0,Math.ceil(ms/1000));return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`};
+const RESOLVE={
+  absent:[['wait','Seguir esperando'],['','Cerrar el aviso']],
+  pick:[['','Seguir esperando el pick'],['retimer','Volver a dar el tiempo']],
+  warnings:[['','Seguir esperando']],
+  tech:[['retry','Reintentar'],['ignore','Seguir sin comprobar']],
+};
+function botCard(f,l,on){
+  const B=f.bot;
+  if(!B) return '';
+  const n=s=>esc(f[s]?.username||'');
+  const auto=B.mode==='auto', idle=B.stage==='idle';
+  const buttons=!auto||B.paused||B.blocked;
+  const tm=Object.entries(B.timers).map(([k,t])=>`<span class="pill tbd">${BOT_TIMER[k]||esc(k)} <b class="num" ${t.left!=null?'':`data-until="${t.until}"`}>${mmss(t.left??t.until-nowMs())}</b></span>`).join('');
+  const warn=B.warnings.a||B.warnings.b?`<span class="pill">Advertencias: ${n('a')} ${B.warnings.a}/${f.rules.maxWarnings} · ${n('b')} ${B.warnings.b}/${f.rules.maxWarnings}</span>`:'';
+  const head=`<div class="rbot-h"><div class="rbot-st"><h3>Bot</h3><span class="pill acc">${esc(B.phase)} · ${esc(B.step)}</span>${B.paused?'<span class="pill live">Bot en pausa</span>':''}${tm}${warn}</div>
+    <div class="seg" role="group" aria-label="Modo del bot"><button type="button" data-act="bot" data-do="mode" data-mode="auto" aria-pressed="${auto}" title="El bot hace cada paso solo">AUTO</button><button type="button" data-act="bot" data-do="mode" data-mode="semi" aria-pressed="${!auto}" title="Cada paso sale como botón">SEMI</button></div></div>`;
+  // Avisos que esperan al árbitro: incidencias abiertas y decisiones que el bot no toma.
+  const open=B.incidents.filter(i=>i.open&&i.block);
+  const alerts=open.map(i=>`<div class="note bad ralert" role="alert"><b>El bot espera tu decisión</b><span>${esc(i.text)}</span><div class="row">${(RESOLVE[i.kind]||[['','Resuelta']]).map(([how,t])=>`<button class="btn btn-ghost btn-sm" type="button" data-act="bot" data-do="resolve" data-id="${i.id}" data-how="${how}">${t}</button>`).join('')}</div></div>`).join('')
+    +(B.waitRef&&!open.length?`<div class="note bad" role="alert"><b>El bot espera al árbitro:</b> ${esc(B.waitRef)}</div>`:'');
+  const status=B.wait||B.text?`<p class="muted" style="margin:0;font-size:.88rem">${esc(B.wait||B.text)}${B.driver&&!idle?` · Lo lleva ${esc(B.driver)}`:''}</p>`:'';
+  const noIrc=!on&&!idle?'<p class="note" style="margin:0">Sin conexión a Bancho el bot no puede mandar nada: conecta y entra en el MP.</p>':'';
+  const stepBtn=(a,main)=>`<button class="rstep${main?' main':''}" type="button" data-act="bot" data-do="run" data-id="${esc(a.id)}"><b>${esc(a.label)}</b>${a.out.length?`<small>${a.out.map(esc).join(' · ')}</small>`:''}</button>`;
+  let steps='';
+  if(B.actions.length){
+    if(buttons||idle) steps=`<div class="rsteps">${B.actions.map((a,i)=>stepBtn(a,i===0)).join('')}</div>`;
+    else{
+      const next=B.actions.find(a=>a.auto), extra=B.actions.filter(a=>!a.auto);
+      steps=`${next?`<div class="rnext">Lo siguiente que hará el bot: <b>${esc(next.label)}</b></div>`:''}${extra.length?`<div class="rsteps">${extra.map(a=>stepBtn(a,false)).join('')}</div>`:''}`;
+    }
+  }
+  const always=idle?'':`<div class="row" style="align-items:center">
+      <button class="btn btn-ghost btn-sm" type="button" data-act="bot" data-do="pause" data-on="${B.paused?0:1}">${B.paused?'Reanudar bot':'Pausar bot'}</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="undo" ${B.canUndo||f.roll||f.order||f.protects.length||f.bans.length||f.picks.length?'':'disabled'} title="Solo en la web: no manda nada al lobby">Deshacer último paso</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-act="bot" data-do="skip" data-at="${esc(B.at)}" ${B.skip?'':'disabled'} title="${esc(B.skip?'Saltar: '+B.skip:'Este paso no se puede saltar')}">Saltar paso</button>
+    </div>
+    <form class="row" data-form="bot-note"><input type="text" id="r-note" maxlength="300" placeholder="Incidencia: qué ha pasado" style="flex:1 1 200px" aria-label="Nota de la incidencia"><button class="btn btn-ghost btn-sm" type="submit">Marcar incidencia</button></form>`;
+  const log=B.log.length?`<details ${UI.botLog===false?'':'open'} data-botlog><summary class="muted" style="font-size:.85rem;cursor:pointer">Log del bot (${B.log.length})</summary><div class="rlog sm" style="max-height:220px">${B.log.slice().reverse().map(x=>`<p class="${x.by==='bot'?'bt':'me'}"><span class="tm">${hora(x.at)}</span> <b>${esc(x.by)}</b> ${esc(x.text)}</p>`).join('')}</div></details>`:'';
+  return `<div class="card adm rbot" aria-label="Bot de arbitraje">${head}${alerts}${noIrc}${status}${steps}${always}${log}</div>`;
+}
 function refMatch(f){
   const l=R.lobbies.find(x=>x.key===f.id&&!x.closed), on=R.irc.status==='connected', pool=R.pools[f.round];
   const n=s=>esc(f[s]?.username||String(s).toUpperCase());
@@ -1712,7 +1775,7 @@ function refMatch(f){
     <div class="mt-meta">${f.mp?`<a class="mp-link" href="${mpUrl(f.mp)}" target="_blank" rel="noopener">MP #${f.mp}</a>`:'<span>Sin MP todavía</span>'}${f.ref?`<span>Árbitro: ${esc(f.ref)}</span>`:''}${f.time?`<span>${dia(f.time)} · ${hora(f.time)}</span>`:''}</div></div>`;
   let lob;
   if(!on) lob=`<p class="muted" style="font-size:.85rem">Sin conexión a Bancho: los botones solo apuntan cada paso.${f.mp?'':` Crea el lobby en osu! con <code>!mp make ${esc(T.C.sigla)}: (${n('a')}) vs (${n('b')})</code> y pega el MP en Admin.`}</p>`;
-  else if(!l) lob=`<div class="row" style="align-items:center">${f.step==='done'?'':`<button class="btn btn-primary btn-sm" type="button" data-act="ref-lobby" title="!mp make · !mp set 2 3 2 · !mp invite">Crear el lobby</button>`}${f.mp?`<button class="btn btn-ghost btn-sm" type="button" data-act="ref-attach" data-key="${f.id}">Volver a entrar al MP #${f.mp}</button>`:''}${f.mp&&f.maps.length&&f.step!=='done'?'<span class="checks"><label><input type="checkbox" id="r-replace">Sustituir el MP anterior</label></span>':''}</div>`;
+  else if(!l) lob=`<div class="row" style="align-items:center">${f.mp?`<button class="btn btn-ghost btn-sm" type="button" data-act="ref-attach" data-key="${f.id}">Volver a entrar al MP #${f.mp}</button>`:''}${f.mp&&f.maps.length&&f.step!=='done'?'<span class="checks"><label><input type="checkbox" id="r-replace">Sustituir el MP anterior</label></span>':''}${f.step!=='done'?`<span class="muted" style="font-size:.85rem">${f.mp?'O crea uno nuevo desde':'El lobby se crea desde'} el bot (abajo): «Iniciar partido» y «Crear el lobby».</span>`:''}</div>`;
   else lob=lobbyInfo(l);
 
   const turn=['protect','ban','pick'].includes(f.step), force=UI.refForce;
@@ -1744,7 +1807,7 @@ function refMatch(f){
   const mapsTitle=turn?`${REF_STEP[f.step]} · turno de <span class="${f.by==='a'?'ta':'tb'}">${n(f.by)}</span>${f.step==='ban'?` (tanda ${Math.floor(f.bans.length/2)+1} de ${f.rules.bans})`:''}`:f.step==='play'?`Toca jugar ${esc(f.current)}`:'Mapas';
   const maps=grid||forceSel?rgrp(mapsTitle,`${forceSel}${grid}`):f.step==='play'?rgrp(mapsTitle,''):'';
   const any=f.roll||f.order||f.protects.length||f.bans.length||f.picks.length;
-  const fix=f.noPool||pool===null?'':rgrp('Corregir',`<div class="row" style="align-items:center"><button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="undo" ${any?'':'disabled'} title="Solo en la web: no manda nada al lobby">Deshacer el último paso</button><button class="btn btn-ghost btn-sm" type="button" data-act="ref-reset" ${any?'':'disabled'} title="Solo en la web: no manda nada al lobby">Empezar de cero</button>${f.step!=='done'?`<span class="checks"><label><input type="checkbox" id="r-force" data-keep="no" ${force?'checked':''}>Apuntar a mano</label></span>`:''}</div>`);
+  const fix=f.noPool||pool===null?'':rgrp('Corregir',`<div class="row" style="align-items:center"><button class="btn btn-ghost btn-sm" type="button" data-act="ref-reset" ${any?'':'disabled'} title="Solo en la web: no manda nada al lobby">Empezar de cero</button>${f.step!=='done'?`<span class="checks"><label><input type="checkbox" id="r-force" data-keep="no" ${force?'checked':''}>Apuntar a mano</label></span>`:''}</div>`);
 
   // Completar después del partido: protects, bans y picks de un partido que no se arbitró con los botones.
   // Solo se apunta en la web; el reparto de cada paso lo hace el servidor con las reglas de la ronda.
@@ -1772,6 +1835,7 @@ function refMatch(f){
   const table=f.maps.length?`<div class="tbl-wrap"><table><thead><tr><th>Mapa</th><th class="n">${n('a')}</th><th class="n">${n('b')}</th><th>Gana</th></tr></thead><tbody>${f.maps.map(x=>`<tr><td><span class="slot ${esc(x.slot.slice(0,2))}">${esc(x.slot)}</span></td><td class="n">${x.a!=null?nf.format(x.a):'Sin score'}</td><td class="n">${x.b!=null?nf.format(x.b):'Sin score'}</td><td class="${x.w==='a'?'ta':'tb'}">${n(x.w)}</td></tr>`).join('')}</tbody></table></div>`:'';
   const btns=`<div class="card adm rbtns"><h3>Botones</h3>${flashHtml()}${l?rgrp('Lobby',lobbyBtns(l,f)):''}${rgrp('Mensajes',msgs)}${step}${maps}${fix}${fill}</div>`;
   return `<div class="card adm">${head}${lob}</div>
+    ${botCard(f,l,on)}
     ${l?`<div class="rcon">${chatPanel(l)}${btns}</div>`:btns}
     ${any||f.maps.length?`<div class="card adm"><h3>Resumen <span class="muted" style="font-size:.8rem;font-weight:500">Subrayado: <span class="ta">${n('a')}</span> · <span class="tb">${n('b')}</span></span></h3>${tl}${table}</div>`:''}`;
 }
@@ -2051,7 +2115,7 @@ app.addEventListener('click',e=>{
   if(a==='ref-slot'){b.disabled=true;return refAct('/api/ref/lobby',{slot:+b.dataset.id,replace:b.dataset.replace==='1'},r=>`Lobby creado (MP #${r.mp}). Se ha invitado a los aprobados.${r.pending?` ${r.pending} sin aprobar: apruébalos en Qualis y pulsa Invitar a los aprobados que falten.`:''}`,r=>{UI.ref=r.key})}
   if(a==='rules-set'){
     const k=b.dataset.round, g=x=>val(`a-ru-${k}-${x}`);
-    return act(()=>post('/api/admin/rules',{round:k,bans:g('bans'),protects:g('protects'),banEvery:g('banEvery'),pickTimer:g('pickTimer')}),'Reglas guardadas.');
+    return act(()=>post('/api/admin/rules',{round:k,...Object.fromEntries(Object.keys(RULES_DEF).map(x=>[x,g(x)]))}),'Reglas guardadas.');
   }
   // Arbitraje
   if(a==='ref-off') return refAct('/api/ref/disconnect',{},'Desconectado de Bancho. La web ya no guarda tu contraseña IRC.');
@@ -2062,6 +2126,16 @@ app.addEventListener('click',e=>{
   if(a==='ref-fill-off'){UI.refFill=false;UI.fillErr=null;return keepRender()}
   if(a==='ref-say') return refAct('/api/ref/chat',{key:UI.ref,text:b.dataset.text});
   if(a==='ref-reset'){if(!confirm('¿Borrar el roll, el orden, los protects, los bans y los picks apuntados? En el lobby no se manda nada y el marcador sale del MP.')) return;return refAct('/api/ref/act',{key:UI.ref,type:'reset'},'Partido empezado de cero en la web.')}
+  // Bot de arbitraje: pasos, modo, pausa, saltar e incidencias (el servidor comprueba que el paso siga siendo el siguiente)
+  if(a==='bot'){
+    const d=b.dataset, body={key:UI.ref,type:'bot',do:d.do};
+    for(const k of ['id','mode','how','at']) if(d[k]!=null) body[k]=d[k];
+    if(d.on!=null) body.on=d.on==='1';
+    if(d.do==='mode'&&d.mode==='auto'&&!confirm('¿Pasar a AUTOMÁTICO? El bot mandará cada paso al lobby él solo desde el paso actual. Puedes volver a SEMI o pausarlo en cualquier momento.')) return;
+    if(d.id==='start'||d.id==='lobby:make') body.replace=Boolean(document.getElementById('r-replace')?.checked);
+    b.disabled=true;
+    return refAct('/api/ref/act',body);
+  }
   if(a==='ref-do'){
     const d=b.dataset, body={key:UI.ref,type:d.type};
     if(d.slot){body.slot=d.slot;if(UI.refForce&&d.type!=='qmap'){body.type=val('r-ftype')||d.type;body.by=val('r-by');body.force=true}}
@@ -2072,6 +2146,9 @@ app.addEventListener('click',e=>{
     return refAct('/api/ref/act',body);
   }
 });
+// Cuentas atrás de los temporizadores del bot (pick, ready, ausencia) sin volver a pintar la página.
+setInterval(()=>{for(const el of document.querySelectorAll('[data-until]')) el.textContent=mmss(+el.dataset.until-nowMs())},1000);
+app.addEventListener('toggle',e=>{if(e.target.matches?.('[data-botlog]')) UI.botLog=e.target.open},true);
 app.addEventListener('focusout',e=>{
   if(refPending&&e.target.tagName==='SELECT') setTimeout(()=>{if(refPending&&document.activeElement?.tagName!=='SELECT'){refPending=false;keepRender()}},0);
 });
@@ -2187,6 +2264,7 @@ app.addEventListener('submit',e=>{
   }
   if(kind==='ref-order') return refAct('/api/ref/act',{key:UI.ref,type:'order',protect:val('r-o-protect'),ban:val('r-o-ban'),pick:val('r-o-pick')});
   const refText=(id,send)=>{const el=document.getElementById(id), t=el.value.trim(); if(!t) return; el.value=''; return send(t).then(ok=>{if(!ok){const x=document.getElementById(id);if(x&&!x.value) x.value=t}})};
+  if(kind==='bot-note') return refText('r-note',t=>refAct('/api/ref/act',{key:UI.ref,type:'bot',do:'note',note:t},'Incidencia anotada en el log del bot.'));
   if(kind==='ref-chat') return refText('r-chat',t=>refAct('/api/ref/chat',{key:UI.ref,text:t}));
   if(kind==='ref-wu') return refText('r-wu',t=>refAct('/api/ref/act',{key:UI.ref,type:'warmup',beatmap:t}));
   if(kind==='ref-inv') return refText('r-inv',t=>refAct('/api/ref/act',{key:UI.ref,type:'invite',names:t}));

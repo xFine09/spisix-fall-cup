@@ -4,7 +4,9 @@
 // → picks alternos desde el First Pick → tiebreaker si los dos se quedan a un mapa de ganar.
 // No se puede banear ni elegir el mismo mod que en el ban o pick anterior propio, ni banear un mapa protegido.
 
-export const DEFAULT_RULES = { bans: 2, protects: 1, banEvery: 4, pickTimer: 90 };
+// pickTimer y readyTimer en segundos (pickTimer 0: sin temporizador), absentLimit en minutos, reinviteEvery en segundos,
+// maxWarnings: advertencias por no estar listo antes de avisar al staff (el bot nunca sanciona).
+export const DEFAULT_RULES = { bans: 2, protects: 1, banEvery: 4, pickTimer: 90, readyTimer: 30, absentLimit: 15, reinviteEvery: 60, maxWarnings: 3 };
 export const other = (side) => (side === 'a' ? 'b' : 'a');
 export const modOf = (slot) => (slot === 'TB' ? 'TB' : slot.slice(0, 2));
 

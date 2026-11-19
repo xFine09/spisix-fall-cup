@@ -17,7 +17,7 @@ Detalle completo para quien instala y mantiene la web. El resumen está en el [R
 - **Roles**: el host (`ADMIN_IDS`) asigna desde el panel quién es admin, árbitro o staff. Se aplica al momento. Staff ve las mappools antes de publicarse, sin entrar en el panel.
 - **Resultados**: el admin pega el enlace del MP y la web cuenta los mapas ganados por cada jugador. De cada jugador y mapa guarda también la puntuación, la precisión, el combo, los 300/100/50/fallos y los mods (en los clasificatorios, los de su mejor score). Ignora los warmups (solo cuenta mapas del pool de la ronda) y aplica EZ ×1,8 y EZHD ×2 (en clasificatorios no hay multiplicadores). Mientras se juega, se actualiza sola cada 5 minutos.
 - **Clasificatorios**: se añaden los MP de los lobbies; se toma el mejor score de cada jugador en cada mapa y se ordena por Z-sum. Solo cuentan los mapas jugados en head to head: un MP por equipos se rechaza, y si solo algunos mapas se jugaron así, el panel lo indica. Los resultados no son públicos hasta la hora que programe la organización; los admins y los árbitros los ven siempre, y son los únicos que ven los enlaces a los MP.
-- **Arbitraje con bot de IRC**: los árbitros conectan su cuenta de osu! a Bancho desde la página **Arbitrar**. La página tiene dos paneles: el chat del lobby, donde el árbitro lee a los jugadores y escribe lo que quiera, y una botonera. Cada botón manda su comando `!mp` o su mensaje en el momento en que se pulsa; la web no hace nada sola en el lobby ni propone nada. Solo enseña el estado (quién hay, si están todos listos, el mapa puesto), lleva el turno de protects, bans y picks según las reglas de cada ronda, pone cada mapa con sus mods (FM y TB en FreeMod) y lee el resultado de cada mapa en la API de osu!. Todo lo apuntado se puede deshacer paso a paso o empezar de cero. Un partido arbitrado sin los botones se puede **completar después del partido**: con el orden y las listas de protects, bans y picks, la web reparte cada paso con las reglas de la ronda. También lleva lobbies de clasificatorios.
+- **Arbitraje con bot de IRC**: los árbitros conectan su cuenta de osu! a Bancho desde la página **Arbitrar**. Cada partido del cuadro tiene un bot por fases (lobby, warmups, rolls, protects, bans, picks, ready, mapa y fin) que funciona en dos modos, que el árbitro cambia en cualquier momento con un interruptor: **SEMI** (por defecto), en el que cada paso que haría el bot sale como un botón con su texto exacto y no se manda nada al lobby hasta pulsarlo, y **AUTO**, en el que el bot hace cada paso él solo. El bot lee el chat (rolls, «sí»/«no», códigos de mapa como `NM2`), rechaza explicando el motivo lo que no vale, lleva el turno de protects, bans y picks según las reglas de cada ronda, pone cada mapa con sus mods (FM y TB en FreeMod), pide el ready con temporizador y lee el resultado de cada mapa en la API de osu!. Nunca sanciona, descalifica ni da un partido por perdido: avisa y espera al árbitro. Ver [Bot de arbitraje: modos y fases](#bot-de-arbitraje-modos-y-fases). Todo lo apuntado se puede deshacer paso a paso o empezar de cero. Un partido arbitrado sin los botones se puede **completar después del partido**: con el orden y las listas de protects, bans y picks, la web reparte cada paso con las reglas de la ronda. También lleva lobbies de clasificatorios.
 - **Cuadro de doble eliminación de 16**: los cruces y los ganadores avanzan solos a partir de las seeds y los resultados.
 - **Ficha del jugador**: en Jugadores, al pulsar a un inscrito (en Inscritos o en la tabla de Clasificatorios) se abre su ficha: avatar, país, rango global y de país, pp, precisión, partidas jugadas y una gráfica de su rango en los últimos 90 días, con «Ver sus partidos» y el enlace a su perfil de osu!. Su dirección es `#jugadores/ficha/<ID de osu!>`. Los datos no se piden a osu! al abrir la ficha: la sincronización automática guarda una vez al día una foto del perfil público de cada inscrito (`GET /users/{id}/osu`, uno a uno por la cola de 1 petición por segundo; `/users/lookup` no trae el historial de rango, el rango de país ni las pp) y la ficha enseña la última y su fecha. Al importar inscritos, la foto de los nuevos se toma en ese momento. Si osu! falla, se queda la foto anterior y ese jugador se vuelve a intentar pasada una hora. **Actualizar rangos**, en el panel, también renueva las fotos.
 - **o!TR en la ficha** (opcional, con `OTR_API_KEY`): una sección «o!TR · otros torneos» con el rating de torneo (TR), el tier, el percentil y el rango global en o!TR, los torneos jugados, el % de partidos ganados. Se ve también antes de que se publiquen los resultados de clasificatorios, porque no sale de este torneo. Quien no tiene torneos verificados sale como «Sin rating de o!TR». Una vez al día, después de las fotos de osu!, la web pide `GET /api/players/{id}/stats` de cada inscrito (y al importar, de los nuevos), por su propia cola de una petición cada 1,5 segundos, y guarda la última foto buena. Si o!TR falla, se queda la anterior; también si responde 404 para alguien que ya tenía datos, porque es más probable un cambio en su API que una baja. **Actualizar rangos** también la renueva.
@@ -78,9 +78,13 @@ No hace falta configurar nada en el servidor. El host (`ADMIN_IDS`) y los admins
 - bans por jugador (por defecto 2);
 - protects por jugador (por defecto 1);
 - mapas entre tandas de bans (por defecto 4);
-- segundos para elegir (por defecto 90).
+- segundos para elegir (por defecto 90; con 0, sin temporizador);
+- segundos para el ready (por defecto 30, de 10 a 300);
+- minutos de ausencia antes de avisar al staff (por defecto 15, de 1 a 60);
+- segundos entre invitaciones a quien no ha llegado (por defecto 60, de 15 a 600);
+- advertencias por no estar listo antes de avisar al staff (por defecto 3, de 1 a 10).
 
-La pestaña Info muestra esas reglas.
+La pestaña Info muestra los bans, los protects y los mapas entre tandas. Las horas por defecto de los lobbies no dependen de estas reglas.
 
 Cada árbitro usa su propia cuenta de osu! y su **contraseña IRC**, que no es la de la cuenta: la encuentra en https://osu.ppy.sh/home/account/edit#legacy-api → IRC. La pega en la página **Arbitrar** y la web se conecta a `irc.ppy.sh:6667` con su nombre de osu!. La contraseña:
 
@@ -92,13 +96,15 @@ Bancho solo ofrece IRC sin cifrar. Es lo mismo que hace cualquier cliente IRC de
 
 El servidor necesita poder salir al puerto 6667 (las conexiones de casa lo permiten casi siempre).
 
-Bancho deja a una cuenta normal 10 mensajes cada 5 segundos ([wiki de osu!](https://osu.ppy.sh/wiki/en/Bot_account)). El bot manda como mucho 8 cada 5 segundos y 18 cada 25 (el valor por defecto de bancho.js), para dejar margen a lo que el árbitro escriba desde el juego; lo que no cabe lo pone en cola. Cuenta por cuenta de osu!, así que reconectar no reinicia el límite. Después de cada mapa lee el MP en la API de osu!, como mucho una vez por minuto por MP, que es lo que piden sus términos de uso. El marcador se actualiza en la página; se anuncia en el lobby cuando el árbitro pulsa **Marcador**.
+Bancho deja a una cuenta normal 10 mensajes cada 5 segundos ([wiki de osu!](https://osu.ppy.sh/wiki/en/Bot_account)). El bot manda como mucho 8 cada 5 segundos y 18 cada 25 (el valor por defecto de bancho.js), para dejar margen a lo que el árbitro escriba desde el juego; lo que no cabe lo pone en cola. Cuenta por cuenta de osu!, así que reconectar no reinicia el límite. Después de cada mapa lee el MP en la API de osu!, como mucho una vez por minuto por MP, que es lo que piden sus términos de uso. El marcador se actualiza en la página; lo anuncia el bot tras cada mapa (en SEMI, al pulsar su botón) o el árbitro con **Marcador**. En AUTO, el bot hace como mucho un paso cada 1,25 s y todo pasa por la misma cola, así que nunca manda ráfagas.
 
 Qué manda cada botón de **Arbitrar** (el comando exacto sale al pasar el ratón por encima):
 
 | Botón | Lo que se manda al lobby |
 |---|---|
-| Crear el lobby | `!mp make`, `!mp set 2 3 2` (TeamVS, ScoreV2) e invitaciones (en clasificatorios, `!mp set 0 3 <plazas>`) |
+| Bot: cada paso (en SEMI) | lo que pone el propio botón: `!mp make`, `!mp set 2 3 2`, `!mp password`, `!mp invite`, `!mp team`, `!mp kick`, `!mp host`, `!mp clearhost`, `!mp map`, `!mp mods`, `!mp timer`, `!mp start 5`, `!mp settings` o el mensaje del paso |
+| Bot: Pausar, Deshacer, Saltar, Marcar incidencia, AUTO/SEMI | nada (al pasar a SEMI se quita de la cola lo que el bot aún no había mandado) |
+| Crear lobby (clasificatorios) | `!mp make`, `!mp set 0 3 <plazas>` e invitaciones |
 | Poner equipos | `!mp team #A red` y `!mp team #B blue` |
 | Gana A / Gana B | quién gana el roll y elige el orden |
 | Guardar el orden | quién protege, banea y elige primero |
@@ -107,7 +113,7 @@ Qué manda cada botón de **Arbitrar** (el comando exacto sale al pasar el rató
 | Empezar, Abortar, Temporizador, Parar temporizador | `!mp start 5`, `!mp abort`, `!mp timer <s>`, `!mp aborttimer` |
 | HeadToHead y ScoreV2 (clasificatorios) | `!mp set 0 3` (si `!mp settings` muestra otro modo, la página lo avisa) |
 | Mensajes: Bienvenida, Repetir el roll, Roll sin número, Turno, Marcador, GG (en clasificatorios: Bienvenida y Fin de la mappool) | ese mensaje, tal cual |
-| Deshacer el último paso / Empezar de cero | nada: solo cambia lo apuntado en la web |
+| Deshacer último paso / Empezar de cero | nada: solo cambia lo apuntado en la web |
 
 El chat del lobby también admite cualquier mensaje o comando escrito a mano.
 
@@ -194,8 +200,9 @@ docker compose start web
 | Clasificatorios | **Lobbies de clasificatorios**: pegar el enlace de cada MP. Se releen solos durante la fase. |
 | Al acabar los clasificatorios | **Resultados de clasificatorios**: fecha y hora a la que se hacen públicos las scores, las seeds y el cuadro. Hasta entonces, y sin fecha programada, solo los ven los admins y los árbitros. **Publicar ya** los hace públicos en el momento y **Ocultar** los vuelve a esconder. Los enlaces a los MP de los lobbies solo los ven admins y árbitros, también después. |
 | Al programar un partido | **Partido**: fecha (hora de Madrid) y árbitro. |
-| Al empezar el partido | **Arbitrar** → elegir el partido → **Crear el lobby**, y cada paso con sus botones: el MP, los bans y los protects quedan guardados. Si se arbitra a mano en osu!, pegar el enlace del MP en **Partido** y escribir los bans (`NM2, HD1`), porque la API no los registra. |
-| Antes de cada ronda | **Reglas de arbitraje por ronda**: bans, protects, mapas entre tandas y segundos para elegir. |
+| Al empezar el partido | **Arbitrar** → elegir el partido → en la tarjeta **Bot**, elegir **SEMI** o **AUTO** y pulsar **Iniciar partido** (en AUTO también empieza solo a la hora del partido si quien lo lleva está conectado a Bancho). El MP, los protects, los bans y los picks quedan guardados. Ver [Bot de arbitraje: modos y fases](#bot-de-arbitraje-modos-y-fases). Si se arbitra a mano en osu!, pegar el enlace del MP en **Partido** y escribir los bans (`NM2, HD1`), porque la API no los registra. |
+| Antes de cada ronda | **Reglas de arbitraje por ronda**: bans, protects, mapas entre tandas, segundos para elegir y para el ready, minutos de ausencia, segundos entre invitaciones y advertencias antes de avisar al staff. |
+| El bot espera una decisión (aviso rojo en Arbitrar) | Leer el aviso y decidir con sus botones. Ver [Qué hacer ante incidencias](#qué-hacer-ante-incidencias). El bot no sanciona ni da partidos por perdidos: un forfeit se pone en **Partido**. |
 | Hay un admin, árbitro o staff nuevo (solo el host) | **Roles**: su nombre o enlace de osu! y el rol. Se aplica al momento. |
 | Antes de los clasificatorios | **Lobbies de clasificatorios**: **Crear la rejilla** con días, horas y plazas, y **Un lobby suelto** para horas especiales. Los jugadores se apuntan en Qualis; aquí se puede añadir o quitar a cualquiera y elegir el árbitro de cada lobby. Si sobran, **Quitar los vacíos de este día**. |
 | Si alguien no se presenta | **Forfeit** → gana A o B. |
@@ -209,21 +216,49 @@ La importación busca los nombres exactos de 50 en 50 (`GET /users/lookup`) y lo
 ### Página Arbitrar
 
 1. **Conectar con Bancho** con la contraseña IRC.
-2. Elegir el partido en la lista y pulsar **Crear el lobby**. El nombre es `SPI6: (A) vs (B)`, con TeamVS y ScoreV2; invita a los dos jugadores y pone a A en rojo y a B en azul.
-3. **Roll**: la web lee el `!roll` de los dos. Solo vale sin número y, si empatan, pide repetirlo. También se puede apuntar a mano.
-4. **Orden**: quien gana el roll dice quién protege, banea y elige primero, y el árbitro lo elige en tres desplegables.
-5. **Protects, bans y picks**: la web dice en el chat a quién le toca y pone el temporizador. El jugador escribe el mapa en el chat (`NM2`) o el árbitro lo pulsa en la web. La web aplica estas reglas:
-   - no se puede banear un mapa protegido;
-   - nadie puede banear ni elegir el mismo mod que en su ban o pick anterior;
-   - los bans van por tandas ABBA, con la segunda tanda tras los mapas indicados en las reglas de la ronda;
-   - los picks se alternan desde el First Pick;
-   - el TB (FreeMod) se pone al empatar a un mapa de ganar.
-6. Cada pick pone el mapa con `!mp map` y los mods con `!mp mods` (NM con NF; HD, HR y DT con NF y el mod; FM y TB en FreeMod). El mapa empieza solo cuando los dos están listos. Al terminar, la web lee el MP y anuncia el marcador y el siguiente turno.
-7. Durante el partido:
-   - **Deshacer** quita el último paso apuntado;
-   - **Apuntar a mano** se salta el turno y las reglas para corregir algo;
-   - el chat de la página manda cualquier mensaje o comando al lobby;
-   - **Poner warmup** pone un mapa fuera del pool, que no cuenta.
+2. Elegir el partido en la lista. Arriba sale el marcador y el lobby; debajo, la tarjeta **Bot**, y después el chat del lobby y la botonera de siempre.
+3. En la tarjeta **Bot**, elegir el modo y pulsar **Iniciar partido**. El bot sigue las fases de abajo.
+4. Los botones de siempre siguen funcionando en los dos modos: Gana A / Gana B, el orden, los mapas del pool, **Apuntar a mano** (se salta el turno y las reglas para corregir algo), **Empezar de cero**, el chat (cualquier mensaje o comando) y **Poner warmup** (un mapa fuera del pool, que no cuenta). Lo que se apunte a mano lo recoge el bot y sigue desde ahí.
+
+#### Bot de arbitraje: modos y fases
+
+Cada partido tiene su modo, guardado en `ref_state`. El interruptor **AUTO / SEMI** de la tarjeta lo cambia en cualquier momento, también a mitad de una fase, sin reiniciar nada:
+
+- **SEMI** (por defecto): cada paso que el bot haría solo sale como un botón grande con el texto exacto que se mandará, y no se manda nada al lobby hasta pulsarlo. Solo aparece el botón del paso siguiente válido. Lo que escriben los jugadores (rolls, «sí»/«no», `NM2`) solo prepara ese botón («Apuntar: B gana el roll (80 – 30)», «Rechazar NM9 de A: no está en la mappool»).
+- **AUTO**: el bot hace cada paso él solo, de uno en uno. La tarjeta dice qué va a hacer después.
+- De SEMI a AUTO, el bot sigue desde la fase y el paso actuales. De AUTO a SEMI, se quita de la cola lo que el bot aún no había mandado (los temporizadores siguen) y cada paso vuelve a ser un botón.
+
+En los dos modos están siempre **Pausar / Reanudar bot** (en pausa no hace nada solo y los temporizadores se paran), **Deshacer último paso** (solo cambia lo apuntado en la web, no manda nada; en AUTO deja el bot en pausa para revisar), **Saltar paso** (solo pasos de mandar algo o de esperar; un protect, ban o pick no se salta: se apunta a mano) y **Marcar incidencia** con una nota. Solo los árbitros y los admins pueden usarlos, y nadie en un partido que juega.
+
+La cabecera de la tarjeta enseña la fase y el paso (por ejemplo `PICK · F3`), si el bot está en pausa, las cuentas atrás en curso (pick, ready, ausencia) y las advertencias. Debajo está el **log del bot**, con la hora de cada paso y quién lo hizo (`bot` o el árbitro). El estado se guarda en la base de datos después de cada paso: pulsar dos veces el mismo botón no repite nada (la segunda vez dice que ese paso ya no es el siguiente).
+
+El bot actúa desde la cuenta del árbitro que lo lleva (quien lo inició o pulsó el último paso desde el lobby). Si otro árbitro entra en el mismo MP, solo mira; no se manda nada dos veces.
+
+Fases:
+
+1. **LOBBY.** A0: **Iniciar partido** o, en AUTO, solo a la hora del partido si quien lo lleva está conectado a Bancho. A1: comprueba jugadores, BO, mappool y reglas. A2: crea el lobby `SPI6: (A) vs (B)`; si BanchoBot no responde, lo intenta otra vez y, si tampoco, abre una incidencia. A4: TeamVS, ScoreV2 y 2 plazas. A5: contraseña al azar (solo la ven los árbitros). A6: invita a A y B. Mientras falte alguno, lo reinvita cada «segundos entre invitaciones»; pasados los «minutos de ausencia» (contados desde la hora del partido, o desde la invitación si es más tarde), abre una incidencia y avisa al staff. A12: pone a A en rojo y a B en azul. Si hay alguien más en el lobby, la expulsión (`!mp kick`) la confirma el árbitro, también en AUTO: los jugadores se reconocen por su nombre y uno que lo haya cambiado parecería un intruso.
+2. **WARMUP.** Pregunta a A si quiere warmup. Si dice «sí», le da el host y espera a que termine su mapa (en SEMI, con el botón **Warmup terminado**). Lo mismo con B. Luego `!mp clearhost` y vuelve a poner la configuración oficial (`!mp set 2 3 2` y equipos). Los warmups no se leen del MP.
+3. **ROLL.** Pide los rolls y lee el de cada uno. Solo vale `!roll` sin número (si el bot ve `!roll 1000`, o el roll pasa de 100, pide repetirlo); vale el primero de cada jugador, y si empatan pide repetir los dos. Apunta quién gana (con los dos números) y le pregunta el orden. El orden lo apunta el árbitro en **Orden** (quién protege, banea y elige primero), como dicen las normas.
+4. **PROTECT, BAN y PICK.** El turno, las tandas ABBA, las reglas de mods y el Tiebreaker los decide `refFlow`, igual que con los botones de siempre. El bot anuncia el turno (en los picks, con `!mp timer` si la ronda tiene segundos para elegir), lee el código que escribe quien tiene el turno (`NM2`, `hd 1`) e ignora al otro. Si no vale (no existe, protegido, ya baneado o elegido, mismo mod que su anterior, el TB), lo rechaza diciendo por qué y espera otro, sin reiniciar el tiempo. Si vale, lo apunta y lo anuncia; los protects, los bans y los picks salen en `/api/overlay` al momento.
+5. **READY.** Carga el mapa con sus mods y comprueba que BanchoBot confirma el mapa, los mods y los equipos. Si no, lo intenta otra vez y, si sigue mal, abre una incidencia. Pide el ready con su temporizador. Con los dos listos, empieza el mapa (`!mp start 5`). Si se acaba el tiempo, mira con `!mp settings` quién no está listo y le da una advertencia. Al llegar a las advertencias de la regla, solo avisa al staff y sigue esperando: nunca sanciona.
+6. **PLAY.** Al terminar el mapa lee el resultado en la API de osu!, anuncia el marcador y vuelve a BAN (segunda tanda) o PICK. Al llegar alguien a la victoria, anuncia el ganador (FIN). El lobby no se cierra solo.
+
+Tras reiniciar el servidor, la contraseña IRC ya no está. El bot espera, con la fase guardada, a que quien lo lleva vuelva a conectar y pulse **Volver a entrar al MP**. Entonces lee `!mp settings` y sigue desde el mismo paso, sin repetir lo que ya había mandado. Si un temporizador venció mientras tanto, cuenta como vencido: solo avisa.
+
+#### Qué hacer ante incidencias
+
+Cuando el bot espera una decisión sale un aviso rojo en la tarjeta, con sus botones. Mientras está abierto, el bot no hace nada solo (salvo avisar al jugador de que se le acabó el tiempo de pick).
+
+| Aviso | Qué hacer |
+|---|---|
+| Un jugador no ha llegado en los minutos de la regla | Avisar al staff. **Seguir esperando** da otro plazo y vuelve a reinvitar. Si la organización decide forfeit, se pone en Admin → **Partido**. |
+| Se ha acabado el tiempo de pick | Decidir. **Seguir esperando el pick** (sin tiempo) o **Volver a dar el tiempo** (se anuncia otra vez el turno). También se puede elegir el mapa a mano. El bot no elige por nadie ni da la victoria. |
+| Advertencias por no estar listo | Avisar al staff por si hay sanción. **Seguir esperando**: el mapa empieza cuando los dos estén listos (o con **Iniciar el mapa sin esperar al ready**). |
+| Error técnico (mapa, mods o equipos sin confirmar, o el mapa no empieza) | Mirar el lobby. **Reintentar** o **Seguir sin comprobar**. Se puede arbitrar a mano en cualquier momento. |
+| No se ha podido crear el lobby | Revisar el mensaje (por ejemplo, el límite de 4 lobbies por cuenta) y volver a pulsar **Crear el lobby**. |
+| La API de osu! no tiene el resultado | **Releer el MP** en un rato y resolver el aviso. |
+
+Si el bot falla del todo, se pausa (o se pasa a SEMI) y se arbitra con los botones de siempre o a mano en osu!.
 
 #### Completar un partido después de jugarlo
 
@@ -312,7 +347,15 @@ Se hace como mucho una petición por segundo, como pide la documentación de osu
 
 ## Comandos de Bancho (IRC) que usa el bot de arbitraje
 
-`!mp make`, `!mp set 2 3 2` (TeamVS, ScoreV2, 2 plazas) o `!mp set 0 3 16` (clasificatorios), `!mp invite #<id>`, `!mp team #<id> red|blue`, `!mp map <id> 0`, `!mp mods`, `!mp timer`, `!mp aborttimer`, `!mp start 5`, `!mp abort`, `!mp settings` y `!mp close`. Lee los mensajes de BanchoBot del canal `#mp_<id>`: jugadores que entran o salen, cambios de equipo, `!roll`, cambios de mapa, «All players are ready», scores al terminar y «The match has finished!».
+`!mp make`, `!mp set 2 3 2` (TeamVS, ScoreV2, 2 plazas) o `!mp set 0 3 16` (clasificatorios), `!mp password <al azar>`, `!mp invite #<id>`, `!mp team #<id> red|blue`, `!mp kick <nombre>`, `!mp host #<id>`, `!mp clearhost`, `!mp map <id> 0`, `!mp mods`, `!mp timer`, `!mp aborttimer`, `!mp start 5`, `!mp abort`, `!mp settings` y `!mp close`. Lee los mensajes de BanchoBot del canal `#mp_<id>`: jugadores que entran o salen, cambios de equipo, `!roll`, cambios de mapa, «All players are ready», scores al terminar y «The match has finished!». Del chat de los jugadores lee `!roll`, «sí»/«no» y los códigos de mapa.
+
+**Comprobar en el lobby de prueba con Bancho real** (el bot solo se ha probado con un Bancho simulado). Estas líneas se han escrito según la documentación y bancho.js, y si Bancho las escribe distinto el bot se queda esperando o abre una incidencia, nunca hace nada de más:
+
+- «`<nombre>` rolls `<n>` point(s)» y que el `!roll` del jugador llegue al canal (si no llega, el roll se da por bueno);
+- la respuesta a `!mp mods`: «Enabled Hidden, NoFail, disabled FreeMod» o «Enabled FreeMod»; y la línea «Active mods: …» de `!mp settings`;
+- «Slot 1  Ready / Not Ready https://osu.ppy.sh/u/<id> <nombre> [Team Red]» en `!mp settings` (para saber quién no está listo);
+- que `!mp host #<id>`, `!mp clearhost`, `!mp password` y `!mp kick` funcionan con estos argumentos, y que un jugador invitado entra con la contraseña puesta;
+- «The match has finished!» al terminar el warmup que empieza el propio jugador con el host.
 
 A los jugadores del cuadro se les invita y se les cambia de equipo por su ID (`#<id>`), que funciona aunque el nombre tenga espacios o haya cambiado. El anti-spam de Bancho puede descartar un comando igual al anterior, así que, como hace [bancho.js](https://bancho.js.org), los comandos `map`, `mods`, `set`, `timer`, `start`, `abort`, `aborttimer`, `settings` y `close` llevan al final una palabra al azar que Bancho no lee (por ejemplo `!mp start 5 k3x9qa`). Se ve así en el chat del lobby, pero no en el registro de la página.
 
@@ -365,6 +408,16 @@ La prueba fija su propio reloj (`TEST_NOW` en `test/e2e.js`: 14 de noviembre de 
 - un lobby de clasificatorios;
 - que la contraseña IRC no acabe ni en la base de datos ni en el log.
 
+Y el bot por fases (con los temporizadores 20 veces más rápidos, `REF_TIME_SCALE=0.05`):
+
+- un partido completo en AUTO que empieza solo a su hora: lobby con un intruso expulsado, warmup de un jugador, un roll con número rechazado y un empate, protects, bans y picks con códigos no válidos rechazados con su motivo, cinco mapas con la segunda tanda de bans y el fin, y el rundown de `/api/overlay`;
+- el mismo partido en SEMI avanzando solo con botones, comprobando antes de cada paso que no ha salido nada sin pulsar, con el cambio a AUTO y vuelta a SEMI a mitad sin perder ni repetir pasos;
+- un jugador ausente: reinvitaciones y aviso al staff al acabar el tiempo, sin forfeit;
+- un pick que agota el tiempo y espera al árbitro, sin autopick; tres advertencias de ready que solo avisan al staff;
+- saltar, deshacer, pausar, incidencias con nota, y que pulsar dos veces no repite nada;
+- un reinicio del servidor a mitad de partido que retoma desde `ref_state` sin repetir nada;
+- que un jugador no puede usar el bot, ni nadie en su propio partido.
+
 No necesita conexión ni credenciales.
 
 ## Estructura
@@ -381,7 +434,8 @@ server/skills.js     skills del torneo: pesos de cada mapa, base con clasificato
 server/bracket.js    seeds y cruces en el servidor, para el arbitraje (misma lógica que compute() de la web)
 server/irc.js        cliente IRC de Bancho (con cola para el límite de mensajes)
 server/refflow.js    turnos del partido: roll, orden, protects, bans ABBA, picks y TB
-server/referee.js    bot de arbitraje: conexiones de los árbitros, mensajes de BanchoBot y comandos !mp
+server/refbot.js     bot por fases (sin E/S): el paso siguiente de cada partido, temporizadores e incidencias
+server/referee.js    bot de arbitraje: conexiones de los árbitros, mensajes de BanchoBot, modos AUTO/SEMI y comandos !mp
 server/db.js         SQLite y copias de seguridad
 server/config.js     lectura de config.json y fechas en hora de Madrid
 public/index.html    la web (sin servidor muestra datos de ejemplo)

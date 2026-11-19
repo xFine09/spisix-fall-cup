@@ -114,7 +114,8 @@ export class Bancho extends EventEmitter {
 
   // Mensaje a un canal (#mp_…) o a un usuario (BanchoBot). Se envía en orden respetando el límite.
   // repeat: true para lo que escribe el árbitro a mano (se manda aunque sea igual que el anterior).
-  say(target, text, { repeat = false } = {}) {
+  // tag: marca lo que manda el bot en modo AUTO, para quitarlo de la cola con drop() si se pasa a SEMI.
+  say(target, text, { repeat = false, tag = null } = {}) {
     const clean = String(text).replace(/[\r\n]+/g, ' ').trim().slice(0, 400);
     if (!clean) return;
     if (!repeat && !clean.startsWith('!')) {
@@ -124,8 +125,15 @@ export class Bancho extends EventEmitter {
       this.recent.set(key, now);
       if (this.recent.size > 200) for (const [k, t] of this.recent) if (now - t >= REPEAT_MS) this.recent.delete(k);
     }
-    this.queue.push({ target, text: clean, wire: antiSpam(clean) });
+    this.queue.push({ target, text: clean, wire: antiSpam(clean), tag });
     this.pump();
+  }
+
+  // Quita de la cola lo que aún no ha salido con esa marca. Devuelve cuántos mensajes se han quitado.
+  drop(tag) {
+    const before = this.queue.length;
+    this.queue = this.queue.filter((m) => m.tag !== tag);
+    return before - this.queue.length;
   }
 
   pump() {

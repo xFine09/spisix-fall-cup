@@ -125,6 +125,10 @@ const match561 = () => {
   return { match: { id: 561, name: 'SPI6: (A) vs (B)' }, events: games.map((g, i) => ({ id: i + 1, detail: { type: 'other' }, game: g })), first_event_id: 1, latest_event_id: games.length };
 };
 
+// MP 600 en adelante: partidos que lleva el bot por fases (los mapas se añaden al «jugarse» en el Bancho simulado).
+const gamesN = {};
+const matchN = (mp) => ({ match: { id: mp, name: 'SPI6: bot por fases' }, events: (gamesN[mp] || []).map((g, i) => ({ id: i + 1, detail: { type: 'other' }, game: g })), first_event_id: 1, latest_event_id: (gamesN[mp] || []).length });
+
 function page(data, url) {
   const before = +url.searchParams.get('before') || Infinity;
   const limit = Math.min(+url.searchParams.get('limit') || 100, 100);
@@ -216,6 +220,7 @@ const mock = http.createServer(async (req, res) => {
   if (url.pathname === '/api/v2/matches/559') return send(200, page(qual559(), url));
   if (url.pathname === '/api/v2/matches/560') return send(200, page(qual560(), url));
   if (url.pathname === '/api/v2/matches/777') return send(403, { error: null }); // lobby creado con !mp makeprivate
+  if ((m = url.pathname.match(/^\/api\/v2\/matches\/(6\d\d)$/))) return send(200, page(matchN(+m[1]), url));
   send(404, {});
 });
 
@@ -269,6 +274,11 @@ const bancho = net.createServer((sock) => {
         }
         if ((k = text.match(/^!mp map (\d+) 0$/))) bb(c, to, `Changed beatmap to https://osu.ppy.sh/b/${k[1]} Artista ${k[1]} - Titulo ${k[1]}`);
         if (text === '!mp settings') for (const l of irc.settings[to] || []) bb(c, to, l);
+        if ((k = text.match(/^!mp mods (.+)$/))) {
+          const NAMES = { NF: 'NoFail', HD: 'Hidden', HR: 'HardRock', DT: 'DoubleTime', EZ: 'Easy' };
+          bb(c, to, /^freemod$/i.test(k[1]) ? 'Enabled FreeMod' : `Enabled ${k[1].split(' ').map((x) => NAMES[x] || x).join(', ')}, disabled FreeMod`);
+        }
+        if ((k = text.match(/^!mp kick (.+)$/))) { bb(c, to, `Kicked ${k[1]} from the match.`); bb(c, to, `${k[1]} left the game.`); }
         if (text === '!mp close') { bb(c, to, 'Closed the match'); irc.mps.delete(to); }
       }
     }
@@ -351,7 +361,8 @@ function startServer(name, fakeNow) {
       DB_PATH: join(dir, name + '.db'),
       ...(name === 'test' ? { OTR_API_KEY: 'otr-clave', OTR_BASE: MOCK, OTR_GAP_MS: '0' } : {}), // el segundo servidor, sin clave de o!TR
       TWITCH_BASE: MOCK, TWITCH_CLIENT_ID: 'tw-id', TWITCH_CLIENT_SECRET: 'tw-secreto',
-      BANCHO_HOST: '127.0.0.1', BANCHO_PORT: String(bancho.address().port), BANCHO_RATE_MS: '300', OSU_MATCH_GAP_MS: '300'
+      BANCHO_HOST: '127.0.0.1', BANCHO_PORT: String(bancho.address().port), BANCHO_RATE_MS: '300', OSU_MATCH_GAP_MS: '300',
+      ...(name === 'octavos' ? { REF_TIME_SCALE: '0.05' } : {})
     },
     stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -1458,7 +1469,16 @@ try {
   assert.equal(r.status, 400);
   r = await adm2('/api/admin/rules', { method: 'POST', json: { round: 'octavos', bans: '1', protects: '1', banEvery: '2', pickTimer: '30' } });
   assert.match(r.body.warning, /quedan 4 mapas para elegir y un Bo9 puede necesitar 8 picks/);
-  assert.deepEqual((await anon2('/api/state')).body.rules.octavos, { bans: 1, protects: 1, banEvery: 2, pickTimer: 30 });
+  assert.deepEqual((await anon2('/api/state')).body.rules.octavos, { bans: 1, protects: 1, banEvery: 2, pickTimer: 30, readyTimer: 30, absentLimit: 15, reinviteEvery: 60, maxWarnings: 3 }, 'los campos del bot, por defecto');
+  // Campos del bot: opcionales, con su rango
+  for (const [k, v] of [['readyTimer', 5], ['absentLimit', 0], ['reinviteEvery', 700], ['maxWarnings', 0], ['readyTimer', 'x']]) {
+    r = await adm2('/api/admin/rules', { method: 'POST', json: { round: 'octavos', bans: 1, protects: 1, banEvery: 2, pickTimer: 30, [k]: v } });
+    assert.equal(r.status, 400, `${k} = ${v}`);
+  }
+  r = await adm2('/api/admin/rules', { method: 'POST', json: { round: 'octavos', bans: 1, protects: 1, banEvery: 2, pickTimer: 30, readyTimer: 45, absentLimit: 10, reinviteEvery: 30, maxWarnings: 2 } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  r = await adm2('/api/admin/rules', { method: 'POST', json: { round: 'octavos', bans: 1, protects: 1, banEvery: 2, pickTimer: 30 } });
+  assert.deepEqual(r.body.rules, { bans: 1, protects: 1, banEvery: 2, pickTimer: 30, readyTimer: 45, absentLimit: 10, reinviteEvery: 30, maxWarnings: 2 }, 'sin los campos del bot se quedan los que había');
   assert.equal((await adm2('/api/admin/rules', { method: 'POST', json: { round: 'qualifiers', bans: 1, protects: 1, banEvery: 2, pickTimer: 0 } })).status, 400);
 
   const live = await refStream(s2.base, refc);
@@ -1485,17 +1505,32 @@ try {
   await until(() => live.last.irc.status === 'connected', 'conectado en la página');
   await until(() => irc.lines.includes('PONG :cho.ppy.sh'), 'responde al PING de Bancho');
 
-  // Crear el lobby: nombre del torneo, TeamVS + ScoreV2, invitaciones
+  // Crear el lobby: «Iniciar partido» y «Crear el lobby» del bot, en SEMI (el modo por defecto)
+  assert.deepEqual([f3.bot.mode, f3.bot.stage, f3.bot.actions.map((x) => x.id)], ['semi', 'idle', ['start']], 'bot sin empezar, en SEMI');
   r = await refc('/api/ref/lobby', { method: 'POST', json: { match: 'u1-3' } });
   assert.deepEqual(r.body, { ok: true, mp: '558', key: 'u1-3' }, JSON.stringify(r.body));
   assert.ok(irc.sent.some((m) => m.to === 'BanchoBot' && m.text === `!mp make SPI6: (${A}) vs (${B})`));
+  await until(() => live.last.flows['u1-3'].bot?.step === 'A4', 'el bot pasa a configurar el lobby');
+  await new Promise((done) => setTimeout(done, 400));
+  assert.deepEqual(sentTo(CH), [], 'en SEMI no se manda nada al lobby sin pulsar');
+  const botRun = (key, id) => refc('/api/ref/act', { method: 'POST', json: { key, type: 'bot', do: 'run', id } });
+  assert.deepEqual(live.last.flows['u1-3'].bot.actions[0], { id: 'lobby:setup', label: 'Team VS, ScoreV2 y 2 plazas', out: ['!mp set 2 3 2'], auto: true, decision: false, urgent: false }, 'el botón lleva el texto exacto');
+  for (const id of ['lobby:setup', 'lobby:password', 'lobby:invite']) {
+    r = await botRun('u1-3', id);
+    assert.equal(r.status, 200, id + ' ' + JSON.stringify(r.body));
+  }
+  r = await botRun('u1-3', 'lobby:setup');
+  assert.equal(r.status, 409, 'pulsar dos veces no repite el paso');
   await until(() => sentTo(CH).includes(`!mp invite #${f3.b.id}`), 'invitaciones');
-  assert.deepEqual(sentTo(CH).slice(0, 3), ['!mp set 2 3 2', `!mp invite #${f3.a.id}`, `!mp invite #${f3.b.id}`], 'invitaciones por ID');
+  assert.deepEqual(sentTo(CH).filter((t) => !t.startsWith('!mp password ')), ['!mp set 2 3 2', `!mp invite #${f3.a.id}`, `!mp invite #${f3.b.id}`], 'invitaciones por ID');
+  assert.match(sentTo(CH)[1], /^!mp password [0-9a-f]{10}$/, 'contraseña al azar');
+  assert.ok(!JSON.stringify((await anon2('/api/state')).body).includes(sentTo(CH)[1].slice(13)), 'la contraseña no sale en el estado público');
+  assert.ok(!JSON.stringify((await anon2('/api/overlay?match=u1-3')).body).includes(sentTo(CH)[1].slice(13)), 'ni en /api/overlay');
   r = await adm2('/api/state');
   assert.equal(r.body.matches['u1-3'].mp, 558);
   assert.equal(r.body.matches['u1-3'].ref, 'Jugador C');
 
-  // La web no actúa sola: los equipos se ponen con su botón
+  // En SEMI el bot no actúa solo: los equipos se ponen con su botón
   const lobby = () => live.last.lobbies.find((l) => l.key === 'u1-3' && !l.closed);
   ircSay(CH, 'BanchoBot', `${A} joined in slot 1.`);
   ircSay(CH, 'BanchoBot', `${B} joined in slot 2 for team red.`);
@@ -1504,7 +1539,7 @@ try {
   r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'teams' } });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   await until(() => sentTo(CH).includes(`!mp team #${f3.a.id} red`) && sentTo(CH).includes(`!mp team #${f3.b.id} blue`), 'equipos por ID');
-  // Roll: el árbitro lo ve en el chat y apunta quién gana; la web no lee ni propone nada
+  // Roll a mano: el árbitro apunta quién gana; en SEMI el bot no apunta ni manda nada por su cuenta
   const inLog = (text) => lobby()?.log.some((x) => x.text === text);
   ircSay(CH, A, '!roll');
   ircSay(CH, 'BanchoBot', `${A} rolls 40 point(s)`);
@@ -1512,7 +1547,7 @@ try {
   ircSay(CH, 'BanchoBot', `${B} rolls 75 point(s)`);
   await until(() => inLog(`${B} rolls 75 point(s)`), 'roll en el chat de la página');
   assert.equal(live.last.flows['u1-3'].step, 'roll', 'el roll no se apunta solo');
-  assert.ok(!('rolls' in lobby()) && !('suggest' in lobby()), 'sin propuestas');
+  assert.equal(live.last.flows['u1-3'].roll, null, 'en SEMI lo que se lee del chat no se apunta sin pulsar');
   assert.ok(!sentTo(CH).some((t) => /roll/i.test(t)), 'nada mandado al lobby sobre el roll');
   r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'roll', winner: 'b' } });
   assert.equal(r.status, 200, JSON.stringify(r.body));
@@ -1526,7 +1561,7 @@ try {
   await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'timer', seconds: 30 } });
   await until(() => sentTo(CH).includes('!mp timer 30'), 'temporizador con el botón');
 
-  // Protects: lo que escribe un jugador no se apunta; el árbitro pulsa el mapa
+  // Protects: en SEMI lo que escribe un jugador no se apunta sin pulsar; aquí el árbitro pulsa el mapa (Apuntar a mano)
   ircSay(CH, A, 'nm1');
   await until(() => inLog('nm1'), 'mapa escrito en el chat');
   assert.equal(live.last.flows['u1-3'].protects.length, 0, 'no se apunta solo');
@@ -1889,6 +1924,332 @@ try {
   assert.equal((await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-5', type: 'complete', ...good } })).status, 400);
   console.log('✓ completar después del partido: rundown con las reglas de la ronda, errores sin guardar, sustituir con confirmación y permisos');
 
+  // ---------- Bot de arbitraje por fases: AUTO, SEMI, cambio de modo, ausencias, errores y advertencias ----------
+  // Los temporizadores del bot van 20 veces más rápido en este servidor (REF_TIME_SCALE = 0,05).
+  irc.nextMp = 600;
+  const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+  const untilLong = async (cond, what, ms = 20000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) { if (await cond()) return; await sleep(80); }
+    throw new Error('No llegó a pasar: ' + what);
+  };
+  const botAct = (key, json, who = refc) => who('/api/ref/act', { method: 'POST', json: { key, type: 'bot', ...json } });
+  const botOf = (key) => live.last.flows[key]?.bot;
+  const lobbyKey = (key) => live.last.lobbies.find((l) => l.key === key && !l.closed);
+  const setRules = (extra) => adm2('/api/admin/rules', { method: 'POST', json: { round: 'octavos', bans: 2, protects: 1, banEvery: 4, pickTimer: 0, readyTimer: 300, absentLimit: 15, reinviteEvery: 60, maxWarnings: 3, ...extra } });
+  assert.equal((await setRules()).status, 200);
+
+  // Guion de un partido: lo que tiene que mandar el bot, paso a paso. En SEMI, antes de cada paso se comprueba que
+  // no ha salido nada sin pulsar y se pulsa el botón que lleva ese texto; en AUTO solo se espera a que salga.
+  function script(key, CH, semi) {
+    const g = { key, CH, semi, cur: 0, presses: 0 };
+    const hit = (line) => (t) => (typeof line === 'string' ? t === line : line.test(t));
+    const seen = async (line) => {
+      let i = -1;
+      await untilLong(() => (i = sentTo(CH).findIndex((t, k) => k >= g.cur && hit(line)(t))) >= 0, `${key}: el bot manda «${line}»`, 10000);
+      g.cur = i + 1;
+    };
+    g.out = async (lines) => {
+      if (g.semi) {
+        const n0 = sentTo(CH).length;
+        await sleep(150);
+        assert.equal(sentTo(CH).length, n0, `${key} en SEMI: nada sale sin pulsar (antes de «${lines[0]}»)`);
+        let a;
+        await untilLong(() => (a = botOf(key)?.actions.find((x) => x.out.some(hit(lines[0])))), `${key}: botón que manda «${lines[0]}»`, 6000);
+        r = await botAct(key, { do: 'run', id: a.id });
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        g.presses++;
+      }
+      for (const line of lines) await seen(line);
+    };
+    g.saw = seen; // lo que manda un botón de siempre (Apuntar a mano), no el bot
+    g.press = async (prefix) => { // paso que no manda nada (Warmup terminado): en SEMI se pulsa; en AUTO lo hace el bot
+      if (!g.semi) return;
+      let a;
+      await untilLong(() => (a = botOf(key)?.actions.find((x) => x.id.startsWith(prefix))), `${key}: botón ${prefix}`, 6000);
+      r = await botAct(key, { do: 'run', id: a.id });
+      assert.equal(r.status, 200, JSON.stringify(r.body));
+    };
+    g.mode = async (mode) => {
+      r = await botAct(key, { do: 'mode', mode });
+      assert.equal(r.status, 200, JSON.stringify(r.body));
+      g.semi = mode === 'semi';
+      await untilLong(() => botOf(key)?.mode === mode, 'modo ' + mode);
+    };
+    return g;
+  }
+  const MODS = { NM: 'NF', HD: 'NF HD', HR: 'NF HR', DT: 'NF DT', FM: 'Freemod' };
+  const BID = { NM1: 101, NM2: 102, FM1: 103, HD1: 104, HR1: 105, DT1: 106, NM3: 107, NM4: 108, HD2: 109, HR2: 110, DT2: 111, FM2: 112, TB: 113 };
+  // Partido completo: lobby (con un intruso), warmup de A, rolls (uno no válido y un empate), orden a mano, protects
+  // y bans con códigos no válidos, picks (uno repetido) y 5 mapas hasta el 0 – 5 de B, con la segunda tanda de bans.
+  async function fullMatch(g, f, mp, hooks = {}) {
+    const A = f.a.username, B = f.b.username, ids = { a: f.a.id, b: f.b.id }, CH = g.CH;
+    const nm = { a: A, b: B };
+    gamesN[mp] = [];
+    await g.out(['!mp set 2 3 2']);
+    await g.out([/^!mp password [0-9a-f]{10}$/]);
+    await g.out([`!mp invite #${ids.a}`, `!mp invite #${ids.b}`]);
+    ircSay(CH, 'BanchoBot', 'Mirón joined in slot 3.');
+    ircSay(CH, 'BanchoBot', `${A} joined in slot 1 for team red.`);
+    ircSay(CH, 'BanchoBot', `${B} joined in slot 2 for team blue.`);
+    if (!g.semi) { // con alguien más en el lobby, también en AUTO la expulsión la confirma el árbitro
+      let a;
+      await untilLong(() => (a = botOf(g.key)?.actions.find((x) => x.id === 'lobby:confirm')), 'confirmar jugadores');
+      assert.equal(a.auto, false, 'el bot no expulsa solo');
+      assert.match(botOf(g.key).waitRef, /Hay alguien más en el lobby \(Mirón\)/);
+      await sleep(300);
+      assert.ok(!sentTo(CH).some((t) => t.startsWith('!mp kick')), 'sin confirmar no expulsa');
+      r = await botAct(g.key, { do: 'run', id: 'lobby:confirm' });
+      assert.equal(r.status, 200, JSON.stringify(r.body));
+    }
+    await g.out([`!mp team #${ids.a} red`, `!mp team #${ids.b} blue`, '!mp kick Mirón']);
+    // WARMUP: A sí (se detecta el fin de su mapa), B no
+    await g.out([`${A}, ¿quieres warmup? Responde «sí» o «no» en el chat.`]);
+    ircSay(CH, A, 'sí');
+    await g.out([`!mp host #${ids.a}`, `${A}: tienes el host. Elige tu warmup y empiézalo cuando quieras.`]);
+    ircSay(CH, 'BanchoBot', 'Changed beatmap to https://osu.ppy.sh/b/999 Warmup');
+    ircSay(CH, 'BanchoBot', 'The match has started!');
+    ircSay(CH, 'BanchoBot', 'The match has finished!');
+    await g.press('wu:end:a');
+    await g.out([`${B}, ¿quieres warmup? Responde «sí» o «no» en el chat.`]);
+    ircSay(CH, B, 'no');
+    await g.out(['!mp clearhost']);
+    await g.out(['!mp set 2 3 2', `!mp team #${ids.a} red`, `!mp team #${ids.b} blue`]);
+    // ROLL: «!roll 1000» no vale, empate a 40, gana B 80 – 30
+    await g.out(['Haced !roll los dos (solo «!roll», sin número). Gana el más alto.']);
+    ircSay(CH, A, '!roll 1000');
+    ircSay(CH, 'BanchoBot', `${A} rolls 734 point(s)`);
+    await g.out([`${A}: solo vale «!roll», sin número. Repítelo.`]);
+    for (const [who, n] of [[A, 40], [B, 40]]) { ircSay(CH, who, '!roll'); ircSay(CH, 'BanchoBot', `${who} rolls ${n} point(s)`); }
+    await g.out(['Empate a 40. Repetid el !roll los dos.']);
+    for (const [who, n] of [[A, 30], [B, 80]]) { ircSay(CH, who, '!roll'); ircSay(CH, 'BanchoBot', `${who} rolls ${n} point(s)`); }
+    await g.out([`${B} gana el roll (80 – 30) y elige quién protege, banea y elige primero.`]);
+    await g.out([`${B}: di en el chat quién protege, banea y elige primero.`]);
+    await untilLong(() => botOf(g.key)?.waitRef?.includes('Apúntalo en «Orden»'), 'el bot espera al árbitro para el orden');
+    assert.deepEqual(live.last.flows[g.key].roll, { winner: 'b', a: 30, b: 80 });
+    r = await refc('/api/ref/act', { method: 'POST', json: { key: g.key, type: 'order', protect: 'a', ban: 'b', pick: 'b' } });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    await g.saw(`Orden: protege primero ${A}, banea primero ${B} y elige primero ${B}.`);
+    await untilLong(() => botOf(g.key)?.log.some((x) => x.by === 'Jugador C' && x.text.startsWith('A mano: Orden')), 'lo apuntado a mano también va al log');
+    // PROTECT: B escribe fuera de turno (se ignora), A un mapa que no existe, B uno ya protegido
+    await g.out([`${A}, protege un mapa: escríbelo en el chat (p. ej. NM2).`]);
+    ircSay(CH, B, 'nm2');
+    ircSay(CH, A, 'xx9');
+    await g.out([`${A}: XX9 no vale (no está en la mappool). Escribe otro mapa.`]);
+    ircSay(CH, A, 'nm1');
+    await g.out([`${A} protege NM1.`]);
+    await g.out([`${B}, protege un mapa: escríbelo en el chat (p. ej. NM2).`]);
+    ircSay(CH, B, 'NM1');
+    await g.out([`${B}: NM1 no vale (ya está protegido). Escribe otro mapa.`]);
+    ircSay(CH, B, 'hd 1');
+    await g.out([`${B} protege HD1.`]);
+    await hooks.ban?.();
+    // BAN, tanda 1 (abre B): no se puede banear un mapa protegido
+    await g.out([`${B}, banea un mapa (tanda 1 de 2): escríbelo en el chat (p. ej. NM2).`]);
+    ircSay(CH, B, 'nm1');
+    await g.out([`${B}: NM1 no vale (está protegido). Escribe otro mapa.`]);
+    ircSay(CH, B, 'dt1');
+    await g.out([`${B} banea DT1.`]);
+    await g.out([`${A}, banea un mapa (tanda 1 de 2): escríbelo en el chat (p. ej. NM2).`]);
+    ircSay(CH, A, 'hr1');
+    await g.out([`${A} banea HR1.`]);
+    // PICK → READY → PLAY
+    const pick = async (by, slot, k, bad) => {
+      await g.out([`${nm[by]}, elige mapa: escríbelo en el chat (p. ej. NM2).`]);
+      if (k === 0) await hooks.firstPick?.();
+      if (bad) {
+        ircSay(CH, nm[by], bad.toLowerCase());
+        await g.out([`${nm[by]}: ${bad} no vale (ya se ha elegido). Escribe otro mapa.`]);
+      }
+      ircSay(CH, nm[by], slot.toLowerCase());
+      await g.out([`${nm[by]} elige ${slot}: Artista ${BID[slot]} - Titulo ${BID[slot]} [Insane].`]);
+      await g.out([`!mp map ${BID[slot]} 0`, `!mp mods ${MODS[slot.slice(0, 2)]}`]);
+      await g.out([new RegExp(`^${slot}: Artista ${BID[slot]} .*Pulsad Ready cuando estéis listos \\(300 s\\)\\.$`), '!mp timer 300']);
+      ircSay(CH, 'BanchoBot', 'All players are ready');
+      await g.out(['!mp aborttimer', '!mp start 5']);
+      ircSay(CH, 'BanchoBot', 'The match has started!');
+      gamesN[mp].push(game(BID[slot], [[ids.a, 500000], [ids.b, 900000]]));
+      ircSay(CH, 'BanchoBot', 'The match has finished!');
+      if (k < 4) await g.out([new RegExp(`^${slot}: 500\\.000 – 900\\.000\\. Marcador: ${A} 0 – ${k + 1} ${B}${k === 3 ? ' · Match point' : ''}$`)]);
+    };
+    await pick('b', 'NM2', 0);
+    await pick('a', 'FM1', 1, 'NM2');
+    await pick('b', 'HD2', 2);
+    await pick('a', 'NM3', 3);
+    // Segunda tanda de bans tras 4 mapas, en orden ABBA: la abre A
+    await g.out([`${A}, banea un mapa (tanda 2 de 2): escríbelo en el chat (p. ej. NM2).`]);
+    ircSay(CH, A, 'nm4');
+    await g.out([`${A} banea NM4.`]);
+    await g.out([`${B}, banea un mapa (tanda 2 de 2): escríbelo en el chat (p. ej. NM2).`]);
+    ircSay(CH, B, 'fm2');
+    await g.out([`${B} banea FM2.`]);
+    await pick('b', 'HR2', 4);
+    await g.out([`${B} gana el partido 5 – 0. ¡GG!`]);
+    await untilLong(() => botOf(g.key)?.phase === 'FIN' && botOf(g.key)?.stage === 'fin', 'partido terminado en el bot');
+    return [
+      ['RED', 'PROTECT', 'NM1'], ['BLUE', 'PROTECT', 'HD1'], ['BLUE', 'BAN', 'DT1'], ['RED', 'BAN', 'HR1'],
+      ['BLUE', 'PICK', 'NM2'], ['RED', 'PICK', 'FM1'], ['BLUE', 'PICK', 'HD2'], ['RED', 'PICK', 'NM3'],
+      ['RED', 'BAN', 'NM4'], ['BLUE', 'BAN', 'FM2'], ['BLUE', 'PICK', 'HR2']
+    ].map(([actor, action, pick]) => ({ actor, action, pick }));
+  }
+
+  // Permisos: solo árbitros y admins, y nadie en su propio partido
+  const f5 = live.last.flows['u1-5'];
+  assert.equal((await botAct('u1-5', { do: 'mode', mode: 'auto' }, p01)).status, 403, 'un jugador no puede cambiar el modo');
+  assert.equal((await botAct('u1-5', { do: 'start' }, p01)).status, 403, 'ni iniciar el partido');
+  assert.equal((await botAct('u1-5', { do: 'pause' }, anon2)).status, 401);
+  await adm2('/api/admin/role', { method: 'POST', json: { user: String(f5.a.id), role: 'referee' } });
+  r = await botAct('u1-5', { do: 'mode', mode: 'auto' }, await login(s2.base, f5.a.id));
+  assert.equal(r.status, 403, 'quien juega el partido no lleva su bot');
+  await adm2('/api/admin/role', { method: 'POST', json: { id: f5.a.id, role: '' } });
+  assert.equal(live.last.flows['u1-5'].bot.mode, 'semi', 'sigue en SEMI');
+
+  // AUTO, U1-5 (MP 600): en AUTO el partido empieza solo a su hora (A0) y el bot lo lleva entero
+  r = await botAct('u1-5', { do: 'mode', mode: 'auto' });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  await untilLong(() => botOf('u1-5')?.mode === 'auto', 'modo AUTO');
+  await sleep(400);
+  assert.ok(!irc.sent.some((m) => m.to === 'BanchoBot' && m.text.includes(`(${f5.a.username}) vs (${f5.b.username})`)), 'antes de su hora no empieza');
+  const serverNow = (await anon2('/api/state')).body.now;
+  await adm2('/api/admin/match', { method: 'POST', json: { id: 'u1-5', time: serverNow - 60e3 } });
+  await untilLong(() => irc.sent.some((m) => m.to === 'BanchoBot' && m.text === `!mp make SPI6: (${f5.a.username}) vs (${f5.b.username})`), 'crea el lobby a la hora del partido');
+  const g5 = script('u1-5', '#mp_600', false);
+  const rundown5 = await fullMatch(g5, f5, 600);
+  assert.deepEqual((await anon2('/api/overlay?match=u1-5')).body.rundown, rundown5, '/api/overlay con el rundown del bot');
+  r = (await anon2('/api/state')).body.matches['u1-5'];
+  assert.deepEqual([r.mp, r.bans, r.protects, r.ff], [600, ['DT1', 'HR1', 'NM4', 'FM2'], ['NM1', 'HD1'], null]);
+  assert.ok(botOf('u1-5').log.some((x) => x.by === 'bot' && x.text === `Apuntar ban de FM2 (${f5.b.username})`), 'log con hora y quién hizo cada paso');
+  console.log('✓ bot en AUTO: partido completo (lobby, warmups, rolls, protects, bans, picks, ready, mapas y fin), errores rechazados con su motivo y /api/overlay');
+
+  // SEMI, U1-6 (MP 601): el mismo partido avanzando solo con botones; a mitad pasa a AUTO (bans) y vuelve a SEMI (picks)
+  const f6 = live.last.flows['u1-6'];
+  r = await botAct('u1-6', { do: 'start' });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal((await botAct('u1-6', { do: 'start' })).status, 409, 'iniciar dos veces no hace nada');
+  await untilLong(() => botOf('u1-6')?.step === 'A2', 'A2: crear el lobby');
+  await sleep(300);
+  assert.ok(!irc.sent.some((m) => m.to === 'BanchoBot' && m.text.includes(`(${f6.a.username}) vs`)), 'en SEMI no crea el lobby sin pulsar');
+  r = await botAct('u1-6', { do: 'run', id: 'lobby:make' });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const g6 = script('u1-6', '#mp_601', true);
+  const rundown6 = await fullMatch(g6, f6, 601, {
+    ban: () => g6.mode('auto'),       // SEMI → AUTO: el bot sigue solo desde el turno de bans
+    firstPick: () => g6.mode('semi')  // AUTO → SEMI con el bot esperando el pick: vuelven los botones
+  });
+  assert.ok(g6.presses > 30, `en SEMI cada paso se ha pulsado (${g6.presses})`);
+  const count = (re) => sentTo('#mp_601').filter((t) => re.test(t)).length;
+  assert.deepEqual([count(/, protege un mapa/), count(/, banea un mapa/), count(/, elige mapa/), count(/^!mp map \d+ 0$/), count(/^!mp start 5$/)], [2, 4, 5, 5, 5], 'cambiar de modo no pierde ni repite pasos');
+  assert.deepEqual((await anon2('/api/overlay?match=u1-6')).body.rundown, rundown6);
+  console.log('✓ bot en SEMI: nada sale al lobby sin pulsar, y cambio de modo a mitad de partido en los dos sentidos');
+
+  // Ausencia, U1-7 (MP 602): reinvitación cada 15 s (0,75 s aquí) y aviso a los 1 min (3 s aquí). No se da por perdido.
+  const f7 = live.last.flows['u1-7'], CH7 = '#mp_602';
+  const A7 = f7.a.username, B7 = f7.b.username;
+  assert.equal((await setRules({ absentLimit: 1, reinviteEvery: 15 })).status, 200);
+  await botAct('u1-7', { do: 'mode', mode: 'auto' });
+  r = await botAct('u1-7', { do: 'start' });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  await untilLong(() => sentTo(CH7).includes(`!mp invite #${f7.b.id}`), 'invitaciones de U1-7');
+  ircSay(CH7, 'BanchoBot', `${A7} joined in slot 1 for team red.`);
+  const inv7 = () => sentTo(CH7).filter((t) => t === `!mp invite #${f7.b.id}`).length;
+  await untilLong(() => inv7() >= 3, 'reinvita al ausente');
+  assert.equal(sentTo(CH7).filter((t) => t === `!mp invite #${f7.a.id}`).length, 1, 'a quien ya está no se le reinvita');
+  await untilLong(() => botOf('u1-7')?.incidents.some((i) => i.open && i.kind === 'absent'), 'aviso de ausencia');
+  assert.match(botOf('u1-7').incidents.find((i) => i.kind === 'absent').text, new RegExp(`^${B7} no ha llegado al lobby en 1 min\\. Avisa al staff`));
+  assert.equal(botOf('u1-7').blocked, true, 'el bot espera al árbitro');
+  const invAt = inv7();
+  await sleep(1500);
+  assert.equal(inv7(), invAt, 'con el aviso abierto no hace nada solo');
+  r = (await anon2('/api/state')).body.matches['u1-7'];
+  assert.equal(r.ff, null, 'el bot no da el partido por perdido');
+  assert.ok(!sentTo(CH7).some((t) => /^!mp (close|abort)/.test(t)));
+  const inc7 = botOf('u1-7').incidents.find((i) => i.open);
+  r = await botAct('u1-7', { do: 'resolve', id: inc7.id, how: 'wait' });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal((await botAct('u1-7', { do: 'resolve', id: inc7.id })).status, 409, 'resolver dos veces');
+  await untilLong(() => inv7() > invAt, 'seguir esperando: vuelve a reinvitar');
+  ircSay(CH7, 'BanchoBot', `${B7} joined in slot 2 for team blue.`);
+  await untilLong(() => sentTo(CH7).includes(`${A7}, ¿quieres warmup? Responde «sí» o «no» en el chat.`), 'con los dos, al warmup');
+  console.log('✓ bot: jugador ausente, reinvitaciones y aviso al staff a los minutos de la regla, sin forfeit automático');
+
+  // Pick sin elegir y ready sin pulsar, U1-7: en SEMI se saltan los warmups y se apunta a mano hasta los picks
+  r = await botAct('u1-7', { do: 'mode', mode: 'semi' });
+  assert.equal(r.status, 200);
+  await untilLong(() => botOf('u1-7')?.mode === 'semi', 'U1-7 en SEMI');
+  for (let i = 0; i < 6 && botOf('u1-7').stage !== 'match'; i++) {
+    const at = botOf('u1-7').at;
+    r = await botAct('u1-7', { do: 'skip', at });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    await untilLong(() => botOf('u1-7')?.at !== at, 'paso siguiente tras saltar');
+  }
+  assert.ok(botOf('u1-7').log.some((x) => x.text === `Saltado: Sin warmup de ${B7}`), 'el salto queda en el log');
+  assert.equal(botOf('u1-7').stage, 'match', 'warmups saltados');
+  r = await botAct('u1-7', { do: 'skip', at: 'otro:paso' });
+  assert.equal(r.status, 409, 'saltar un paso que ya no es el actual');
+  for (const json of [{ type: 'roll', winner: 'a' }, { type: 'order', protect: 'a', ban: 'a', pick: 'a' }, { type: 'protect', slot: 'NM1' }, { type: 'protect', slot: 'HD1' }, { type: 'ban', slot: 'DT1' }, { type: 'ban', slot: 'HR1' }]) {
+    r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-7', ...json } });
+    assert.equal(r.status, 200, JSON.stringify(json) + JSON.stringify(r.body));
+  }
+  await untilLong(() => botOf('u1-7')?.phase === 'PICK', 'turno de pick');
+  r = await botAct('u1-7', { do: 'skip', at: botOf('u1-7').at });
+  assert.equal(r.status, 200, 'anunciar el turno se puede saltar');
+  await untilLong(() => botOf('u1-7')?.step === 'F3', 'esperando el pick');
+  r = await botAct('u1-7', { do: 'skip', at: botOf('u1-7').at });
+  assert.equal(r.status, 400, 'esperar el pick de un jugador no se salta');
+  // Deshacer vuelve al paso anterior sin mandar nada
+  const s7 = sentTo(CH7).length;
+  r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-7', type: 'undo' } });
+  assert.equal(r.status, 200);
+  await untilLong(() => botOf('u1-7')?.step === 'F1', 'deshecho: vuelve a anunciar el turno');
+  assert.equal(sentTo(CH7).length, s7, 'deshacer no manda nada');
+  // 30 s para elegir (1,5 s aquí): se avisa al jugador, se apunta la incidencia y se espera al árbitro (sin autopick)
+  assert.equal((await setRules({ absentLimit: 1, reinviteEvery: 15, pickTimer: 30, readyTimer: 10 })).status, 200);
+  await botAct('u1-7', { do: 'mode', mode: 'auto' });
+  await untilLong(() => sentTo(CH7).includes(`${A7}, elige mapa: escríbelo en el chat (p. ej. NM2). Tienes 30 s.`) && sentTo(CH7).includes('!mp timer 30'), 'turno con temporizador');
+  await untilLong(() => botOf('u1-7')?.timers.pick, 'cuenta atrás del pick en la página');
+  await untilLong(() => sentTo(CH7).includes(`${A7}: se ha acabado el tiempo para elegir. Espera a lo que decida el árbitro.`), 'aviso de tiempo agotado');
+  await untilLong(() => botOf('u1-7')?.incidents.some((i) => i.open && i.kind === 'pick'), 'incidencia de pick');
+  assert.equal(botOf('u1-7').blocked, true, 'aviso claro: el bot espera al árbitro');
+  const s7b = sentTo(CH7).length;
+  await sleep(1200);
+  assert.equal(sentTo(CH7).length, s7b, 'espera al árbitro: ni autopick ni nada más');
+  assert.equal(live.last.flows['u1-7'].picks.length, 0);
+  assert.equal((await anon2('/api/state')).body.matches['u1-7'].ff, null, 'ni victoria automática');
+  r = await botAct('u1-7', { do: 'resolve', id: botOf('u1-7').incidents.find((i) => i.open).id });
+  assert.equal(r.status, 200);
+  ircSay(CH7, A7, 'nm2');
+  await untilLong(() => sentTo(CH7).includes(`${A7} elige NM2: Artista 102 - Titulo 102 [Insane].`), 'pick tras la decisión del árbitro');
+  // Ready: 10 s (0,5 s aquí) sin que B esté listo → advertencia; a la tercera, solo aviso al staff
+  irc.settings[CH7] = [`Slot 1  Ready     https://osu.ppy.sh/u/${f7.a.id} ${A7}            [Team Red  ]`, `Slot 2  Not Ready https://osu.ppy.sh/u/${f7.b.id} ${B7}            [Team Blue ]`];
+  await untilLong(() => sentTo(CH7).includes('!mp timer 10'), 'pide el ready con su temporizador');
+  for (const k of [1, 2, 3]) await untilLong(() => sentTo(CH7).includes(`${B7}: pulsa Ready. Advertencia ${k} de 3.`), `advertencia ${k}`);
+  assert.ok(!sentTo(CH7).some((t) => t.includes(A7 + ': pulsa Ready')), 'a quien está listo no se le advierte');
+  await untilLong(() => botOf('u1-7')?.incidents.some((i) => i.open && i.kind === 'warnings'), 'aviso al staff');
+  assert.match(botOf('u1-7').incidents.find((i) => i.open).text, /ha llegado a 3 advertencias.*el bot no sanciona/);
+  assert.deepEqual(botOf('u1-7').warnings, { a: 0, b: 3 });
+  await sleep(1500);
+  assert.ok(!sentTo(CH7).some((t) => /Advertencia 4|^!mp (kick|abort|close|start)/.test(t)), 'solo avisa: ni más advertencias ni sanción ni empezar');
+  assert.equal((await anon2('/api/state')).body.matches['u1-7'].ff, null);
+  r = await botAct('u1-7', { do: 'resolve', id: botOf('u1-7').incidents.find((i) => i.open).id });
+  ircSay(CH7, 'BanchoBot', 'All players are ready');
+  await untilLong(() => sentTo(CH7).includes('!mp start 5'), 'con los dos listos, empieza');
+  // Pausar: el bot no hace nada solo; incidencia con nota en el log
+  r = await botAct('u1-7', { do: 'pause' });
+  assert.equal(r.status, 200);
+  await untilLong(() => botOf('u1-7')?.paused, 'en pausa');
+  r = await botAct('u1-7', { do: 'note', note: 'B se ha desconectado en mitad del mapa' });
+  assert.equal(r.status, 200);
+  await untilLong(() => botOf('u1-7')?.incidents.some((i) => i.kind === 'note' && i.by === 'Jugador C'), 'nota en las incidencias');
+  assert.equal((await botAct('u1-7', { do: 'note', note: '  ' })).status, 400);
+  // En AUTO tampoco hay ráfagas: el límite de Bancho se cumple en toda la prueba (≤ 8 por ventana de 300 ms y ≤ 18 en 1.500 ms)
+  const tsBot = irc.sent.map((m) => m.at);
+  assert.ok(tsBot.every((t, i) => i < 8 || t - tsBot[i - 8] >= 250), 'AUTO respeta 8 por ventana');
+  assert.ok(tsBot.every((t, i) => i < 18 || t - tsBot[i - 18] >= 1400), 'AUTO respeta 18 por 5 ventanas');
+  // La palabra contra el anti-spam nunca va en comandos con argumentos libres (en !mp password sería parte de la contraseña)
+  assert.ok(irc.sent.filter((m) => /^!mp (make|invite|team|password|host|clearhost|kick)\b/.test(m.text)).every((m) => !m.tagged), 'password, host, clearhost y kick sin palabra');
+  assert.ok(irc.sent.some((m) => m.text.startsWith('!mp password ')) && irc.sent.some((m) => m.text === '!mp clearhost'));
+  console.log('✓ bot: pick agotado espera al árbitro, 3 advertencias de ready solo avisan al staff, saltar, deshacer, pausa e incidencias');
+
   // Quitar al árbitro y cerrar sesión cierran su conexión a Bancho
   await adm2('/api/admin/role', { method: 'POST', json: { id: 503, role: '' } });
   assert.equal((await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'start' } })).status, 403);
@@ -1900,7 +2261,69 @@ try {
     if (f.isFile()) assert.ok(!readFileSync(join(f.parentPath, f.name)).includes('irc-secreta'), 'contraseña en ' + f.name);
   }
   assert.ok(!log.includes('irc-secreta'), 'contraseña en el log');
-  console.log('✓ arbitraje: el árbitro decide cada comando con los botones (sin propuestas), reglas, deshacer, marcador, clasificatorios y correcciones a mano');
+  console.log('✓ arbitraje: en SEMI nada sale sin pulsar, apuntar a mano, reglas, deshacer, marcador, clasificatorios y correcciones a mano');
+  // ---------- Reinicio del servidor a mitad de partido (U1-8, MP 603, en AUTO) ----------
+  // Tras reiniciar, la contraseña IRC ya no está: el bot espera a que el árbitro conecte y vuelva a entrar al MP, lee
+  // !mp settings y sigue desde ref_state sin repetir lo que ya había mandado.
+  {
+    const adm3a = await login(s2.base, 4242);
+    await adm3a('/api/admin/role', { method: 'POST', json: { user: 'Jugador C', role: 'referee' } });
+    const ref8 = await login(s2.base, 503);
+    const live8 = await refStream(s2.base, ref8);
+    await until(() => live8.last?.flows['u1-8'], 'U1-8 en la página');
+    const f8 = live8.last.flows['u1-8'], CH8 = '#mp_603', A8 = f8.a.username, B8 = f8.b.username;
+    assert.equal((await ref8('/api/ref/connect', { method: 'POST', json: { password: 'irc-secreta' } })).status, 200);
+    await until(() => live8.last.irc.status === 'connected', 'conectado');
+    await ref8('/api/ref/act', { method: 'POST', json: { key: 'u1-8', type: 'bot', do: 'mode', mode: 'auto' } });
+    r = await ref8('/api/ref/act', { method: 'POST', json: { key: 'u1-8', type: 'bot', do: 'start' } });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    await untilLong(() => sentTo(CH8).includes(`!mp invite #${f8.b.id}`), 'invitaciones de U1-8');
+    ircSay(CH8, 'BanchoBot', `${A8} joined in slot 1 for team red.`);
+    ircSay(CH8, 'BanchoBot', `${B8} joined in slot 2 for team blue.`);
+    for (const who of [A8, B8]) {
+      await untilLong(() => sentTo(CH8).includes(`${who}, ¿quieres warmup? Responde «sí» o «no» en el chat.`), 'pregunta de warmup');
+      ircSay(CH8, who, 'no');
+    }
+    await untilLong(() => sentTo(CH8).includes('Haced !roll los dos (solo «!roll», sin número). Gana el más alto.'), 'rolls');
+    for (const [who, n] of [[A8, 50], [B8, 60]]) { ircSay(CH8, who, '!roll'); ircSay(CH8, 'BanchoBot', `${who} rolls ${n} point(s)`); }
+    await untilLong(() => sentTo(CH8).includes(`${B8}: di en el chat quién protege, banea y elige primero.`), 'pregunta el orden');
+    await ref8('/api/ref/act', { method: 'POST', json: { key: 'u1-8', type: 'order', protect: 'a', ban: 'b', pick: 'b' } });
+    const turn8 = `${A8}, protege un mapa: escríbelo en el chat (p. ej. NM2).`;
+    await untilLong(() => sentTo(CH8).includes(turn8), 'turno de protect de A');
+    live8.close();
+    // Reinicio (la misma base de datos)
+    await new Promise((done) => { srv2.once('exit', done); srv2.kill(); });
+    const s3 = startServer('octavos', t0);
+    srv2 = s3.proc;
+    await ready(s3.base);
+    const ref9 = await login(s3.base, 503);
+    const live9 = await refStream(s3.base, ref9);
+    await until(() => live9.last?.flows['u1-8']?.bot, 'estado tras el reinicio');
+    let b8 = live9.last.flows['u1-8'].bot;
+    assert.deepEqual([b8.mode, b8.stage, b8.phase, b8.inLobby], ['auto', 'match', 'PROTECT', false], 'retoma la fase y el modo de ref_state');
+    assert.match(b8.waitRef, /Volver a entrar al MP/, 'espera a que el árbitro vuelva a entrar');
+    assert.deepEqual(live9.last.flows['u1-8'].roll, { winner: 'b', a: 50, b: 60 });
+    const sent8 = sentTo(CH8).length;
+    assert.equal((await ref9('/api/ref/connect', { method: 'POST', json: { password: 'irc-secreta' } })).status, 200);
+    irc.settings[CH8] = [`Slot 1  Not Ready https://osu.ppy.sh/u/${f8.a.id} ${A8}            [Team Red  ]`, `Slot 2  Not Ready https://osu.ppy.sh/u/${f8.b.id} ${B8}            [Team Blue ]`];
+    assert.equal((await ref9('/api/ref/attach', { method: 'POST', json: { key: 'u1-8' } })).status, 200);
+    await untilLong(() => live9.last.flows['u1-8'].bot.inLobby && live9.last.lobbies.find((l) => l.key === 'u1-8')?.players.length === 2, 'de vuelta en el lobby');
+    await sleep(3000);
+    assert.deepEqual(sentTo(CH8).slice(sent8), ['!mp settings'], 'al volver no repite nada: solo lee !mp settings');
+    ircSay(CH8, A8, 'nm1');
+    await untilLong(() => sentTo(CH8).includes(`${A8} protege NM1.`), 'sigue desde el paso guardado');
+    await untilLong(() => sentTo(CH8).includes(`${B8}, protege un mapa: escríbelo en el chat (p. ej. NM2).`), 'siguiente turno');
+    assert.equal(sentTo(CH8).filter((t) => t === turn8).length, 1, 'el turno de A no se anuncia dos veces');
+    assert.deepEqual((await client(s3.base)('/api/overlay?match=u1-8')).body.rundown, [{ actor: 'RED', action: 'PROTECT', pick: 'NM1' }]);
+    await ref9('/api/ref/disconnect', { method: 'POST', json: {} });
+    live9.close();
+    // Tampoco tras el reinicio está la contraseña IRC en la base de datos ni en el log
+    for (const f of readdirSync(dir, { recursive: true, withFileTypes: true })) {
+      if (f.isFile()) assert.ok(!readFileSync(join(f.parentPath, f.name)).includes('irc-secreta'), 'contraseña en ' + f.name);
+    }
+    assert.ok(!log.includes('irc-secreta'), 'contraseña en el log');
+    console.log('✓ bot: reinicio del servidor a mitad de partido, retoma desde ref_state sin repetir pasos');
+  }
   console.log('\nTodo correcto.');
 } catch (e) {
   failed = true;

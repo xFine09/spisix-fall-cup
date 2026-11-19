@@ -8,7 +8,7 @@ Web del torneo 1v1 de osu! de la comunidad SpiSix: inscritos, mappools, clasific
 - **Mappools:** se suben a mano o desde una hoja de cálculo, y se publican a la hora programada.
 - **Clasificatorios:** los jugadores se apuntan a un lobby, un árbitro aprueba cada plaza y las seeds se calculan por Z-sum.
 - **Cuadro:** doble eliminación de 16, con cruces y resultados que avanzan solos. En Partidos se pueden ver todos los de un jugador.
-- **Arbitraje:** un bot de IRC manda los comandos `!mp` y lleva rolls, protects, bans y picks.
+- **Arbitraje:** un bot de IRC por fases (lobby, warmups, rolls, protects, bans, picks, ready y mapa) que el árbitro lleva en modo SEMI (cada paso es un botón) o AUTO (lo hace solo), y cambia en cualquier momento. Nunca sanciona: avisa y espera al árbitro.
 - **Panel de organización:** roles, normas, textos, fechas de las rondas y anuncios.
 - **Inicio:** recordatorios automáticos de partidos, resultados y mappools, y aviso cuando hay directo en Twitch.
 
@@ -41,7 +41,7 @@ docs/          manual técnico
 - Los permisos se comprueban en el servidor, que no envía las mappools sin publicar a quien no debe verlas.
 - La contraseña IRC de cada árbitro solo está en memoria mientras dura la conexión. Bancho solo ofrece IRC sin cifrar.
 
-**Estado:** el bot de arbitraje se ha probado contra un Bancho simulado. Conviene hacer un partido de prueba real antes de usarlo en el torneo.
+**Estado:** el bot de arbitraje (modos AUTO y SEMI) solo se ha probado contra un Bancho simulado. Hay que hacer un lobby de prueba con Bancho real antes de usarlo en el torneo (qué comprobar: [manual](docs/MANUAL.md#comandos-de-bancho-irc-que-usa-el-bot-de-arbitraje)).
 
 ## Ponerla en marcha
 

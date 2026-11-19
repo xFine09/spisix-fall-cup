@@ -56,5 +56,5 @@ docs/          manual técnico
 
 ## Sin probar en real
 
-- **Bot de arbitraje con Bancho real:** solo se ha probado con un simulador y es el mayor riesgo. Si falla, se puede arbitrar a mano. Hay que hacer un lobby de prueba antes de usarlo en el torneo.
+- **Bot de arbitraje con Bancho real:** solo se ha probado con un simulador y es el mayor riesgo, también el bot por fases con sus modos AUTO y SEMI (`server/refbot.js`). Si falla, se pausa o se pasa a SEMI y se arbitra a mano. Hay que hacer un lobby de prueba antes de usarlo en el torneo; las líneas de BanchoBot que hay que comprobar están en `docs/MANUAL.md` (Comandos de Bancho).
 - **Aviso de directo de Twitch:** probado solo con un simulador. Es opcional: sin credenciales, todo lo demás funciona igual.
