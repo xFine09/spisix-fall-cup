@@ -532,15 +532,22 @@ function buildState(user) {
   const seesHidden = admin || (user && roleOf(user.id) === 'staff'); // las mappools sin publicar
   for (const r of q.pool.all()) if (seesHidden || isPublic(r.round, rel)) (pools[r.round] ??= []).push({ slot: r.slot, beatmap_id: r.beatmap_id, data: JSON.parse(r.data) });
   for (const k in pools) pools[k].sort(slotSort);
+  // Protects del arbitraje y quién hizo cada protect y cada ban (by: { protect: { NM1: 'a' }, ban: { HD1: 'b' } }),
+  // para pintarlos en la tarjeta del partido con el color de cada jugador.
   const protects = {};
+  const sides = {};
   for (const r of q.refStates.all()) {
-    const list = (JSON.parse(r.data).actions || []).filter((x) => x.type === 'protect').map((x) => x.slot);
+    const acts = JSON.parse(r.data).actions || [];
+    const list = acts.filter((x) => x.type === 'protect').map((x) => x.slot);
     if (list.length) protects[r.key] = list;
+    const by = { protect: {}, ban: {} };
+    for (const x of acts) if (by[x.type] && (x.by === 'a' || x.by === 'b')) by[x.type][x.slot] = x.by;
+    if (Object.keys(by.protect).length || Object.keys(by.ban).length) sides[r.key] = by;
   }
   const matches = {};
   for (const m of q.matches.all()) {
     matches[m.id] = {
-      time: m.time, ref: m.ref, mp: m.mp, ff: m.ff, protects: protects[m.id] || [],
+      time: m.time, ref: m.ref, mp: m.mp, ff: m.ff, protects: protects[m.id] || [], by: sides[m.id] || null,
       bans: m.bans ? JSON.parse(m.bans) : [], result: m.result ? JSON.parse(m.result) : null
     };
   }
@@ -1105,6 +1112,7 @@ const routes = {
     if (mp) {
       try { result = await syncMatch(b.id); } catch (e) { warning = e.message; }
     }
+    referee.push(); // la página Arbitrar lo ve al momento (MP, resultado y si se puede completar el partido)
     sendJson(res, 200, { ok: true, result, warning });
   },
 

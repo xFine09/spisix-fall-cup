@@ -115,6 +115,16 @@ const match558 = () => ({ match: { id: 558, name: 'SPI6: partido arbitrado' }, e
 const qual560 = () => ({ match: { id: 560, name: 'SPI6: (Clasificatorios) Lobby E', end_time: '2026-11-17T19:00:00Z' }, events: [{ id: 1, detail: { type: 'other' }, game: { ...game(201, [[601, 100]]), team_type: 'head-to-head' } }], first_event_id: 1, latest_event_id: 1 });
 const qual559 = () => ({ match: { id: 559, name: 'SPI6: (Clasificatorios) Lobby C' }, events: [{ id: 1, detail: { type: 'other' }, game: { ...game(201, [[605, 100]]), team_type: 'head-to-head' } }], first_event_id: 1, latest_event_id: 1 });
 
+// MP 561: U1-4 arbitrado a mano, sin los botones (se completa después en Arbitrar). Warmup, 8 mapas y el TB.
+// Los IDs de los jugadores se ponen en la prueba (players561 = [rojo, azul]); w = quién gana cada mapa.
+let players561 = [0, 0];
+const plays561 = [[102, 'a'], [109, 'b'], [103, 'a'], [110, 'b'], [101, 'a'], [104, 'b'], [111, 'a'], [108, 'b'], [113, 'a']];
+const match561 = () => {
+  const [a, b] = players561;
+  const games = [game(999, [[a, 100], [b, 900000]]), ...plays561.map(([bid, w]) => game(bid, [[a, w === 'a' ? 900000 : 500000], [b, w === 'b' ? 900000 : 500000]]))];
+  return { match: { id: 561, name: 'SPI6: (A) vs (B)' }, events: games.map((g, i) => ({ id: i + 1, detail: { type: 'other' }, game: g })), first_event_id: 1, latest_event_id: games.length };
+};
+
 function page(data, url) {
   const before = +url.searchParams.get('before') || Infinity;
   const limit = Math.min(+url.searchParams.get('limit') || 100, 100);
@@ -202,6 +212,7 @@ const mock = http.createServer(async (req, res) => {
   if (url.pathname === '/api/v2/matches/903') return send(200, page(qual903(), url));
   if (url.pathname === '/api/v2/matches/556') return send(200, page(match556(), url));
   if (url.pathname === '/api/v2/matches/558') return send(200, page(match558(), url));
+  if (url.pathname === '/api/v2/matches/561') return send(200, page(match561(), url));
   if (url.pathname === '/api/v2/matches/559') return send(200, page(qual559(), url));
   if (url.pathname === '/api/v2/matches/560') return send(200, page(qual560(), url));
   if (url.pathname === '/api/v2/matches/777') return send(403, { error: null }); // lobby creado con !mp makeprivate
@@ -1807,6 +1818,76 @@ try {
   const ts = irc.sent.map((m) => m.at);
   assert.ok(ts.every((t, i) => i < 8 || t - ts[i - 8] >= 250), 'respeta 8 por ventana');
   assert.ok(ts.every((t, i) => i < 18 || t - ts[i - 18] >= 1400), 'respeta 18 por 5 ventanas');
+
+  // ---------- Completar después del partido (U1-4, arbitrado sin los botones) ----------
+  // Bo9 con 1 protect y 2 bans por jugador, la segunda tanda tras 4 mapas. Pool de 12 mapas y TB.
+  for (const [slot, bid] of [['NM3', 107], ['NM4', 108], ['HD2', 109], ['HR2', 110], ['DT2', 111], ['FM2', 112], ['TB', 113]]) {
+    assert.equal((await adm2('/api/admin/pool', { method: 'POST', json: { round: 'octavos', slot, beatmap: String(bid) } })).status, 200);
+  }
+  await adm2('/api/admin/rules', { method: 'POST', json: { round: 'octavos', bans: 2, protects: 1, banEvery: 4, pickTimer: 90 } });
+  const f4 = live.last.flows['u1-4'];
+  players561 = [f4.a.id, f4.b.id];
+  r = await adm2('/api/admin/match', { method: 'POST', json: { id: 'u1-4', time: Date.now() - 3600e3, mp: '561' } });
+  assert.deepEqual(r.body.result.wins, { [f4.a.id]: 5, [f4.b.id]: 4 }, JSON.stringify(r.body));
+  await until(() => live.last.flows['u1-4'].step === 'done' && live.last.flows['u1-4'].fillSuggested, 'se sugiere completar el partido');
+  assert.deepEqual(live.last.flows['u1-4'].maps.map((x) => x.slot), ['NM2', 'HD2', 'FM1', 'HR2', 'NM1', 'HD1', 'DT2', 'NM4', 'TB'], 'sin el warmup');
+  const fill = (json) => refc('/api/ref/act', { method: 'POST', json: { key: 'u1-4', type: 'complete', ...json } });
+  const good = { protect: 'a', ban: 'b', pick: 'a', protects: 'NM1, HD1', bans: 'dt1, HR1, NM3, FM2', picks: ['NM2', 'HD2', 'FM1', 'HR2', 'NM1', 'HD1', 'DT2', 'NM4'] };
+  const sent4 = irc.sent.length;
+  const overlay4 = async () => (await anon2('/api/overlay?match=u1-4')).body.rundown;
+  // Permisos: un jugador no puede; un árbitro que juega el partido, tampoco
+  assert.equal((await p01('/api/ref/act', { method: 'POST', json: { key: 'u1-4', type: 'complete', ...good } })).status, 403, 'un jugador no puede');
+  assert.equal((await anon2('/api/ref/act', { method: 'POST', json: { key: 'u1-4', type: 'complete', ...good } })).status, 401);
+  await adm2('/api/admin/role', { method: 'POST', json: { user: String(f4.b.id), role: 'referee' } });
+  r = await (await login(s2.base, f4.b.id))('/api/ref/act', { method: 'POST', json: { key: 'u1-4', type: 'complete', ...good } });
+  assert.equal(r.status, 403, 'quien juega el partido no lo completa');
+  await adm2('/api/admin/role', { method: 'POST', json: { id: f4.b.id, role: '' } });
+  // Casos inválidos: se explica el error y no se guarda nada
+  for (const [bad, re] of [
+    [{ bans: 'DT1, HR1, NM3, DT2' }, /Ban 4 \(DT2\): mismo mod que su ban anterior/],
+    [{ bans: 'NM1, HR1, NM3, FM2' }, /Ban 1 \(NM1\): está protegido/],
+    [{ bans: 'DT1, HR1' }, /Faltan bans: tras 4 mapas tocaba la tanda 2/],
+    [{ protects: 'NM1' }, /Faltan protects/],
+    [{ picks: [...good.picks, 'FM2'] }, /FM2 no se jugó en el MP/],
+    [{ picks: good.picks.slice(0, 7) }, /Faltan picks/],
+    [{ protects: 'NM1, NM1' }, /Protect 2 \(NM1\): ya está protegido/],
+    [{ pick: 'x' }, /Elige quién protege/]
+  ]) {
+    r = await fill({ ...good, ...bad });
+    assert.equal(r.status, 400, JSON.stringify(bad));
+    assert.match(r.body.error, re);
+  }
+  assert.deepEqual(await overlay4(), [], 'nada guardado tras los errores');
+  assert.deepEqual((await anon2('/api/state')).body.matches['u1-4'].bans, []);
+  // Bien: el rundown en el orden real, con la segunda tanda (ABBA) tras 4 mapas y el TB al final
+  r = await fill(good);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const RED = 'RED', BLUE = 'BLUE';
+  assert.deepEqual(await overlay4(), [
+    { actor: RED, action: 'PROTECT', pick: 'NM1' }, { actor: BLUE, action: 'PROTECT', pick: 'HD1' },
+    { actor: BLUE, action: 'BAN', pick: 'DT1' }, { actor: RED, action: 'BAN', pick: 'HR1' },
+    { actor: RED, action: 'PICK', pick: 'NM2' }, { actor: BLUE, action: 'PICK', pick: 'HD2' }, { actor: RED, action: 'PICK', pick: 'FM1' }, { actor: BLUE, action: 'PICK', pick: 'HR2' },
+    { actor: RED, action: 'BAN', pick: 'NM3' }, { actor: BLUE, action: 'BAN', pick: 'FM2' },
+    { actor: RED, action: 'PICK', pick: 'NM1' }, { actor: BLUE, action: 'PICK', pick: 'HD1' }, { actor: RED, action: 'PICK', pick: 'DT2' }, { actor: BLUE, action: 'PICK', pick: 'NM4' },
+    { actor: null, action: 'PICK', pick: 'TB' }
+  ], 'rundown completado después del partido');
+  assert.equal(irc.sent.length, sent4, 'no se manda nada a Bancho');
+  r = (await anon2('/api/state')).body.matches['u1-4'];
+  assert.deepEqual(r.bans, ['DT1', 'HR1', 'NM3', 'FM2'], 'bans para la tarjeta y las estadísticas');
+  assert.deepEqual(r.protects, ['NM1', 'HD1']);
+  assert.deepEqual(r.by, { protect: { NM1: 'a', HD1: 'b' }, ban: { DT1: 'b', HR1: 'a', NM3: 'a', FM2: 'b' } }, 'quién hizo cada protect y ban');
+  await until(() => live.last.flows['u1-4'].fillSuggested === false && live.last.flows['u1-4'].canFill, 'ya no se sugiere');
+  // Con acciones ya apuntadas hay que confirmar la sustitución
+  r = await fill({ ...good, ban: 'a', bans: 'HR1, DT1, FM2, NM3' });
+  assert.equal(r.status, 409);
+  assert.match(r.body.error, /ya tiene 15 pasos apuntados/);
+  assert.equal((await overlay4())[2].pick, 'DT1', 'sin confirmar no cambia nada');
+  r = await fill({ ...good, ban: 'a', bans: 'HR1, DT1, FM2, NM3', replace: true });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual((await overlay4()).filter((x) => x.action === 'BAN').map((x) => [x.actor, x.pick]), [[RED, 'HR1'], [BLUE, 'DT1'], [BLUE, 'FM2'], [RED, 'NM3']], 'sustituido: banea primero rojo');
+  // Un partido sin terminar no se completa
+  assert.equal((await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-5', type: 'complete', ...good } })).status, 400);
+  console.log('✓ completar después del partido: rundown con las reglas de la ronda, errores sin guardar, sustituir con confirmación y permisos');
 
   // Quitar al árbitro y cerrar sesión cierran su conexión a Bancho
   await adm2('/api/admin/role', { method: 'POST', json: { id: 503, role: '' } });

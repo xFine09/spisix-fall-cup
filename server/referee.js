@@ -6,7 +6,7 @@
 // Todo lo apuntado (roll, orden, protects, bans y picks) se puede deshacer paso a paso o empezar de cero.
 // El estado de cada partido se guarda en la base de datos; la conexión a Bancho no.
 import { Bancho, ircName } from './irc.js';
-import { refFlow, modsFor, modOf } from './refflow.js';
+import { refFlow, buildActions, modsFor, modOf } from './refflow.js';
 
 const LOG_MAX = 300;
 const IDLE_MS = 3 * 3600e3;   // 3 horas sin usar la web y sin página abierta: se cierra la conexión y se olvida la contraseña
@@ -48,7 +48,12 @@ export function createReferee(deps) {
     const maps = (result?.maps || []).map((x) => ({
       slot: x.slot, w: x.w === m.a?.id ? 'a' : 'b', a: x.scores[m.a?.id] ?? null, b: x.scores[m.b?.id] ?? null
     }));
-    return { ...f, id, round, rules, label: label(id), time: rec?.time ?? null, ref: rec?.ref || null, a: pl(m.a), b: pl(m.b), mp: rec?.mp || null, maps, noPool: !slots.length };
+    // «Completar después del partido»: partido terminado con su MP leído y sin forfeit. Se sugiere si no tiene
+    // acciones apuntadas, si tiene menos picks que mapas jugados o menos protects de los de la ronda.
+    const canFill = Boolean(rec?.mp && maps.length && f.step === 'done' && !f.ff && slots.length);
+    const incomplete = !(f.protects.length + f.bans.length + f.picks.length) || f.picks.length < maps.length || f.protects.length < rules.protects * 2;
+    return { ...f, id, round, rules, label: label(id), time: rec?.time ?? null, ref: rec?.ref || null, a: pl(m.a), b: pl(m.b), mp: rec?.mp || null, maps, noPool: !slots.length,
+      canFill, fillSuggested: canFill && incomplete };
   }
 
   // ---------- avisos a las páginas abiertas (SSE) ----------
@@ -422,6 +427,39 @@ export function createReferee(deps) {
     return flowOf(key);
   }
 
+  // ---------- completar después del partido ----------
+  // Solo apunta en la web lo que pasó en un partido que no se arbitró con los botones: no manda nada a Bancho.
+  // El orden de cada paso lo decide refFlow (buildActions); si algo no cuadra, no se guarda nada.
+  const slotList = (v) => (Array.isArray(v) ? v : String(v ?? '').split(/[\s,;]+/))
+    .map((x) => String(x).toUpperCase().replace(/\s+/g, '')).filter(Boolean).slice(0, 30);
+  function complete(key, b) {
+    const f = flowOf(key);
+    if (!f.a || !f.b) throw new HttpError(400, 'Este partido aún no tiene a los dos jugadores.');
+    if (f.noPool) throw new HttpError(400, 'Esta ronda no tiene mappool todavía.');
+    if (f.ff) throw new HttpError(400, 'Este partido se decidió por forfeit: no hay protects, bans ni picks que apuntar.');
+    if (!f.mp || !f.maps.length) throw new HttpError(400, 'Este partido no tiene un MP leído con mapas del pool.');
+    if (f.step !== 'done') throw new HttpError(400, `El MP todavía no tiene el partido terminado (${f.score.a} – ${f.score.b}). Relee el MP cuando acabe.`);
+    const side = (x) => (x === 'a' || x === 'b' ? x : null);
+    const order = { protect: side(b.protect), ban: side(b.ban), pick: side(b.pick) };
+    if (!order.protect || !order.ban || !order.pick) throw new HttpError(400, 'Elige quién protege, banea y elige primero.');
+    const st = matchState(key);
+    if (st.actions.length && b.replace !== true) {
+      const n = st.actions.length;
+      throw new HttpError(409, `Este partido ya tiene ${n} paso${n === 1 ? '' : 's'} apuntado${n === 1 ? '' : 's'}. Confirma que quieres sustituirlos.`);
+    }
+    const r = buildActions({
+      rules: f.rules, order, protects: slotList(b.protects), bans: slotList(b.bans), picks: slotList(b.picks),
+      slots: poolOf(f.round).map((p) => p.slot), winners: Object.fromEntries(f.maps.map((x) => [x.slot, x.w])), need: f.need
+    });
+    if (r.error) throw new HttpError(400, r.error);
+    st.order = order;
+    st.actions = r.actions;
+    saveState(key, st);
+    q.setBans.run(key, JSON.stringify(st.actions.filter((x) => x.type === 'ban').map((x) => x.slot)), Date.now());
+    push();
+    return flowOf(key);
+  }
+
   // ---------- acciones del árbitro ----------
   function guardOwn(user, key) {
     const m = bracket().matches[key];
@@ -608,7 +646,8 @@ export function createReferee(deps) {
 
     // Partido del cuadro: roll, orden, protects, bans y picks (también sin lobby, para apuntarlo a mano)
     if (key.startsWith('qual:')) throw new HttpError(400, 'Acción desconocida.');
-    const l = s?.status === 'connected' ? lobbyOfKey(s, key) : null;
+    if (type === 'complete') return complete(key, b);
+    const l =s?.status === 'connected' ? lobbyOfKey(s, key) : null;
     return perform(s, l, key, { ...b, type });
   }
 

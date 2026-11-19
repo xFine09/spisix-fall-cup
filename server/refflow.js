@@ -68,3 +68,55 @@ export function refFlow({ rules, st, slots, played, score, need }) {
   const by = n % 2 === 0 ? o.pick : other(o.pick);
   return { ...base, step: 'pick', by, allowed: allowed('pick', by) };
 }
+
+// Completar un partido después de jugarlo: con el orden y las listas de protects, bans (en el orden en que se
+// dijeron, todas las tandas seguidas) y picks, reconstruye las acciones en el orden real del partido.
+// Se recorre refFlow paso a paso como si se arbitrara en directo, y el marcador avanza con el ganador de cada
+// pick en el MP: así cada protect, ban y pick va a quien le tocaba, la segunda tanda de bans cae tras banEvery
+// mapas (o justo antes del TB) y se aplican las mismas reglas. El TB se añade solo si el MP lo tiene.
+// winners: slot → 'a' | 'b' (ganador de ese mapa en el MP). Devuelve { actions } o { error }.
+const NAMES = { protect: 'protects', ban: 'bans', pick: 'picks' };
+export function buildActions({ rules, order, protects, bans, picks, slots, winners, need }) {
+  const queues = { protect: [...protects], ban: [...bans], pick: [...picks] };
+  for (const [type, list] of Object.entries(queues)) {
+    for (const slot of list) {
+      if (!slots.includes(slot)) return { error: `${slot} no está en la mappool de esta ronda.` };
+      if (slot === 'TB') return { error: `El TB no se puede poner en ${NAMES[type]}: se añade solo si se jugó.` };
+    }
+  }
+  for (const slot of picks) if (!(slot in winners)) return { error: `${slot} no se jugó en el MP: quítalo de los picks.` };
+  const st = { roll: { winner: order.protect }, order, actions: [] };
+  const played = [];
+  const score = { a: 0, b: 0 };
+  for (let guard = 0; guard < 100; guard++) {
+    const f = refFlow({ rules, st, slots, played, score, need });
+    if (f.step === 'done') break;
+    if (f.step === 'tb') {
+      if (!('TB' in winners)) {
+        if (queues.pick.length) break; // sobran picks: se avisa abajo
+        return { error: `Con estos picks el partido llega a ${score.a} – ${score.b}, pero el MP no tiene el TB. Revisa los picks.` };
+      }
+      st.actions.push({ type: 'pick', by: null, slot: 'TB' });
+      played.push('TB');
+      score[winners.TB]++;
+      continue;
+    }
+    const q = queues[f.step];
+    if (!q.length) {
+      if (f.step === 'pick') return { error: `Faltan picks: con estos mapas el partido queda ${score.a} – ${score.b} y no ha terminado.` };
+      const total = f.step === 'protect' ? rules.protects * 2 : null;
+      return { error: f.step === 'protect'
+        ? `Faltan protects: esta ronda tiene ${rules.protects} por jugador (${total} en total).`
+        : `Faltan bans: tras ${played.length} mapa${played.length === 1 ? '' : 's'} tocaba la tanda ${Math.floor(st.actions.filter((x) => x.type === 'ban').length / 2) + 1} (esta ronda tiene ${rules.bans} por jugador, una tanda cada ${rules.banEvery} mapas).` };
+    }
+    const slot = q.shift();
+    const why = f.allowed[slot];
+    const n = st.actions.filter((x) => x.type === f.step).length + 1;
+    if (why) return { error: `${NAMES[f.step][0].toUpperCase()}${NAMES[f.step].slice(1, -1)} ${n} (${slot}): ${why.toLowerCase()}.` };
+    st.actions.push({ type: f.step, by: f.by, slot });
+    if (f.step === 'pick') { played.push(slot); score[winners[slot]]++; }
+  }
+  const left = Object.entries(queues).filter(([, l]) => l.length).map(([type, l]) => `${NAMES[type]} (${l.join(', ')})`);
+  if (left.length) return { error: `Sobran ${left.join(' y ')}: el partido ya había terminado o no tocaban según las reglas de la ronda.` };
+  return { actions: st.actions };
+}

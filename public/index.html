@@ -706,7 +706,7 @@ function compute(){
     const p=phaseBy[m.fase]; m.bo=p.bo||9; m.need=(m.bo+1)/2;
     if(S.demo) demoFill(m,p,perPhase[m.fase].indexOf(m),perPhase[m.fase].length,NOW);
     const rec=S.matches[m.id]||{};
-    Object.assign(m,{time:rec.time||null,ref:rec.ref||null,mp:rec.mp||null,ff:rec.ff||null,bans:rec.bans||[],protects:rec.protects||[],result:rec.result||null});
+    Object.assign(m,{time:rec.time||null,ref:rec.ref||null,mp:rec.mp||null,ff:rec.ff||null,bans:rec.bans||[],protects:rec.protects||[],by:rec.by||null,result:rec.result||null});
     m.sa=m.a&&m.result?(m.result.wins?.[m.a.id]||0):0;
     m.sb=m.b&&m.result?(m.result.wins?.[m.b.id]||0):0;
     if(!m.a||!m.b) m.estado='tbd';
@@ -838,7 +838,9 @@ function matchCardOf(m,me){
   };
   const hasScore=(m.estado==='done'||m.estado==='live')&&!m.ff;
   const maps=m.result?.maps||[];
-  const picks=(m.bans.length||maps.length||m.protects.length)&&m.a&&m.b?`<div class="picks">${m.protects.length?`<span class="lbl">Protects</span>${m.protects.map(s=>`<span class="slot ${esc(s.slice(0,2))}">${esc(s)}</span>`).join('')}`:''}${m.bans.length?`<span class="lbl">Bans</span>${m.bans.map(s=>`<span class="slot ${esc(s.slice(0,2))} ban">${esc(s)}</span>`).join('')}`:''}${maps.length?`<span class="lbl">Mapas</span>${maps.map(x=>`<span class="slot ${esc(x.slot.slice(0,2))} ${x.w===m.a.id?'wa':'wb'}" title="Gana ${esc(x.w===m.a.id?m.a.username:m.b.username)}">${esc(x.slot)}</span>`).join('')}`:''}</div>`:'';
+  // Protects y bans con el color de quien los hizo (si se apuntaron en Arbitrar); los bans escritos a mano en Admin, sin color.
+  const chip=(type,s,cls,verb)=>{const by=m.by?.[type]?.[s], p=by==='a'?m.a:by==='b'?m.b:null;return `<span class="slot ${esc(s.slice(0,2))} ${cls} ${by==='a'?'wa':by==='b'?'wb':''}"${p?` title="${verb} por ${esc(p.username)}"`:''}>${esc(s)}</span>`};
+  const picks=(m.bans.length||maps.length||m.protects.length)&&m.a&&m.b?`<div class="picks">${m.protects.length?`<span class="lbl">Protects</span>${m.protects.map(s=>chip('protect',s,'','Protegido')).join('')}`:''}${m.bans.length?`<span class="lbl">Bans</span>${m.bans.map(s=>chip('ban',s,'ban','Baneado')).join('')}`:''}${maps.length?`<span class="lbl">Mapas</span>${maps.map(x=>`<span class="slot ${esc(x.slot.slice(0,2))} ${x.w===m.a.id?'wa':'wb'}" title="Gana ${esc(x.w===m.a.id?m.a.username:m.b.username)}">${esc(x.slot)}</span>`).join('')}`:''}</div>`:'';
   const won=me&&m.estado==='done'?m.winner?.id===me:null;
   const pill=won==null?PILL[m.estado]:`<span class="pill ${won?'good':''}">${won?'Victoria':'Derrota'}${m.ff?' por forfeit':''}</span>`;
   return `<article class="mt ${m.estado}">
@@ -861,7 +863,7 @@ function bracketCard(m){
 }
 
 /* ---------------- vistas ---------------- */
-const UI={fase:null,pj:null,ficha:null,pool:null,jug:'lista',q:'',flash:null,admMatch:'u1-1',busy:false,imp:null,impText:'',admRound:null,poolText:'',poolRead:null,poolBusy:null,slotEdit:null,slotDel:null,slotEmpty:null,qday:null,normasReset:false,textReset:null,fasesReset:false,live:null,liveId:null,ref:null,refForce:false};
+const UI={fase:null,pj:null,ficha:null,pool:null,jug:'lista',q:'',flash:null,admMatch:'u1-1',busy:false,imp:null,impText:'',admRound:null,poolText:'',poolRead:null,poolBusy:null,slotEdit:null,slotDel:null,slotEmpty:null,qday:null,normasReset:false,textReset:null,fasesReset:false,live:null,liveId:null,ref:null,refForce:false,refFill:false,fillErr:null};
 
 // Resultado de la última importación del formulario, con lo que hay que revisar a mano.
 function importReport(){
@@ -1744,11 +1746,31 @@ function refMatch(f){
   const any=f.roll||f.order||f.protects.length||f.bans.length||f.picks.length;
   const fix=f.noPool||pool===null?'':rgrp('Corregir',`<div class="row" style="align-items:center"><button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="undo" ${any?'':'disabled'} title="Solo en la web: no manda nada al lobby">Deshacer el último paso</button><button class="btn btn-ghost btn-sm" type="button" data-act="ref-reset" ${any?'':'disabled'} title="Solo en la web: no manda nada al lobby">Empezar de cero</button>${f.step!=='done'?`<span class="checks"><label><input type="checkbox" id="r-force" data-keep="no" ${force?'checked':''}>Apuntar a mano</label></span>`:''}</div>`);
 
+  // Completar después del partido: protects, bans y picks de un partido que no se arbitró con los botones.
+  // Solo se apunta en la web; el reparto de cada paso lo hace el servidor con las reglas de la ronda.
+  let fill='';
+  if(f.canFill&&UI.refFill){
+    const o=f.order||{}, sel=(k,t)=>`<div class="field"><label for="r-c-${k}">${t}</label><select id="r-c-${k}"><option value="a" ${o[k]!=='b'?'selected':''}>${n('a')} (rojo)</option><option value="b" ${o[k]==='b'?'selected':''}>${n('b')} (azul)</option></select></div>`;
+    const txt=(k,t,v,hint)=>`<div class="field" style="flex:1 1 100%"><label for="r-c-${k}">${t}</label><input type="text" id="r-c-${k}" value="${esc(v)}" placeholder="${esc(hint)}" autocomplete="off" spellcheck="false"></div>`;
+    const done=f.protects.length+f.bans.length+f.picks.length, r=f.rules;
+    fill=rgrp('Completar después del partido',`<form data-form="ref-fill" style="display:grid;gap:10px">
+      <p class="muted" style="font-size:.85rem;margin:0">Solo se apunta en la web: no se manda nada al lobby. Esta ronda: ${r.protects} protect${r.protects===1?'':'s'} y ${r.bans} ban${r.bans===1?'':'s'} por jugador, una tanda de bans cada ${r.banEvery} mapas. Escribe los slots separados por comas; la web reparte cada paso al jugador que le tocaba.</p>
+      <div class="row">${sel('protect','Protege primero')}${sel('ban','Banea primero')}${sel('pick','Elige primero')}</div>
+      ${txt('protects','Protects, en orden',f.protects.map(x=>x.slot).join(', '),'NM1, HD2')}
+      ${txt('bans','Bans, en el orden en que se dijeron (todas las tandas seguidas)',f.bans.map(x=>x.slot).join(', '),'DT1, HR2, NM3, FM1')}
+      ${txt('picks','Picks, en orden (rellenos con el MP, sin warmups ni el TB)',f.maps.filter(x=>x.slot!=='TB').map(x=>x.slot).join(', '),'NM2, HD1, …')}
+      ${pool?`<p class="muted" style="font-size:.8rem;margin:0">Slots de la mappool: ${pool.map(p=>esc(p.slot)).join(' · ')}. ${f.maps.some(x=>x.slot==='TB')?'El TB se añade solo, porque se jugó.':''}</p>`:''}
+      ${done?`<p class="note" style="margin:0">Este partido ya tiene ${done} paso${done===1?'':'s'} apuntado${done===1?'':'s'}. <span class="checks"><label><input type="checkbox" id="r-c-replace">Sustituirlos por estos</label></span></p>`:''}
+      ${UI.fillErr?`<p class="flash err" role="alert" style="margin:0">${esc(UI.fillErr)}</p>`:''}
+      <div class="row"><button class="btn btn-primary btn-sm" type="submit">Guardar</button><button class="btn btn-ghost btn-sm" type="button" data-act="ref-fill-off">Cancelar</button></div>
+    </form>`);
+  }else if(f.fillSuggested) fill=rgrp('Completar después del partido',`<div class="row" style="align-items:center"><button class="btn btn-ghost btn-sm" type="button" data-act="ref-fill-on">Completar después del partido</button><span class="muted" style="font-size:.85rem">Protects, bans y picks de un partido que no se arbitró con los botones.</span></div>`);
+
   const side=x=>x.by==='a'?'wa':x.by==='b'?'wb':'';
   const chips=(list,cls)=>list.map(x=>`<span class="slot ${esc(x.slot.slice(0,2))} ${cls} ${side(x)}" title="${n(x.by)}">${esc(x.slot)}</span>`).join('');
   const tl=`<div class="picks">${f.roll?`<span class="lbl">Roll</span><span style="font-size:.85rem">${f.roll.a!=null?`${f.roll.a} – ${f.roll.b} · `:''}gana ${n(f.roll.winner)}</span>`:''}${f.protects.length?`<span class="lbl">Protects</span>${chips(f.protects,'')}`:''}${f.bans.length?`<span class="lbl">Bans</span>${chips(f.bans,'ban')}`:''}${f.picks.length?`<span class="lbl">Picks</span>${chips(f.picks,'')}`:''}</div>`;
   const table=f.maps.length?`<div class="tbl-wrap"><table><thead><tr><th>Mapa</th><th class="n">${n('a')}</th><th class="n">${n('b')}</th><th>Gana</th></tr></thead><tbody>${f.maps.map(x=>`<tr><td><span class="slot ${esc(x.slot.slice(0,2))}">${esc(x.slot)}</span></td><td class="n">${x.a!=null?nf.format(x.a):'Sin score'}</td><td class="n">${x.b!=null?nf.format(x.b):'Sin score'}</td><td class="${x.w==='a'?'ta':'tb'}">${n(x.w)}</td></tr>`).join('')}</tbody></table></div>`:'';
-  const btns=`<div class="card adm rbtns"><h3>Botones</h3>${flashHtml()}${l?rgrp('Lobby',lobbyBtns(l,f)):''}${rgrp('Mensajes',msgs)}${step}${maps}${fix}</div>`;
+  const btns=`<div class="card adm rbtns"><h3>Botones</h3>${flashHtml()}${l?rgrp('Lobby',lobbyBtns(l,f)):''}${rgrp('Mensajes',msgs)}${step}${maps}${fix}${fill}</div>`;
   return `<div class="card adm">${head}${lob}</div>
     ${l?`<div class="rcon">${chatPanel(l)}${btns}</div>`:btns}
     ${any||f.maps.length?`<div class="card adm"><h3>Resumen <span class="muted" style="font-size:.8rem;font-weight:500">Subrayado: <span class="ta">${n('a')}</span> · <span class="tb">${n('b')}</span></span></h3>${tl}${table}</div>`:''}`;
@@ -1937,7 +1959,7 @@ async function copyId(b){
 app.addEventListener('click',e=>{
   const b=e.target.closest('[data-fase],[data-pool],[data-jug],[data-ref],[data-qday],[data-act]'); if(!b) return;
   if(b.dataset.qday){UI.qday=b.dataset.qday;UI.slotDel=null;UI.slotEmpty=null;return keepRender()}
-  if(b.dataset.ref){UI.ref=b.dataset.ref;UI.flash=null;UI.refForce=false;render();return scrollTo(0,0)}
+  if(b.dataset.ref){UI.ref=b.dataset.ref;UI.flash=null;UI.refForce=false;UI.refFill=false;UI.fillErr=null;render();return scrollTo(0,0)}
   if(b.dataset.fase){UI.fase=b.dataset.fase;UI.pj=null;setSub(UI.fase);return render()}
   if(b.dataset.pool){UI.pool=b.dataset.pool;setSub(UI.pool);return render()}
   if(b.dataset.jug){UI.jug=b.dataset.jug;UI.ficha=null;setSub(UI.jug);return render()}
@@ -2036,6 +2058,8 @@ app.addEventListener('click',e=>{
   if(a==='ref-lobby'){b.disabled=true;b.textContent='Creando…';return refAct('/api/ref/lobby',{match:UI.ref,replace:Boolean(document.getElementById('r-replace')?.checked)},r=>`Lobby creado (MP #${r.mp}). Los jugadores ya tienen la invitación.`)}
   if(a==='ref-attach'){const k=b.dataset.key;b.disabled=true;return refAct('/api/ref/attach',{key:k},null,()=>{UI.ref=k})}
   if(a==='ref-close'){if(!confirm('¿Cerrar el lobby? Bancho lo cierra para todos los jugadores.')) return;return refAct('/api/ref/act',{key:UI.ref,type:'close'})}
+  if(a==='ref-fill-on'){UI.refFill=true;UI.fillErr=null;UI.flash=null;return keepRender()}
+  if(a==='ref-fill-off'){UI.refFill=false;UI.fillErr=null;return keepRender()}
   if(a==='ref-say') return refAct('/api/ref/chat',{key:UI.ref,text:b.dataset.text});
   if(a==='ref-reset'){if(!confirm('¿Borrar el roll, el orden, los protects, los bans y los picks apuntados? En el lobby no se manda nada y el marcador sale del MP.')) return;return refAct('/api/ref/act',{key:UI.ref,type:'reset'},'Partido empezado de cero en la web.')}
   if(a==='ref-do'){
@@ -2154,6 +2178,12 @@ app.addEventListener('submit',e=>{
     if(!pw.trim()){UI.flash={ok:false,text:'Pega tu contraseña IRC.'};return keepRender()}
     const btn=f.querySelector('button'); btn.disabled=true; btn.textContent='Conectando…';
     return refAct('/api/ref/connect',{password:pw},'Conectado a Bancho.');
+  }
+  if(kind==='ref-fill'){
+    const body={key:UI.ref,type:'complete',protect:val('r-c-protect'),ban:val('r-c-ban'),pick:val('r-c-pick'),protects:val('r-c-protects'),bans:val('r-c-bans'),picks:val('r-c-picks'),replace:Boolean(document.getElementById('r-c-replace')?.checked)};
+    const btn=f.querySelector('button[type=submit]'); btn.disabled=true;
+    UI.fillErr=null;
+    return post('/api/ref/act',body).then(()=>{UI.refFill=false;UI.flash={ok:true,text:'Partido completado: protects, bans y picks apuntados en la web. En el lobby no se ha mandado nada.'}},e=>{UI.fillErr=e.message}).finally(keepRender);
   }
   if(kind==='ref-order') return refAct('/api/ref/act',{key:UI.ref,type:'order',protect:val('r-o-protect'),ban:val('r-o-ban'),pick:val('r-o-pick')});
   const refText=(id,send)=>{const el=document.getElementById(id), t=el.value.trim(); if(!t) return; el.value=''; return send(t).then(ok=>{if(!ok){const x=document.getElementById(id);if(x&&!x.value) x.value=t}})};

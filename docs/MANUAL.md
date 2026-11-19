@@ -17,7 +17,7 @@ Detalle completo para quien instala y mantiene la web. El resumen está en el [R
 - **Roles**: el host (`ADMIN_IDS`) asigna desde el panel quién es admin, árbitro o staff. Se aplica al momento. Staff ve las mappools antes de publicarse, sin entrar en el panel.
 - **Resultados**: el admin pega el enlace del MP y la web cuenta los mapas ganados por cada jugador. De cada jugador y mapa guarda también la puntuación, la precisión, el combo, los 300/100/50/fallos y los mods (en los clasificatorios, los de su mejor score). Ignora los warmups (solo cuenta mapas del pool de la ronda) y aplica EZ ×1,8 y EZHD ×2 (en clasificatorios no hay multiplicadores). Mientras se juega, se actualiza sola cada 5 minutos.
 - **Clasificatorios**: se añaden los MP de los lobbies; se toma el mejor score de cada jugador en cada mapa y se ordena por Z-sum. Solo cuentan los mapas jugados en head to head: un MP por equipos se rechaza, y si solo algunos mapas se jugaron así, el panel lo indica. Los resultados no son públicos hasta la hora que programe la organización; los admins y los árbitros los ven siempre, y son los únicos que ven los enlaces a los MP.
-- **Arbitraje con bot de IRC**: los árbitros conectan su cuenta de osu! a Bancho desde la página **Arbitrar**. La página tiene dos paneles: el chat del lobby, donde el árbitro lee a los jugadores y escribe lo que quiera, y una botonera. Cada botón manda su comando `!mp` o su mensaje en el momento en que se pulsa; la web no hace nada sola en el lobby ni propone nada. Solo enseña el estado (quién hay, si están todos listos, el mapa puesto), lleva el turno de protects, bans y picks según las reglas de cada ronda, pone cada mapa con sus mods (FM y TB en FreeMod) y lee el resultado de cada mapa en la API de osu!. Todo lo apuntado se puede deshacer paso a paso o empezar de cero. También lleva lobbies de clasificatorios.
+- **Arbitraje con bot de IRC**: los árbitros conectan su cuenta de osu! a Bancho desde la página **Arbitrar**. La página tiene dos paneles: el chat del lobby, donde el árbitro lee a los jugadores y escribe lo que quiera, y una botonera. Cada botón manda su comando `!mp` o su mensaje en el momento en que se pulsa; la web no hace nada sola en el lobby ni propone nada. Solo enseña el estado (quién hay, si están todos listos, el mapa puesto), lleva el turno de protects, bans y picks según las reglas de cada ronda, pone cada mapa con sus mods (FM y TB en FreeMod) y lee el resultado de cada mapa en la API de osu!. Todo lo apuntado se puede deshacer paso a paso o empezar de cero. Un partido arbitrado sin los botones se puede **completar después del partido**: con el orden y las listas de protects, bans y picks, la web reparte cada paso con las reglas de la ronda. También lleva lobbies de clasificatorios.
 - **Cuadro de doble eliminación de 16**: los cruces y los ganadores avanzan solos a partir de las seeds y los resultados.
 - **Ficha del jugador**: en Jugadores, al pulsar a un inscrito (en Inscritos o en la tabla de Clasificatorios) se abre su ficha: avatar, país, rango global y de país, pp, precisión, partidas jugadas y una gráfica de su rango en los últimos 90 días, con «Ver sus partidos» y el enlace a su perfil de osu!. Su dirección es `#jugadores/ficha/<ID de osu!>`. Los datos no se piden a osu! al abrir la ficha: la sincronización automática guarda una vez al día una foto del perfil público de cada inscrito (`GET /users/{id}/osu`, uno a uno por la cola de 1 petición por segundo; `/users/lookup` no trae el historial de rango, el rango de país ni las pp) y la ficha enseña la última y su fecha. Al importar inscritos, la foto de los nuevos se toma en ese momento. Si osu! falla, se queda la foto anterior y ese jugador se vuelve a intentar pasada una hora. **Actualizar rangos**, en el panel, también renueva las fotos.
 - **o!TR en la ficha** (opcional, con `OTR_API_KEY`): una sección «o!TR · otros torneos» con el rating de torneo (TR), el tier, el percentil y el rango global en o!TR, los torneos jugados, el % de partidos ganados. Se ve también antes de que se publiquen los resultados de clasificatorios, porque no sale de este torneo. Quien no tiene torneos verificados sale como «Sin rating de o!TR». Una vez al día, después de las fotos de osu!, la web pide `GET /api/players/{id}/stats` de cada inscrito (y al importar, de los nuevos), por su propia cola de una petición cada 1,5 segundos, y guarda la última foto buena. Si o!TR falla, se queda la anterior; también si responde 404 para alguien que ya tenía datos, porque es más probable un cambio en su API que una baja. **Actualizar rangos** también la renueva.
@@ -199,6 +199,7 @@ docker compose start web
 | Hay un admin, árbitro o staff nuevo (solo el host) | **Roles**: su nombre o enlace de osu! y el rol. Se aplica al momento. |
 | Antes de los clasificatorios | **Lobbies de clasificatorios**: **Crear la rejilla** con días, horas y plazas, y **Un lobby suelto** para horas especiales. Los jugadores se apuntan en Qualis; aquí se puede añadir o quitar a cualquiera y elegir el árbitro de cada lobby. Si sobran, **Quitar los vacíos de este día**. |
 | Si alguien no se presenta | **Forfeit** → gana A o B. |
+| Un partido se arbitró sin los botones de Arbitrar | Un árbitro o admin abre el partido en **Arbitrar** → **Completar después del partido**: quién protege, banea y elige primero, los protects, los bans en el orden en que se dijeron y los picks, que vienen rellenos con el MP. Ver [Completar un partido después de jugarlo](#completar-un-partido-después-de-jugarlo). |
 | Alguien fuera de rango que sí puede jugar no entra al importar | **Excepciones de rango**: pegar el enlace de su perfil, y volver a importar. |
 | Alguien va a leer los datos de los partidos desde otra web u OBS | **Guía de la API**: su nombre o enlace de osu!, y pasarle el enlace `/api.html`. Tiene que iniciar sesión con esa cuenta para verla. No le da ningún otro permiso. |
 | Hay inscritos en el formulario de Google | **Importar del formulario**: en la hoja de respuestas, Ctrl+A, Ctrl+C y pegar. Si la hoja tiene una columna de Discord, se ignora. |
@@ -223,6 +224,33 @@ La importación busca los nombres exactos de 50 en 50 (`GET /users/lookup`) y lo
    - **Apuntar a mano** se salta el turno y las reglas para corregir algo;
    - el chat de la página manda cualquier mensaje o comando al lobby;
    - **Poner warmup** pone un mapa fuera del pool, que no cuenta.
+
+#### Completar un partido después de jugarlo
+
+Si un partido se arbitró sin los botones (a mano en osu!, o con la web caída), se pueden apuntar después sus protects, bans y picks para que salgan en la tarjeta del partido y en el rundown de `/api/overlay`. En la página Arbitrar, la tarjeta del partido muestra **Completar después del partido** cuando:
+
+- el partido tiene su MP leído y está terminado según el marcador;
+- no es un forfeit;
+- todavía no tiene nada apuntado, tiene menos picks que mapas jugados o le faltan protects.
+
+El formulario pide:
+
+- quién protegió, baneó y eligió primero (rojo = jugador A, azul = jugador B);
+- los protects, en orden;
+- los bans, en el orden en que se dijeron, con todas las tandas seguidas;
+- los picks, ya rellenos con los mapas del pool jugados en el MP, en orden, sin warmups ni el TB. Se pueden corregir. El TB se añade solo si se jugó.
+
+Los slots se escriben separados por comas (`NM1, HD2`). Al guardar, la web reparte cada paso con las mismas reglas que en directo:
+
+- protects alternos;
+- bans por tandas ABBA, con la segunda tanda tras los mapas que digan las reglas de la ronda;
+- picks alternos desde el First Pick.
+
+Para saber cuándo llega cada tanda, usa quién ganó cada mapa en el MP. También comprueba lo mismo que en directo: que no se banee un mapa protegido, que no se repita ningún slot, que nadie banee ni elija el mismo mod que en su ban o pick anterior, y que estén todos los protects y bans de la ronda. Si algo no cuadra, el formulario dice qué falla y no guarda nada.
+
+No se manda nada al lobby ni a Bancho. Si el partido ya tenía pasos apuntados, hay que marcar **Sustituirlos por estos**. Se guarda igual que un partido arbitrado con los botones, así que después también se puede deshacer paso a paso o empezar de cero.
+
+En la tarjeta pública del partido, los protects y los bans salen con el color de quien los hizo, igual que los mapas jugados. Los bans escritos a mano en Admin, sin pasar por Arbitrar, salen sin color.
 
 Si la conexión se corta, la web reconecta y vuelve a entrar en los lobbies abiertos. Si se reinicia el servidor, basta con volver a conectar y pulsar **Volver a entrar al MP**. Sin conectar a Bancho, la página sirve para apuntar el roll, los protects, los bans y los picks de un partido arbitrado a mano.
 
@@ -263,7 +291,7 @@ Para quien vaya a usarla hay una guía en `/api.html`, con la dirección de la w
 - `round` y `bestOf`: la clave de la fase en `config.json` y su `bo`.
 - `players`: `red` es el jugador A del cruce y `blue` el B, igual que los coloca **Arbitrar** con `!mp team`. Mientras un jugador no esté decidido, vale `null`. Igual que en la web, los cruces no aparecen hasta que se publican los resultados de clasificatorios.
 - `pool`: los mapas de la ronda ordenados por slot, con `data` tal como se guarda. Si la mappool de la ronda aún no es pública, `[]`.
-- `rundown`: protects, bans y picks apuntados en **Arbitrar**, en el orden en que se apuntaron (lo deshecho desaparece). `RED` es el jugador A y `BLUE` el B. El pick del tiebreaker lleva `"actor": null`. El roll y el orden no salen. Sin nada apuntado, `[]`.
+- `rundown`: protects, bans y picks apuntados en **Arbitrar**, en el orden en que se apuntaron (lo deshecho desaparece). Un partido arbitrado sin los botones también lo tiene si se completa después (ver [Completar un partido después de jugarlo](#completar-un-partido-después-de-jugarlo)). `RED` es el jugador A y `BLUE` el B. El pick del tiebreaker lleva `"actor": null`. El roll y el orden no salen. Sin nada apuntado, `[]`.
 
 Si falta `match` responde 400, y si el partido no existe, 404, siempre con `{ "error": "…" }`.
 
@@ -333,6 +361,7 @@ La prueba fija su propio reloj (`TEST_NOW` en `test/e2e.js`: 14 de noviembre de 
 - protects, bans y picks por el chat y por la web, con sus reglas;
 - marcador leído de la API;
 - deshacer, apuntar a mano y reconexión;
+- completar después del partido un Bo9 arbitrado sin los botones: el rundown en orden, con la segunda tanda de bans tras los mapas de la regla y el TB al final; los errores, que no guardan nada; sustituir lo apuntado solo con confirmación, y que ni un jugador ni quien juega el partido puedan usarlo;
 - un lobby de clasificatorios;
 - que la contraseña IRC no acabe ni en la base de datos ni en el log.
 
