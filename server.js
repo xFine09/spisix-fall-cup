@@ -15,6 +15,7 @@ import * as twitch from './server/twitch.js';
 import * as otr from './server/otr.js';
 import { resolveBracket, roundName, qualRanking } from './server/bracket.js';
 import { createReferee } from './server/referee.js';
+import { STATS_VIEWS, individual, leaderboard, rankOf, extraMods } from './server/stats.js';
 import { DEFAULT_RULES } from './server/refflow.js';
 
 const PORT = +process.env.PORT || 3000;
@@ -663,6 +664,64 @@ function currentBracket({ publicOnly = false } = {}) {
   return resolveBracket({ players, scores, bids, matches });
 }
 
+// ---------- estadísticas de una ronda (página Stats) ----------
+// Lo mismo para todo el mundo (no mira la sesión): solo rondas con la mappool publicada y, en clasificatorios,
+// con los resultados publicados. Cuenta los mapas ya leídos del MP de cada partido (también de uno en juego),
+// sin forfeits ni warmups. En clasificatorios, el mejor score de cada inscrito en cada mapa; sin los MP de los lobbies.
+const statRounds = () => CONFIG.fases.filter((f) => f.key !== 'registros');
+function statsBody(round, view) {
+  const f = statRounds().find((x) => x.key === round);
+  const qual = round === 'qualifiers';
+  const zs = CONFIG.metodoClasif !== 'suma';
+  const metric = qual ? { key: zs ? 'zsum' : 'total', label: zs ? 'Z-sum' : 'Total' } : { key: 'matchCost', label: 'Match cost' };
+  const base = { round, name: f.nombre, view, metric };
+  if (!isPublic(round)) return { ...base, status: 'hidden', players: [], maps: [] };
+  if (qual && !qualResultsPublic()) return { ...base, status: 'hidden-results', players: [], maps: [] };
+  const pool = poolOf(round);
+  const slotOf = new Map(pool.map((p) => [p.beatmap_id, p.slot]));
+  const registered = new Map(q.registered.all().map((p) => [p.id, p]));
+  const name = (uid) => registered.get(uid)?.username ?? q.getUser.get(uid)?.username ?? `#${uid}`;
+  const plays = [];
+  const play = (uid, bid, score, d, extra) => {
+    const slot = slotOf.get(bid);
+    plays.push({ uid, bid, slot, score, acc: typeof d?.acc === 'number' ? d.acc : null, mods: extraMods(slot, d?.mods), rank: rankOf(d), ...extra });
+  };
+  let values = null;
+  if (qual) {
+    const best = new Map(); // `${uid}:${bid}` → { score, d }
+    for (const l of q.quals.all()) {
+      const d = l.data ? JSON.parse(l.data) : {};
+      for (const [uid, maps] of Object.entries(d.scores || {})) {
+        for (const [bid, s] of Object.entries(maps)) {
+          const k = `${uid}:${bid}`;
+          if (!(best.get(k)?.score >= s)) best.set(k, { uid: +uid, bid: +bid, score: s, d: d.details?.[uid]?.[bid] || null });
+        }
+      }
+    }
+    for (const b of best.values()) if (registered.has(b.uid) && slotOf.has(b.bid)) play(b.uid, b.bid, b.score, b.d, { mult: null, group: `q:${b.bid}`, match: null, mp: null });
+    const scores = {};
+    for (const p of plays) (scores[p.uid] ??= {})[p.bid] = p.score;
+    const rows = qualRanking(registered, scores, pool.map((p) => String(p.beatmap_id)));
+    values = new Map(rows.map((r) => [r.player.id, zs ? Math.round(r.z * 1000) / 1000 : r.total]));
+  } else {
+    const mult = CONFIG.multiplicadores || {};
+    for (const rec of q.matches.all()) {
+      if (rec.ff || !rec.result || phaseOfMatch(rec.id) !== round) continue;
+      for (const m of JSON.parse(rec.result).maps || []) {
+        if (!slotOf.has(m.bid)) continue;
+        for (const [uid, score] of Object.entries(m.scores || {})) {
+          const d = m.stats?.[uid] || null;
+          const ez = d?.mods?.includes('EZ') ? (d.mods.includes('HD') ? mult.EZHD : mult.EZ) ?? null : null;
+          play(+uid, m.bid, score, d, { mult: ez, group: `${rec.id}:${m.bid}`, match: rec.id, mp: rec.mp || null });
+        }
+      }
+    }
+  }
+  const status = plays.length ? 'ok' : 'empty';
+  if (view === 'leaderboard-por-mapa') return { ...base, status, maps: status === 'ok' ? leaderboard(pool, plays, name) : [] };
+  return { ...base, status, players: individual(plays, name, values && { values }) };
+}
+
 // Cada 5 minutos: partidos en juego, lobbies de clasificatorios mientras dura la fase, fotos de perfil (una al día por jugador) y copia diaria de la base de datos.
 let syncing = false;
 async function autoSync() {
@@ -770,6 +829,15 @@ const routes = {
     };
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=5' });
     res.end(JSON.stringify(body));
+  },
+  // Estadísticas de una ronda (página Stats). Pública y de solo lectura: solo lo ya publicado, igual para todos.
+  'GET /api/stats': (req, res, url) => {
+    const round = (url.searchParams.get('round') || '').trim();
+    const view = (url.searchParams.get('view') || STATS_VIEWS[0]).trim();
+    if (!statRounds().some((f) => f.key === round)) throw new HttpError(400, `Ronda desconocida. Usa una de estas: ${statRounds().map((f) => f.key).join(', ')}.`);
+    if (!STATS_VIEWS.includes(view)) throw new HttpError(400, `Vista desconocida. Usa ${STATS_VIEWS.join(' o ')}.`);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=5' });
+    res.end(JSON.stringify(statsBody(round, view)));
   },
   'OPTIONS /api/overlay': (req, res) => {
     overlayCors(res);

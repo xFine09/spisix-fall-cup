@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
 import { DatabaseSync } from 'node:sqlite';
 import { mapWeights, duel, mapFactor, inverseNormal, qualZ, qualBase, percentiles, generalStrength } from '../server/skills.js';
+import { STATS_VIEWS } from '../server/stats.js';
 
 // Reloj fijo: la prueba y el primer servidor creen que es el 14 de noviembre de 2026 a las 13:00 (hora de Madrid),
 // con los clasificatorios en marcha, sea cual sea la fecha real. El segundo servidor va a octavos con su propio reloj.
@@ -92,6 +93,19 @@ function match556() {
   }));
   return { match: { id: 556, name: 'SPI: (P08) vs (P09)' }, events, first_event_id: 1, latest_event_id: 6 };
 }
+// MP 557: U1-7 (P07 contra P10) en juego, con precisión y 300/100/50/fallos en cada score (para Stats).
+// Los mapas se añaden a games557 a medida que se «juegan». En FM1, P10 gana con EZ (550k × 1,8 = 990k > 900k).
+const sc557 = (user_id, score, accuracy, [count_300, count_100, count_50, count_miss], mods = []) =>
+  ({ user_id, score, accuracy, mods, statistics: { count_300, count_100, count_50, count_miss }, match: { team: user_id === 607 ? 'red' : 'blue', pass: true } });
+const game557 = (bid, scores) => ({ beatmap_id: bid, end_time: '2026-11-17T16:30:00Z', mods: ['NF'], scoring_type: 'scorev2', team_type: 'team-vs', scores });
+const GAMES557 = [
+  game557(999, [sc557(607, 100, 0.5, [10, 10, 10, 10]), sc557(610, 999999, 1, [500, 0, 0, 0])]), // warmup
+  game557(101, [sc557(607, 800000, 0.9812, [480, 15, 0, 0]), sc557(610, 750000, 0.95, [440, 50, 3, 2])]), // NM1: S y B
+  game557(102, [sc557(607, 600000, 0.93, [430, 60, 5, 0]), sc557(610, 700000, 0.97, [470, 25, 0, 0])]), // NM2: A y S
+  game557(103, [sc557(607, 900000, 0.99, [500, 0, 0, 0], ['HR']), sc557(610, 550000, 0.96, [470, 20, 2, 3], ['EZ'])]) // FM1: SS y A
+];
+const games557 = [];
+const match557 = () => ({ match: { id: 557, name: 'SPI6: (P07) vs (P10)' }, events: games557.map((g, i) => ({ id: i + 1, detail: { type: 'other' }, game: g })), first_event_id: 1, latest_event_id: games557.length });
 function qual900() {
   const events = [
     { id: 1, detail: { type: 'other' }, game: { ...game(201, [[4242, 700000], [501, 750000], [502, 600000]]), team_type: 'head-to-head' } },
@@ -215,6 +229,7 @@ const mock = http.createServer(async (req, res) => {
   if (url.pathname === '/api/v2/matches/902') return send(200, page(qual902(), url));
   if (url.pathname === '/api/v2/matches/903') return send(200, page(qual903(), url));
   if (url.pathname === '/api/v2/matches/556') return send(200, page(match556(), url));
+  if (url.pathname === '/api/v2/matches/557') return send(200, page(match557(), url));
   if (url.pathname === '/api/v2/matches/558') return send(200, page(match558(), url));
   if (url.pathname === '/api/v2/matches/561') return send(200, page(match561(), url));
   if (url.pathname === '/api/v2/matches/559') return send(200, page(qual559(), url));
@@ -1453,6 +1468,96 @@ try {
   assert.deepEqual(Object.keys(m12.stats).sort(), ['608', '609']);
   assert.deepEqual([m12.stats[609].score, m12.stats[609].mods], [900000, ['NF']], 'puntuación y mods de cada jugador');
   console.log('✓ skills del torneo: pesos, base con clasificatorios, Elo con el cuadro, historial y visibilidad');
+
+  // ---------- Stats: GET /api/stats ----------
+  // Octavos: U1-2 (P08 5–1 P09, todo 900k contra 500k, sin precisión) y U1-7 en juego (P07 contra P10, MP 557).
+  const stats = async (round, view, who = anon2) => (await who(`/api/stats?round=${round}${view ? '&view=' + view : ''}`));
+  const near = (a, b, what) => assert.ok(Math.abs(a - b) < 1e-6, `${what}: ${a} ≠ ${b}`);
+  games557.push(...GAMES557.slice(0, 3)); // warmup, NM1 y NM2
+  r = await adm2('/api/admin/match', { method: 'POST', json: { id: 'u1-7', time: fakeNow - 1800e3, mp: '557' } });
+  assert.equal(r.body.warning, null, JSON.stringify(r.body));
+  games557.push(GAMES557[3]); // FM1 ya jugado, pero el MP aún no se ha vuelto a leer: no cuenta
+  r = await stats('octavos');
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get('cache-control'), 'public, max-age=5');
+  assert.deepEqual([r.body.status, r.body.view, r.body.metric], ['ok', 'resultados-individuales', { key: 'matchCost', label: 'Match cost' }]);
+  const row = (body, id) => body.players.find((x) => x.id === id);
+  assert.equal(row(r.body, 607).maps, 2, 'partido en juego: solo los mapas leídos del MP, sin el warmup');
+  near(row(r.body, 607).value, (800 / 775 + 600 / 650) / 2, 'match cost con dos mapas');
+  await adm2('/api/admin/sync', { method: 'POST', json: { id: 'u1-7' } });
+  r = await stats('octavos');
+  assert.deepEqual(r.body.players.map((x) => [x.username, x.maps]), [['P08', 6], ['P10', 3], ['P07', 3], ['P09', 6]], 'orden por match cost');
+  near(row(r.body, 608).value, (500 / 700 + 5 * 900 / 700) / 6, 'match cost de P08');
+  near(row(r.body, 609).value, (900 / 700 + 5 * 500 / 700) / 6, 'match cost de P09');
+  near(row(r.body, 607).value, (800 / 775 + 600 / 650 + 900 / 945) / 3, 'match cost de P07 (FM1 con el EZ de P10)');
+  near(row(r.body, 610).value, (750 / 775 + 700 / 650 + 990 / 945) / 3, 'match cost de P10');
+  near(row(r.body, 607).avgScore, 2300000 / 3, 'avg. score');
+  near(row(r.body, 610).avgScore, (750000 + 700000 + 990000) / 3, 'avg. score con el multiplicador de EZ');
+  near(row(r.body, 607).avgAcc, (0.9812 + 0.93 + 0.99) / 3, 'avg. acc');
+  assert.equal(row(r.body, 608).avgAcc, null, 'sin precisión guardada: null');
+  assert.deepEqual(row(r.body, 607).best, { score: 900000, acc: 0.99, slot: 'FM1', mods: ['HR'], rank: 'SS', mult: null, match: 'u1-7', mp: 557 }, 'mejor score de P07');
+  assert.deepEqual(row(r.body, 610).best, { score: 990000, acc: 0.96, slot: 'FM1', mods: ['EZ'], rank: 'A', mult: 1.8, match: 'u1-7', mp: 557 }, 'mejor score de P10, con EZ ×1,8');
+  assert.deepEqual([row(r.body, 608).best.slot, row(r.body, 609).best.slot], ['NM2', 'NM1'], 'mejor score: el primero de los más altos');
+  // Leaderboard por mapa: todos los scores de cada mapa del pool, de mayor a menor.
+  r = await stats('octavos', 'leaderboard-por-mapa');
+  assert.deepEqual(r.body.maps.map((m) => [m.slot, m.plays.length]), [['NM1', 4], ['NM2', 4], ['HD1', 2], ['HR1', 2], ['DT1', 2], ['FM1', 4]]);
+  const nm1 = r.body.maps[0];
+  assert.deepEqual([nm1.beatmap_id, nm1.artist, nm1.title, nm1.version], [101, 'Artista 101', 'Titulo 101', 'Insane']);
+  assert.deepEqual(nm1.plays.map((x) => [x.username, x.score, x.rank, x.match]), [['P09', 900000, null, 'u1-2'], ['P07', 800000, 'S', 'u1-7'], ['P10', 750000, 'B', 'u1-7'], ['P08', 500000, null, 'u1-2']]);
+  assert.deepEqual(r.body.maps[1].plays.slice(0, 2).map((x) => [x.username, x.rank, x.acc]), [['P08', null, null], ['P10', 'S', 0.97]], 'NM2');
+  assert.deepEqual(r.body.maps[5].plays[0], { id: 610, username: 'P10', score: 990000, acc: 0.96, slot: 'FM1', mods: ['EZ'], rank: 'A', mult: 1.8, match: 'u1-7', mp: 557 }, 'FM1: gana el EZ');
+  // Ronda sin partidos: aviso en vez de tabla. Parámetros que no existen: 400.
+  assert.equal((await stats('cuartos')).body.status, 'hidden', 'cuartos, antes de su showcase: oculta');
+  await adm2('/api/admin/pool/release', { method: 'POST', json: { round: 'cuartos', now: true } });
+  r = await stats('cuartos');
+  assert.deepEqual([r.body.status, r.body.players], ['empty', []], 'cuartos: aún no hay resultados');
+  assert.deepEqual([(await stats('cuartos', 'leaderboard-por-mapa')).body.status, (await stats('cuartos', 'leaderboard-por-mapa')).body.maps], ['empty', []]);
+  await adm2('/api/admin/pool/release', { method: 'POST', json: { round: 'cuartos', at: Date.parse('2026-11-22T23:00:00Z') } }); // su showcase
+  assert.equal((await stats('registros')).status, 400, 'registros no es una ronda con estadísticas');
+  assert.equal((await stats('nada')).status, 400);
+  assert.equal((await anon2('/api/stats')).status, 400, 'sin ronda');
+  assert.match((await stats('octavos', 'graficos')).body.error, /Vista desconocida/);
+  // Mappool sin publicar: ni mapas ni scores, tampoco para la organización (la respuesta es la misma para todos).
+  assert.equal((await adm2('/api/admin/pool/release', { method: 'POST', json: { round: 'octavos', at: fakeNow + 24 * 3600e3 } })).status, 200);
+  for (const view of STATS_VIEWS) {
+    for (const who of [anon2, adm2]) {
+      r = await stats('octavos', view, who);
+      assert.equal(r.body.status, 'hidden', `${view}: oculta`);
+      const txt = JSON.stringify(r.body);
+      for (const leak of ['101', 'Titulo', '900000', '990000', 'P07', 'u1-7']) assert.ok(!txt.includes(leak), `${view}: no sale ${leak}`);
+    }
+  }
+  assert.equal((await adm2('/api/admin/pool/release', { method: 'POST', json: { round: 'octavos', at: Date.parse('2026-11-15T23:00:00Z') } })).status, 200); // su showcase
+  assert.equal((await stats('octavos')).body.status, 'ok', 'publicada otra vez');
+  // Clasificatorios: ocultos hasta publicar los resultados; después, la métrica de la clasificación (Z-sum) y sin MP de los lobbies.
+  r = await stats('qualifiers');
+  assert.deepEqual([r.body.status, r.body.players, r.body.metric], ['hidden-results', [], { key: 'zsum', label: 'Z-sum' }]);
+  assert.ok(!JSON.stringify((await stats('qualifiers', 'leaderboard-por-mapa')).body).includes('201'), 'sin publicar, no salen los mapas');
+  await adm2('/api/admin/qual-results', { method: 'POST', json: { now: true } });
+  r = await stats('qualifiers');
+  assert.equal(r.body.players.length, 16);
+  assert.deepEqual(r.body.players.slice(0, 2).map((x) => [x.username, x.maps, x.avgScore]), [['P01', 2, 875000], ['P02', 2, 865000]], 'orden por Z-sum');
+  assert.equal(r.body.players[0].value, Math.round(2 * 7.5 / Math.sqrt(255 / 12) * 1000) / 1000, 'Z-sum de P01');
+  assert.deepEqual(r.body.players[0].best, { score: 900000, acc: null, slot: 'NM1', mods: [], rank: null, mult: null, match: null, mp: null });
+  r = await stats('qualifiers', 'leaderboard-por-mapa');
+  assert.deepEqual(r.body.maps.map((m) => [m.slot, m.plays.length, m.plays[0].username, m.plays[0].score]), [['NM1', 16, 'P01', 900000], ['NM2', 16, 'P01', 850000]]);
+  assert.ok(!JSON.stringify(r.body).includes('901'), 'sin el MP de los lobbies');
+  await adm2('/api/admin/qual-results', { method: 'POST', json: { hide: true } });
+  // La página: la dirección (#stats/<ronda>?view=…) y el formato de los números, con las funciones de la propia web.
+  const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+  const pure = new Function(html.match(/\/\* stats:puros[^]*?\*\/([^]*?)\/\* \/stats:puros \*\//)[1] + '; return { statsRoute, fmtInt, fmt3, fmtAcc };')();
+  assert.deepEqual(pure.statsRoute('#stats/finals?view=leaderboard-por-mapa'), { round: 'finals', view: 'leaderboard-por-mapa' });
+  assert.deepEqual(pure.statsRoute('#stats/gf?view=resultados-individuales'), { round: 'gf', view: 'resultados-individuales' });
+  assert.deepEqual(pure.statsRoute('#stats/octavos'), { round: 'octavos', view: 'resultados-individuales' }, 'sin vista: resultados individuales');
+  assert.deepEqual(pure.statsRoute('#stats?view=otra'), { round: null, view: 'resultados-individuales' }, 'vista desconocida');
+  assert.deepEqual([pure.fmtInt(310368), pure.fmtInt(1234), pure.fmtInt(1234567), pure.fmtInt(999), pure.fmtInt(null)], ['310.368', '1.234', '1.234.567', '999', '–'], 'miles con punto, también con 4 cifras');
+  assert.deepEqual([pure.fmt3(1.062), pure.fmt3(0.8095238), pure.fmt3(1234.5)], ['1,062', '0,810', '1.234,500']);
+  assert.deepEqual([pure.fmtAcc(0.9281), pure.fmtAcc(1)], ['92,81 %', '100,00 %'], 'precisión con coma y espacio antes del %');
+  assert.ok(html.includes("['stats','Stats']"), 'Stats sigue en el menú');
+  // U1-7 se deja como estaba (sin MP ni resultado) para el resto de la prueba.
+  await adm2('/api/admin/match', { method: 'POST', json: { id: 'u1-7' } });
+  assert.deepEqual((await stats('octavos')).body.players.map((x) => x.username), ['P08', 'P09']);
+  console.log('✓ stats: match cost, medias, mejor score, leaderboard por mapa, ronda sin resultados, mappools y clasificatorios sin publicar, dirección y formato');
 
   // ---------- Arbitraje con bot de IRC (Bancho simulado) ----------
   const refc = await login(s2.base, 503); // «Jugador C»: no juega el torneo

@@ -380,13 +380,62 @@ textarea{width:100%;min-height:120px;resize:vertical;font-family:var(--f-mono);f
 .bm-f{font-size:.7rem;color:var(--muted);padding:3px 9px;background:var(--surface-2);font-family:var(--f-mono);display:flex;justify-content:space-between;gap:6px}
 
 /* Stats */
-.bars{display:grid;gap:9px}
-.bar{display:grid;grid-template-columns:minmax(0,9rem) minmax(0,1fr) 3rem;gap:10px;align-items:center;font-size:.86rem}
-.bar .k{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
-.bar .tr{height:10px;background:var(--surface-2);border-radius:99px;overflow:hidden}
-.bar .tr i{display:block;height:100%;background:var(--accent);border-radius:99px}
-.bars.low .tr i{background:var(--lower)}
-.bar .v{font-family:var(--f-mono);text-align:right;font-variant-numeric:tabular-nums}
+.st-page{display:grid;gap:14px}
+a.tab{text-decoration:none}
+.tab[aria-current="page"]{color:var(--ink)}
+.tab[aria-current="page"]::after{content:"";position:absolute;left:12px;right:12px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--accent)}
+.st-views{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.st-views .eyebrow{margin-right:4px}
+.st-view{padding:6px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);text-decoration:none;font-weight:600;font-size:.88rem}
+.st-view:hover{border-color:var(--muted)}
+.st-view[aria-current="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+/* overflow:clip recorta las esquinas sin crear zona de desplazamiento: así la cabecera de la tabla se queda fija al bajar */
+.st-tbl{overflow:hidden;overflow:clip}
+.st-tbl th{position:sticky;top:var(--top-h,0px);z-index:1}
+.st-tbl tbody tr:hover{background:color-mix(in srgb,var(--surface-2) 55%,var(--surface))}
+.st-tbl tr.pod{background:color-mix(in srgb,var(--accent) 6%,var(--surface))}
+.st-tbl tr.pod .st-pos{color:var(--accent);font-weight:800;box-shadow:inset 3px 0 0 var(--accent)}
+.st-tbl .st-pl{font-weight:600}
+.st-tbl .st-val{font-weight:800}
+.st-best{display:grid;gap:1px;line-height:1.35}
+.st-best>span{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.st-best>span:nth-child(2){color:var(--muted);font-family:var(--f-mono);font-size:.84rem}
+.st-plus{font-family:var(--f-mono);font-size:.78rem;font-weight:700;color:var(--muted)}
+.st-ez{margin-left:6px;font-size:.72rem;font-weight:700;color:var(--warn);font-family:var(--f-body)}
+.st-page .slot{border-bottom:0}
+.st-rk{display:inline-grid;vertical-align:middle;place-items:center;min-width:1.7em;padding:0 4px;border-radius:5px;font-family:var(--f-display);font-weight:900;font-size:.8rem;line-height:1.5;color:var(--muted);background:var(--surface-2)}
+.st-rk-SS,.st-rk-S{color:var(--warn)}.st-rk-A{color:var(--good)}.st-rk-B{color:var(--lower)}.st-rk-C{color:var(--m-dt)}.st-rk-D,.st-rk-F{color:var(--live)}
+.st-help{font-size:.88rem;color:var(--muted);max-width:75ch}
+.st-help summary{cursor:pointer;font-weight:700;color:var(--ink);display:inline-flex;align-items:center;gap:8px}
+.st-help p{margin:8px 0 0}
+.st-q{display:inline-grid;place-items:center;width:1.4em;height:1.4em;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-weight:900;font-size:.85rem}
+.st-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.st-maps{display:grid;gap:10px}
+.st-map{border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.st-map>summary{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;list-style:none}
+.st-map>summary::-webkit-details-marker{display:none}
+.st-map>summary::before{content:"";flex:none;width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .15s}
+.st-map[open]>summary::before{transform:rotate(45deg)}
+.st-map>summary:focus-visible{outline-offset:-3px}
+.st-mt{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-map .st-lb{border:0;border-top:1px solid var(--line);border-radius:0 0 14px 14px}
+.st-none{margin:0;padding:0 14px 14px}
+/* En el móvil, cada fila es una tarjeta: la posición a la izquierda y cada dato con su nombre encima */
+@media (max-width:640px){
+  .st-tbl thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .st-tbl table,.st-tbl tbody{display:block}
+  .st-tbl tr{display:grid;grid-template-columns:2rem repeat(2,minmax(0,1fr));gap:6px 14px;padding:12px 14px 12px 0;border-bottom:1px solid var(--line)}
+  .st-tbl tr:last-child{border-bottom:0}
+  .st-tbl td{display:block;padding:0;border:0;white-space:normal;text-align:left}
+  .st-tbl td.n{text-align:left}
+  .st-tbl td[data-l]::before{content:attr(data-l);display:block;font-family:var(--f-body);font-size:.74rem;font-weight:700;color:var(--muted)}
+  .st-tbl td.st-pos{grid-row:1/span 4;text-align:center;font-weight:800}
+  .st-tbl td.st-pos::before{display:none}
+  .st-tbl td.st-pl,.st-tbl td.st-bc{grid-column:2/-1}
+  .st-tbl tr.pod .st-pos{box-shadow:none}
+  .st-tbl tr.pod{box-shadow:inset 3px 0 0 var(--accent)}
+  .st-mt{white-space:normal}
+}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:12px}
 .kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}
 .kpi b{display:block;font-family:var(--f-display);font-weight:900;font-size:1.9rem;line-height:1.1}
@@ -824,6 +873,101 @@ const fname=(p,cls='')=>`<a class="pl ${cls}" href="#jugadores/ficha/${encodeURI
 const qualOut=()=>DEMO||(S.qual.results!=null&&S.qual.results<=T.NOW);
 const qualWhen=()=>S.qual.results!=null?`el ${dia(S.qual.results)} a las ${hora(S.qual.results)} (hora de Madrid)`:'';
 
+/* ---------------- Stats: estadísticas de cada ronda (los datos los calcula GET /api/stats) ---------------- */
+/* stats:puros — funciones sin estado: la prueba (test/e2e.js) las saca de aquí y las ejecuta. */
+// Dirección de la página: #stats/<ronda>?view=<vista>. Sin vista (o con una desconocida), resultados individuales.
+function statsRoute(hash){
+  const VIEWS=['resultados-individuales','leaderboard-por-mapa'];
+  const [path,qs='']=String(hash||'').replace(/^#/,'').split('?');
+  const parts=path.split('/');
+  let round=null;try{round=parts[1]?decodeURIComponent(parts[1]):null}catch(_){}
+  const view=new URLSearchParams(qs).get('view');
+  return {round,view:VIEWS.includes(view)?view:VIEWS[0]};
+}
+// Números en español con el punto de miles siempre: en es-ES, Intl no agrupa los de 4 cifras (1234 → «1234»)
+// salvo con useGrouping 'always', que los navegadores antiguos no conocen; por eso se repasa la parte entera.
+const grp=s=>{const [i,d]=s.split(',');return i.replace(/\./g,'').replace(/\B(?=(\d{3})+(?!\d))/g,'.')+(d!=null?','+d:'')};
+const NF_INT=new Intl.NumberFormat('es-ES',{useGrouping:'always',maximumFractionDigits:0});
+const NF_3=new Intl.NumberFormat('es-ES',{useGrouping:'always',minimumFractionDigits:3,maximumFractionDigits:3});
+const NF_2=new Intl.NumberFormat('es-ES',{useGrouping:'always',minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtInt=n=>n==null?'–':grp(NF_INT.format(Math.round(n)));
+const fmt3=n=>n==null?'–':grp(NF_3.format(n));
+const fmtAcc=a=>a==null?'–':grp(NF_2.format(a*100))+' %'; // la API da la precisión de 0 a 1
+/* /stats:puros */
+const STATS_VIEWS={'resultados-individuales':'Resultados individuales','leaderboard-por-mapa':'Leaderboard por mapa'};
+// Respuestas de /api/stats por ronda y vista. Se piden otra vez cada vez que se recarga el estado (cada minuto),
+// así un partido en juego se actualiza con la sincronización. Mientras llega la nueva, se ve la anterior.
+const STATS={};
+function statsData(round,view){
+  if(DEMO) return null;
+  const k=round+'|'+view, c=STATS[k];
+  if(!c||(c.at!==LOADED&&!c.loading)) fetchStats(k,round,view);
+  return STATS[k];
+}
+async function fetchStats(k,round,view){
+  const c=STATS[k]||(STATS[k]={}), at=LOADED;
+  c.loading=true;
+  try{
+    const r=await fetch(`/api/stats?round=${encodeURIComponent(round)}&view=${encodeURIComponent(view)}`,{credentials:'same-origin',headers:{Accept:'application/json'}});
+    const j=await r.json().catch(()=>null);
+    if(!r.ok||!j) throw new Error(j?.error||'');
+    c.data=j;c.err=null;
+  }catch(e){c.err=e.message||'No se han podido cargar las estadísticas. Se volverá a intentar en un minuto.'}
+  c.at=at;c.loading=false;
+  if(currentView()!=='stats') return;
+  const s=statsRoute(location.hash);
+  if(STATS_SHOWN===k||(s.round===round&&s.view===view)) renderKeepFocus();
+}
+let STATS_SHOWN=null;
+// Vuelve a pintar sin perder el foco ni el desplazamiento horizontal de las tablas.
+function renderKeepFocus(){
+  const id=document.activeElement?.id, pos=[...app.querySelectorAll('.tbl-wrap')].map(e=>e.scrollLeft);
+  render();
+  if(id) document.getElementById(id)?.focus({preventScroll:true});
+  app.querySelectorAll('.tbl-wrap').forEach((e,i)=>{if(pos[i]) e.scrollLeft=pos[i]});
+}
+// Sin ronda en la dirección: la última del cuadro con mapas jugados; si no hay, clasificatorios (si sus resultados
+// están publicados) y, si tampoco, la ronda en curso.
+function statsDefault(rounds){
+  const played=rounds.filter(p=>p.key!=='qualifiers'&&S.pools[p.key]?.length&&T.matches.some(m=>m.fase===p.key&&!m.ff&&m.result?.maps?.length));
+  if(played.length) return played[played.length-1].key;
+  if(qualOut()&&Object.keys(S.qual.scores||{}).length) return 'qualifiers';
+  return (rounds.find(p=>p.estado==='now')||rounds.find(p=>p.estado==='future')||rounds[rounds.length-1]).key;
+}
+const rankHtml=r=>r?`<span class="st-rk st-rk-${esc(r)}" title="Rank ${esc(r)}">${esc(r)}</span>`:'';
+const multHtml=m=>m?`<span class="st-ez" title="Score con el multiplicador de EZ del torneo">EZ ×${esc(String(m).replace('.',','))}</span>`:'';
+// Mods de un score: los del slot (HD, HR, DT) más los que añadió el jugador. Sin ninguno, NM.
+const modsOf=(slot,mods)=>{const own=['HD','HR','DT'].includes(slot.slice(0,2))?[slot.slice(0,2)]:[];const all=[...own,...(mods||[])];return all.length?all.join(''):'NM'};
+const slotChip=(slot,mods)=>`<span class="slot ${esc(slot.slice(0,2))}">${esc(slot)}</span>${mods?.length?`<span class="st-plus">+${mods.map(esc).join('')}</span>`:''}`;
+const matchLink=x=>!x.match?'':x.mp&&!DEMO?`<a href="${mpUrl(x.mp)}" target="_blank" rel="noopener" title="Abrir el MP en osu!">${esc(x.match.toUpperCase())}</a>`:esc(x.match.toUpperCase());
+
+function statsIndividual(d,p){
+  const m=d.metric, val=v=>v==null?'–':m.key==='total'?fmtInt(v):fmt3(v);
+  const best=b=>`<div class="st-best"><span><b>${fmtInt(b.score)}</b>${multHtml(b.mult)}</span><span>${fmtAcc(b.acc)}</span><span>${slotChip(b.slot,b.mods)}${rankHtml(b.rank)}</span></div>`;
+  const rows=d.players.map((r,i)=>`<tr class="${i<3?'pod':''}"><td class="n st-pos" data-l="#">${i+1}</td><td class="st-pl">${fname(r)}</td><td class="n st-val" data-l="${esc(m.label)}">${val(r.value)}</td><td class="n" data-l="Avg. score">${fmtInt(r.avgScore)}</td><td class="n" data-l="Avg. acc">${fmtAcc(r.avgAcc)}</td><td class="n" data-l="Mapas">${r.maps}</td><td class="st-bc" data-l="Mejor score">${best(r.best)}</td></tr>`).join('');
+  const mult=T.C.multiplicadores||{};
+  const help=m.key==='matchCost'
+    ?`<p>En cada mapa, el score del jugador se divide entre la media de los scores de los dos jugadores de ese mapa en ese partido. El match cost es la media de ese cociente en todos los mapas que ha jugado en la ronda: 1,000 es rendir igual que el rival, y más de 1, por encima.</p><p>Se usan los scores que cuentan en el partido, con EZ ×${String(mult.EZ??1.8).replace('.',',')} y EZHD ×${String(mult.EZHD??2).replace('.',',')}. No cuentan los warmups ni los partidos ganados por forfeit. Un partido en juego cuenta con los mapas ya leídos del MP.</p>`
+    :`<p>${m.key==='zsum'?`Es la métrica de la clasificación: en cada mapa se mide cuántas desviaciones típicas se aleja el score del jugador de la media, y se suman los ${(S.pools.qualifiers||[]).length} mapas. Un mapa sin jugar cuenta como 0.`:'Es la métrica de la clasificación: la suma de los scores de todos los mapas.'}</p><p>Se usa el mejor score de cada jugador en cada mapa, sin multiplicadores (en clasificatorios no hay).</p>`;
+  return `<div class="tbl-wrap st-tbl"><table><caption class="sr-only">Resultados individuales de ${esc(p.nombre)}, ordenados por ${esc(m.label)}</caption>
+    <thead><tr><th scope="col" class="n">#</th><th scope="col">Jugador</th><th scope="col" class="n">${esc(m.label)}</th><th scope="col" class="n">Avg. score</th><th scope="col" class="n">Avg. acc</th><th scope="col" class="n">Mapas</th><th scope="col">Mejor score</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
+    <details class="st-help"><summary id="st-help"><span class="st-q" aria-hidden="true">?</span>Cómo se calcula ${m.key==='matchCost'?'el match cost':'el '+esc(m.label)}</summary>${help}</details>`;
+}
+
+function statsLeaderboard(d,p){
+  const qual=p.key==='qualifiers', key=s=>p.key+':'+s;
+  const allOpen=d.maps.every(m=>!UI.stClosed.has(key(m.slot)));
+  const total=d.maps.reduce((a,m)=>a+m.plays.length,0);
+  const table=m=>`<div class="tbl-wrap st-tbl st-lb"><table><caption class="sr-only">Scores de ${esc(m.slot)}, de mayor a menor</caption>
+    <thead><tr><th scope="col" class="n">#</th><th scope="col">Jugador</th><th scope="col" class="n">Score</th><th scope="col" class="n">Acc</th><th scope="col">Mods</th><th scope="col">Rank</th>${qual?'':'<th scope="col">Partido</th>'}</tr></thead>
+    <tbody>${m.plays.map((x,i)=>`<tr class="${i<3?'pod':''}"><td class="n st-pos" data-l="#">${i+1}</td><td class="st-pl">${fname(x)}</td><td class="n" data-l="Score"><b>${fmtInt(x.score)}</b></td><td class="n" data-l="Acc">${fmtAcc(x.acc)}</td><td data-l="Mods">${esc(modsOf(m.slot,x.mods))}${multHtml(x.mult)}</td><td data-l="Rank">${rankHtml(x.rank)||'–'}</td>${qual?'':`<td data-l="Partido">${matchLink(x)||'–'}</td>`}</tr>`).join('')}</tbody></table></div>`;
+  return `<div class="st-bar"><span class="muted">${d.maps.length} mapas · ${total} ${total===1?'play':'plays'}</span><button type="button" class="btn btn-ghost btn-sm" id="st-all" data-act="st-all" data-open="${allOpen?0:1}">${allOpen?'Cerrar todos':'Abrir todos'}</button></div>
+    <div class="st-maps">${d.maps.map(m=>{const n=m.plays.length,name=`${m.artist??''} - ${m.title??''}${m.version?` [${m.version}]`:''}`;
+      return `<details class="st-map" data-st="${esc(key(m.slot))}"${UI.stClosed.has(key(m.slot))?'':' open'}><summary id="st-m-${esc(m.slot)}"><span class="slot ${esc(m.slot.slice(0,2))}">${esc(m.slot)}</span><span class="st-mt">${esc(name)}</span><span class="pill">${n?`${n} ${n===1?'play':'plays'}`:'Sin plays'}</span></summary>
+      ${n?table(m):'<p class="muted st-none">Sin plays</p>'}</details>`}).join('')}</div>`;
+}
+
 // Recordatorios de Inicio: salen solos de los datos del torneo y desaparecen cuando dejan de ser actuales.
 function reminders(){
   const {NOW,matches,phases}=T;
@@ -882,7 +1026,7 @@ function bracketCard(m){
 }
 
 /* ---------------- vistas ---------------- */
-const UI={fase:null,pj:null,ficha:null,pool:null,jug:'lista',q:'',flash:null,admMatch:'u1-1',busy:false,imp:null,impText:'',admRound:null,poolText:'',poolRead:null,poolBusy:null,slotEdit:null,slotDel:null,slotEmpty:null,qday:null,normasReset:false,textReset:null,fasesReset:false,live:null,liveId:null,ref:null,refForce:false,refFill:false,fillErr:null};
+const UI={stClosed:new Set(),fase:null,pj:null,ficha:null,pool:null,jug:'lista',q:'',flash:null,admMatch:'u1-1',busy:false,imp:null,impText:'',admRound:null,poolText:'',poolRead:null,poolBusy:null,slotEdit:null,slotDel:null,slotEmpty:null,qday:null,normasReset:false,textReset:null,fasesReset:false,live:null,liveId:null,ref:null,refForce:false,refFill:false,fillErr:null};
 
 // Resultado de la última importación del formulario, con lo que hay que revisar a mano.
 function importReport(){
@@ -1190,27 +1334,28 @@ const VIEWS={
     </section>`;
   },
 
+  // Estadísticas de cada ronda: #stats/<ronda>?view=resultados-individuales | leaderboard-por-mapa.
   stats(){
-    const played=T.matches.filter(m=>(m.estado==='done'||m.estado==='live')&&m.result?.maps?.length);
-    if(!played.length) return `<section><h2>Estadísticas</h2><div class="empty">Las estadísticas aparecen cuando se juegan los primeros partidos del cuadro.</div></section>`;
-    const pickC={},banC={},pw={};
-    played.forEach(m=>{
-      const ph=T.phaseBy[m.fase].nombre;
-      m.result.maps.forEach(x=>{const k=ph+' '+x.slot;pickC[k]=(pickC[k]||0)+1;const w=x.w===m.a.id?m.a:m.b,l=w===m.a?m.b:m.a;[w,l].forEach(p=>pw[p.id]=pw[p.id]||{p,w:0,n:0});pw[w.id].w++;pw[w.id].n++;pw[l.id].n++});
-      m.bans.forEach(s=>{const k=ph+' '+s;banC[k]=(banC[k]||0)+1});
-    });
-    const top=(o,n)=>Object.entries(o).sort((a,b)=>b[1]-a[1]).slice(0,n);
-    const bars=(rows,max,fmt,low)=>rows.length?`<div class="bars ${low?'low':''}">${rows.map(([k,v])=>`<div class="bar"><span class="k" title="${esc(k)}">${esc(k)}</span><span class="tr"><i style="width:${Math.max(4,v/max*100)}%"></i></span><span class="v">${fmt(v)}</span></div>`).join('')}</div>`:'<p class="muted">Sin datos todavía.</p>';
-    const tp=top(pickC,8),tb=top(banC,8);
-    const wr=Object.values(pw).filter(x=>x.n>=6).map(x=>[x.p.username,x.w/x.n]).sort((a,b)=>b[1]-a[1]).slice(0,8);
-    const maps=played.reduce((a,m)=>a+m.result.maps.length,0);
-    return `<section><span class="eyebrow">Cuadro</span><h2>Estadísticas</h2>
-      <div class="kpis"><div class="kpi"><b>${played.length}</b><span>partidos jugados</span></div><div class="kpi"><b>${maps}</b><span>mapas jugados</span></div><div class="kpi"><b>${dec(maps/played.length)}</b><span>mapas por partido</span></div><div class="kpi"><b>${T.matches.filter(m=>m.estado!=='done').length}</b><span>partidos por jugar</span></div></div></section>
-      <div class="grid2">
-        <section class="card"><h3>Mapas más elegidos</h3>${bars(tp,tp[0]?.[1]||1,v=>v)}</section>
-        <section class="card"><h3>Mapas más baneados</h3>${bars(tb,tb[0]?.[1]||1,v=>v,true)}</section>
-        <section class="card"><h3>Mejor % de mapas ganados</h3><p class="muted" style="font-size:.85rem">Mínimo 6 mapas jugados.</p>${bars(wr,1,v=>Math.round(v*100)+'%')}</section>
-      </div>`;
+    const rounds=T.phases.filter(p=>p.key!=='registros');
+    const sr=statsRoute(location.hash);
+    const p=rounds.find(x=>x.key===sr.round)||rounds.find(x=>x.key===statsDefault(rounds));
+    const view=sr.view, href=(r,v)=>`#stats/${encodeURIComponent(r)}?view=${v}`;
+    // La dirección siempre completa (ronda y vista), para poder copiarla y compartirla.
+    if(location.hash!==href(p.key,view)) try{history.replaceState(null,'',href(p.key,view))}catch(_){}
+    const c=statsData(p.key,view), d=c?.data;
+    STATS_SHOWN=p.key+'|'+view;
+    let body;
+    if(DEMO) body='<div class="empty">Las estadísticas las calcula el servidor del torneo: en esta vista de ejemplo no hay.</div>';
+    else if(!d) body=c?.err?`<div class="empty" role="alert">${esc(c.err)}</div>`:'<div class="empty" role="status">Cargando estadísticas…</div>';
+    else if(d.status==='hidden') body=`<div class="empty">Aún no hay resultados: la mappool de ${esc(p.nombre)} todavía no se ha publicado.</div>`;
+    else if(d.status==='hidden-results') body=`<div class="empty">Aún no hay resultados: los de los clasificatorios se publican ${S.qual.results!=null?qualWhen():'cuando lo anuncie la organización'}.</div>`;
+    else if(d.status!=='ok') body=`<div class="empty">Aún no hay resultados de ${esc(p.nombre)}.</div>`;
+    else body=view==='leaderboard-por-mapa'?statsLeaderboard(d,p):statsIndividual(d,p);
+    return `<section class="st-page"><div class="sec-head"><div><span class="eyebrow">Estadísticas · ${p.bo?'Bo'+p.bo:'Run única'}${p.sr?' · '+dec(p.sr)+'★':''}</span><h2>${esc(p.nombre)}</h2></div></div>
+      <nav class="tabs" aria-label="Rondas">${rounds.map(x=>`<a class="tab" id="st-r-${esc(x.key)}" href="${href(x.key,view)}"${x.key===p.key?' aria-current="page"':''}>${esc(x.nombre)}</a>`).join('')}</nav>
+      <div class="st-views" role="group" aria-labelledby="st-vl"><span id="st-vl" class="eyebrow">Vista:</span>${Object.entries(STATS_VIEWS).map(([k,l])=>`<a class="st-view" id="st-v-${k}" href="${href(p.key,k)}"${k===view?' aria-current="true"':''}>${l}</a>`).join('')}</div>
+      ${d&&c?.err?`<p class="note">${esc(c.err)} Se muestran los últimos datos cargados.</p>`:''}
+      ${body}</section>`;
   },
 
   registro(){
@@ -1916,8 +2061,8 @@ const NAV=[['inicio','Inicio'],['info','Info'],['jugadores','Jugadores'],['mappo
 const app=document.getElementById('app');
 let timer=null, relTimer=null;
 // La URL guarda la vista y su pestaña (#mappool/semis, #partidos/cuartos, #jugadores/clasif), para enlazarlas.
-// Los partidos de un jugador tienen su propia dirección: #partidos/jugador/<ID de osu!>.
-function route(){const [v,...parts]=location.hash.slice(1).split('/');const d=s=>{try{return s?decodeURIComponent(s):null}catch(_){return null}};return {v,sub:d(parts[0]),arg:d(parts[1])}}
+// Los partidos de un jugador tienen su propia dirección: #partidos/jugador/<ID de osu!>. Stats lleva además la vista: #stats/finals?view=…
+function route(){const [v,...parts]=location.hash.slice(1).split('?')[0].split('/');const d=s=>{try{return s?decodeURIComponent(s):null}catch(_){return null}};return {v,sub:d(parts[0]),arg:d(parts[1])}}
 function readRoute(){
   const {v,sub,arg}=route();
   if(v==='partidos') UI.pj=sub==='jugador'&&/^\d{1,10}$/.test(arg||'')?+arg:null; // #partidos sin más quita el filtro
@@ -1939,6 +2084,7 @@ function render(){
     +`<div class="more" hidden><button class="more-btn" type="button" aria-expanded="false" aria-controls="navMore"><span>Más</span><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2 4.5 6 8.5 10 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="more-menu" id="navMore" hidden></div></div>`;
   document.getElementById('who').innerHTML=S.me?`${av(S.me)}<span class="uname">${esc(S.me.username)}</span>${DEMO?'':'<button type="button" data-act="logout">Salir</button>'}`:(S.configured?'<a class="login" href="/auth/osu">Iniciar sesión</a>':'');
   fitNav(); document.fonts?.ready.then(fitNav);
+  document.documentElement.style.setProperty('--top-h',(document.querySelector('.top')?.offsetHeight||0)+'px'); // para las cabeceras fijas de las tablas de Stats
   if(moreOpen) openMore(false);
   // Un h1 por página: en Inicio, el del hero; en el resto, el nombre del torneo para los lectores de pantalla.
   app.innerHTML=(v==='inicio'?'':`<h1 class="sr-only">${esc(T.C.nombre)}</h1>`)+VIEWS[v]();
@@ -2029,6 +2175,7 @@ app.addEventListener('click',e=>{
   if(b.dataset.jug){UI.jug=b.dataset.jug;UI.ficha=null;setSub(UI.jug);return render()}
   const a=b.dataset.act;
   if(a==='copy-id') return copyId(b);
+  if(a==='st-all'){const open=b.dataset.open==='1';app.querySelectorAll('details.st-map').forEach(el=>open?UI.stClosed.delete(el.dataset.st):UI.stClosed.add(el.dataset.st));return renderKeepFocus()}
   if(a==='pj-clear'){UI.pj=null;setPlayerHash(null);render();return document.getElementById('pj')?.focus()}
   if(a==='pool-del') return act(()=>post('/api/admin/pool/delete',{round:b.dataset.round,slot:b.dataset.slot}),'Mapa quitado.');
   if(a==='sync') return act(()=>post('/api/admin/sync',{id:b.dataset.id}),'Resultado actualizado desde osu!.');
@@ -2315,13 +2462,25 @@ document.getElementById('nav').addEventListener('click',e=>{
   if(b) return b.getAttribute('aria-expanded')==='true'?closeMore(false):openMore(e.detail===0);
   if(e.target.closest('#navMore a')) closeMore(false);
 });
+// Stats: cada mapa del leaderboard se queda abierto o cerrado al recargar los datos.
+app.addEventListener('toggle',e=>{
+  const el=e.target; if(!el.matches?.('details.st-map')) return;
+  el.open?UI.stClosed.delete(el.dataset.st):UI.stClosed.add(el.dataset.st);
+  const b=document.getElementById('st-all'); if(!b) return;
+  const all=[...app.querySelectorAll('details.st-map')].every(x=>x.open);
+  b.dataset.open=all?'0':'1';b.textContent=all?'Cerrar todos':'Abrir todos';
+},true);
 document.getElementById('nav').addEventListener('focusout',e=>{if(!e.relatedTarget?.closest?.('.more')&&e.target.closest('.more')) closeMore(false)});
 document.addEventListener('click',e=>{if(!e.target.closest('.more')) closeMore(false)});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.querySelector('.more-btn[aria-expanded="true"]')) closeMore(true)});
 let fitRaf=0;
 window.addEventListener('resize',()=>{cancelAnimationFrame(fitRaf);fitRaf=requestAnimationFrame(fitNav)});
 window.addEventListener('hashchange',()=>{
-  UI.flash=null;DIRTY=false;readRoute();render();window.scrollTo(0,0);
+  // Dentro de Stats (otra ronda u otra vista, también con atrás y adelante) no se sube ni se mueve el foco.
+  const wasStats=Boolean(app.querySelector('section.st-page')), focusId=document.activeElement?.id;
+  UI.flash=null;DIRTY=false;readRoute();
+  if(wasStats&&currentView()==='stats'){render();if(focusId) document.getElementById(focusId)?.focus({preventScroll:true});return}
+  render();window.scrollTo(0,0);
   // El foco pasa al título de la vista nueva: los lectores de pantalla la anuncian y Tab sigue desde ahí.
   const h=app.querySelector('h1:not(.sr-only),h2');
   if(h){h.tabIndex=-1;h.dataset.focusTarget='';h.focus({preventScroll:true})}

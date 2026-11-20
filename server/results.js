@@ -52,7 +52,7 @@ function detail(game, score, value) {
   return {
     score: value, acc: score.accuracy ?? null, combo: score.max_combo ?? null,
     n300: st.count_300 ?? st.great ?? null, n100: st.count_100 ?? st.ok ?? null, n50: st.count_50 ?? st.meh ?? null, miss: st.count_miss ?? st.miss ?? null,
-    mods: modList(game, score)
+    mods: modList(game, score), rank: typeof score.rank === 'string' ? score.rank : null
   };
 }
 
