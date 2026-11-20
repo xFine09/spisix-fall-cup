@@ -569,6 +569,7 @@ function buildState(user) {
       qualRejection: q.rejectionOf.get(user.id) || null
     } : null,
     rules: allRules(),
+    statsPublic: statRounds().map((f) => f.key).filter((k) => statsRelease(k).visible),
     players, pools, matches,
     qual: {
       scores: qualStaff || qualResultsPublic() ? scores : {},
@@ -584,7 +585,8 @@ function buildState(user) {
     ...(isRef(user) ? { qualRequests: q.pendingRequests.all(), qualPlayed: [...qualPlayers()] } : {}),
     ...(admin ? {
       exceptions: q.exceptions.all().map((e) => ({ id: e.user_id, username: e.username })),
-      apiAccess: q.apiAccess.all().map((e) => ({ id: e.user_id, username: e.username }))
+      apiAccess: q.apiAccess.all().map((e) => ({ id: e.user_id, username: e.username })),
+      statsRelease: Object.fromEntries(statRounds().map((f) => [f.key, statsRelease(f.key)]))
     } : {})
   };
 }
@@ -665,18 +667,36 @@ function currentBracket({ publicOnly = false } = {}) {
 }
 
 // ---------- estadísticas de una ronda (página Stats) ----------
-// Lo mismo para todo el mundo (no mira la sesión): solo rondas con la mappool publicada y, en clasificatorios,
-// con los resultados publicados. Cuenta los mapas ya leídos del MP de cada partido (también de uno en juego),
-// sin forfeits ni warmups. En clasificatorios, el mejor score de cada inscrito en cada mapa; sin los MP de los lobbies.
+// Públicas solo cuando la ronda ha terminado y un admin las publica (en pool_release, con la clave stats:<ronda>),
+// y además con la mappool publicada y, en clasificatorios, con los resultados publicados. Los admins las ven antes,
+// como vista previa. Cuentan los mapas ya leídos del MP de cada partido (también de uno en juego), sin forfeits ni
+// warmups. En clasificatorios, el mejor score de cada inscrito en cada mapa; nunca salen los MP de los lobbies.
 const statRounds = () => CONFIG.fases.filter((f) => f.key !== 'registros');
-function statsBody(round, view) {
+const STATS_KEY = (round) => `stats:${round}`;
+// Ronda terminada: en el cuadro, todos sus partidos tienen ganador (por resultado o forfeit); en clasificatorios, pasó la fecha de fin.
+function roundProgress(round) {
+  if (round === 'qualifiers') { const p = phase('qualifiers'); return { over: Boolean(p) && Date.now() > p.end, pending: null }; }
+  const pending = MATCH_IDS.filter((id) => phaseOfMatch(id) === round).filter((id) => { const rec = q.getMatch.get(id); return !rec || !finished(rec); }).length;
+  return { over: pending === 0, pending };
+}
+function statsRelease(round) {
+  const published = q.getRelease.get(STATS_KEY(round))?.at ?? null;
+  const { over, pending } = roundProgress(round);
+  const visible = published != null && over && isPublic(round) && (round !== 'qualifiers' || qualResultsPublic());
+  return { published, over, pending, visible };
+}
+function statsBody(round, view, { admin = false } = {}) {
   const f = statRounds().find((x) => x.key === round);
   const qual = round === 'qualifiers';
   const zs = CONFIG.metodoClasif !== 'suma';
   const metric = qual ? { key: zs ? 'zsum' : 'total', label: zs ? 'Z-sum' : 'Total' } : { key: 'matchCost', label: 'Match cost' };
-  const base = { round, name: f.nombre, view, metric };
-  if (!isPublic(round)) return { ...base, status: 'hidden', players: [], maps: [] };
-  if (qual && !qualResultsPublic()) return { ...base, status: 'hidden-results', players: [], maps: [] };
+  const rel = statsRelease(round);
+  const base = { round, name: f.nombre, view, metric, ...(admin ? { preview: !rel.visible, publication: rel } : {}) };
+  if (!admin) {
+    if (!isPublic(round)) return { ...base, status: 'hidden', players: [], maps: [] };
+    if (qual && !qualResultsPublic()) return { ...base, status: 'hidden-results', players: [], maps: [] };
+    if (!rel.visible) return { ...base, status: 'unpublished', over: rel.over, players: [], maps: [] };
+  }
   const pool = poolOf(round);
   const slotOf = new Map(pool.map((p) => [p.beatmap_id, p.slot]));
   const registered = new Map(q.registered.all().map((p) => [p.id, p]));
@@ -830,14 +850,17 @@ const routes = {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=5' });
     res.end(JSON.stringify(body));
   },
-  // Estadísticas de una ronda (página Stats). Pública y de solo lectura: solo lo ya publicado, igual para todos.
+  // Estadísticas de una ronda (página Stats). Pública y de solo lectura: solo lo ya publicado. Los admins ven además
+  // las de las rondas sin publicar (vista previa), así que su respuesta no se guarda en caché.
   'GET /api/stats': (req, res, url) => {
     const round = (url.searchParams.get('round') || '').trim();
     const view = (url.searchParams.get('view') || STATS_VIEWS[0]).trim();
     if (!statRounds().some((f) => f.key === round)) throw new HttpError(400, `Ronda desconocida. Usa una de estas: ${statRounds().map((f) => f.key).join(', ')}.`);
     if (!STATS_VIEWS.includes(view)) throw new HttpError(400, `Vista desconocida. Usa ${STATS_VIEWS.join(' o ')}.`);
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=5' });
-    res.end(JSON.stringify(statsBody(round, view)));
+    const u = sessionUser(req);
+    const admin = Boolean(u && isAdminId(u.id));
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': admin ? 'private, no-store' : 'public, max-age=5', Vary: 'Cookie' });
+    res.end(JSON.stringify(statsBody(round, view, { admin })));
   },
   'OPTIONS /api/overlay': (req, res) => {
     overlayCors(res);
@@ -1154,6 +1177,25 @@ const routes = {
     if (!Number.isFinite(at) || Math.abs(at - Date.now()) > 366 * 86400e3) throw new HttpError(400, 'Elige la fecha y la hora de publicación.');
     q.setRelease.run(QUAL_RESULTS, Math.round(at));
     sendJson(res, 200, { ok: true, at: Math.round(at) });
+  },
+
+  // Publicación de las estadísticas de una ronda: { round, publish: true } (solo con la ronda terminada) o { round, publish: false }.
+  'POST /api/admin/stats-release': async (req, res) => {
+    requireAdmin(req);
+    const b = await readJson(req);
+    const round = String(b.round || '');
+    if (!statRounds().some((f) => f.key === round)) throw new HttpError(400, 'Esa ronda no existe.');
+    if (b.publish === false) {
+      q.delRelease.run(STATS_KEY(round));
+      return sendJson(res, 200, { ok: true, published: null });
+    }
+    const { over, pending } = roundProgress(round);
+    if (!over) throw new HttpError(400, round === 'qualifiers' ? 'Los clasificatorios aún no han terminado.' : `La ronda aún no ha terminado: ${pending === 1 ? 'falta 1 partido' : `faltan ${pending} partidos`} por jugar.`);
+    if (!isPublic(round)) throw new HttpError(400, 'Publica antes la mappool de esta ronda.');
+    if (round === 'qualifiers' && !qualResultsPublic()) throw new HttpError(400, 'Publica antes los resultados de los clasificatorios.');
+    const at = Date.now();
+    q.setRelease.run(STATS_KEY(round), at);
+    sendJson(res, 200, { ok: true, published: at });
   },
 
   'POST /api/admin/pool/delete': async (req, res) => {

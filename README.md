@@ -8,7 +8,7 @@ Web del torneo 1v1 de osu! de la comunidad SpiSix: inscritos, mappools, clasific
 - **Mappools:** se suben a mano o desde una hoja de cálculo, y se publican a la hora programada.
 - **Clasificatorios:** los jugadores se apuntan a un lobby, un árbitro aprueba cada plaza y las seeds se calculan por Z-sum.
 - **Cuadro:** doble eliminación de 16, con cruces y resultados que avanzan solos. En Partidos se pueden ver todos los de un jugador.
-- **Stats:** estadísticas de cada ronda en dos vistas, resultados individuales (match cost, medias y mejor score de cada jugador; en clasificatorios, la Z-sum) y leaderboard por mapa, con una dirección que se puede compartir (`#stats/finals?view=leaderboard-por-mapa`).
+- **Stats:** estadísticas de cada ronda en dos vistas, resultados individuales (match cost, medias y mejor score de cada jugador; en clasificatorios, la Z-sum) y leaderboard por mapa, con una dirección que se puede compartir (`#stats/finals?view=leaderboard-por-mapa`). Cada ronda se publica desde el panel cuando termina; antes solo la ven los admins.
 - **Arbitraje:** un bot de IRC por fases (lobby, warmups, rolls, protects, bans, picks, ready y mapa) que el árbitro lleva en modo SEMI (cada paso es un botón) o AUTO (lo hace solo), y cambia en cualquier momento. Nunca sanciona: avisa y espera al árbitro.
 - **Panel de organización:** roles, normas, textos, fechas de las rondas y anuncios.
 - **Inicio:** recordatorios automáticos de partidos, resultados y mappools, y aviso cuando hay directo en Twitch.

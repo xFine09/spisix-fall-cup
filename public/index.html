@@ -926,13 +926,27 @@ function renderKeepFocus(){
   if(id) document.getElementById(id)?.focus({preventScroll:true});
   app.querySelectorAll('.tbl-wrap').forEach((e,i)=>{if(pos[i]) e.scrollLeft=pos[i]});
 }
-// Sin ronda en la dirección: la última del cuadro con mapas jugados; si no hay, clasificatorios (si sus resultados
-// están publicados) y, si tampoco, la ronda en curso.
+// Sin ronda en la dirección: la última con estadísticas publicadas. Si no hay ninguna, a los admins (que ven la vista
+// previa) la última del cuadro con mapas jugados o los clasificatorios; si no, la ronda en curso.
 function statsDefault(rounds){
-  const played=rounds.filter(p=>p.key!=='qualifiers'&&S.pools[p.key]?.length&&T.matches.some(m=>m.fase===p.key&&!m.ff&&m.result?.maps?.length));
-  if(played.length) return played[played.length-1].key;
-  if(qualOut()&&Object.keys(S.qual.scores||{}).length) return 'qualifiers';
+  const pub=rounds.filter(p=>(S.statsPublic||[]).includes(p.key));
+  if(pub.length) return pub[pub.length-1].key;
+  if(S.me?.admin){
+    const played=rounds.filter(p=>p.key!=='qualifiers'&&S.pools[p.key]?.length&&T.matches.some(m=>m.fase===p.key&&!m.ff&&m.result?.maps?.length));
+    if(played.length) return played[played.length-1].key;
+    if(Object.keys(S.qual.scores||{}).length) return 'qualifiers';
+  }
   return (rounds.find(p=>p.estado==='now')||rounds.find(p=>p.estado==='future')||rounds[rounds.length-1]).key;
+}
+// Aviso para los admins cuando ven unas estadísticas que el público aún no ve.
+function statsPreviewNote(d,p){
+  const r=d.publication; if(!d.preview||!r) return '';
+  const qual=p.key==='qualifiers';
+  const why=!r.over?(qual?'Los clasificatorios aún no han terminado: se podrán publicar cuando acaben.':`La ronda aún no ha terminado (${r.pending===1?'falta 1 partido':`faltan ${r.pending} partidos`}): se podrán publicar cuando acabe.`)
+    :r.published==null?'La ronda ha terminado: se publican en Admin → Publicación de estadísticas.'
+    :S.releases?.[p.key]?.at>T.NOW?'Están publicadas, pero no se verán hasta que se publique la mappool.'
+    :qual&&!qualOut()?'Están publicadas, pero no se verán hasta que se publiquen los resultados de los clasificatorios.':'';
+  return `<p class="note">Vista previa: solo los admins ven estas estadísticas. ${why}</p>`;
 }
 const rankHtml=r=>r?`<span class="st-rk st-rk-${esc(r)}" title="Rank ${esc(r)}">${esc(r)}</span>`:'';
 const multHtml=m=>m?`<span class="st-ez" title="Score con el multiplicador de EZ del torneo">EZ ×${esc(String(m).replace('.',','))}</span>`:'';
@@ -1348,13 +1362,14 @@ const VIEWS={
     if(DEMO) body='<div class="empty">Las estadísticas las calcula el servidor del torneo: en esta vista de ejemplo no hay.</div>';
     else if(!d) body=c?.err?`<div class="empty" role="alert">${esc(c.err)}</div>`:'<div class="empty" role="status">Cargando estadísticas…</div>';
     else if(d.status==='hidden') body=`<div class="empty">Aún no hay resultados: la mappool de ${esc(p.nombre)} todavía no se ha publicado.</div>`;
+    else if(d.status==='unpublished') body=`<div class="empty">Aún no hay estadísticas de ${esc(p.nombre)}: se publican cuando ${d.over?'la organización las revise':p.key==='qualifiers'?'terminen los clasificatorios':'terminen todos sus partidos'}.</div>`;
     else if(d.status==='hidden-results') body=`<div class="empty">Aún no hay resultados: los de los clasificatorios se publican ${S.qual.results!=null?qualWhen():'cuando lo anuncie la organización'}.</div>`;
     else if(d.status!=='ok') body=`<div class="empty">Aún no hay resultados de ${esc(p.nombre)}.</div>`;
     else body=view==='leaderboard-por-mapa'?statsLeaderboard(d,p):statsIndividual(d,p);
     return `<section class="st-page"><div class="sec-head"><div><span class="eyebrow">Estadísticas · ${p.bo?'Bo'+p.bo:'Run única'}${p.sr?' · '+dec(p.sr)+'★':''}</span><h2>${esc(p.nombre)}</h2></div></div>
       <nav class="tabs" aria-label="Rondas">${rounds.map(x=>`<a class="tab" id="st-r-${esc(x.key)}" href="${href(x.key,view)}"${x.key===p.key?' aria-current="page"':''}>${esc(x.nombre)}</a>`).join('')}</nav>
       <div class="st-views" role="group" aria-labelledby="st-vl"><span id="st-vl" class="eyebrow">Vista:</span>${Object.entries(STATS_VIEWS).map(([k,l])=>`<a class="st-view" id="st-v-${k}" href="${href(p.key,k)}"${k===view?' aria-current="true"':''}>${l}</a>`).join('')}</div>
-      ${d&&c?.err?`<p class="note">${esc(c.err)} Se muestran los últimos datos cargados.</p>`:''}
+      ${d&&c?.err?`<p class="note">${esc(c.err)} Se muestran los últimos datos cargados.</p>`:''}${d?statsPreviewNote(d,p):''}
       ${body}</section>`;
   },
 
@@ -1430,6 +1445,9 @@ const VIEWS={
       <div class="grid2">
         <section class="card adm" style="grid-column:1/-1"><h3>Publicación de mappools</h3>
           ${relAdmin()}
+        </section>
+        <section class="card adm" style="grid-column:1/-1"><h3>Publicación de estadísticas</h3>
+          ${statsAdmin()}
         </section>
         ${qualResAdmin()}
         ${textAdmin()}
@@ -1997,6 +2015,23 @@ function refQual(l){
     </div>`;
 }
 
+// Estadísticas de cada ronda (pestaña Stats): se publican a mano cuando la ronda ha terminado. Antes solo las ven los admins.
+function statsAdmin(){
+  const rows=T.phases.filter(p=>p.key!=='registros').map(p=>{
+    const r=S.statsRelease?.[p.key]; if(!r) return '';
+    const qual=p.key==='qualifiers';
+    const st=r.visible?`<span class="pill good">Publicadas el ${dia(r.published)} · ${hora(r.published)}</span>`
+      :r.published!=null?`<span class="pill tbd">Publicadas, pero ocultas</span> <span class="muted">${!r.over?'(la ronda ya no está terminada)':S.releases?.[p.key]?.at>T.NOW?'(falta publicar la mappool)':'(faltan los resultados de clasificatorios)'}</span>`
+      :r.over?'<span class="pill tbd">Terminada, sin publicar</span>'
+      :`<span class="muted">${qual?`Sin terminar: acaban el ${corto(T.phaseBy.qualifiers.end)}`:`Sin terminar: ${r.pending===1?'falta 1 partido':`faltan ${r.pending} partidos`}`}</span>`;
+    const btn=r.published!=null?`<button class="btn btn-ghost btn-sm" type="button" data-act="stats-hide" data-round="${p.key}">Ocultar</button>`
+      :`<button class="btn btn-ghost btn-sm" type="button" data-act="stats-pub" data-round="${p.key}" data-name="${esc(p.nombre)}"${r.over?'':' disabled title="Se puede publicar cuando termine la ronda"'}>Publicar</button>`;
+    return `<tr><td><a href="#stats/${encodeURIComponent(p.key)}?view=resultados-individuales">${esc(p.nombre)}</a></td><td>${st}</td><td>${btn}</td></tr>`;
+  }).join('');
+  return `<p class="muted" style="font-size:.85rem">Las estadísticas de cada ronda (pestaña Stats) solo las ven los admins hasta que se publican aquí. Se pueden publicar cuando la ronda termina: en el cuadro, cuando todos sus partidos tienen ganador; en clasificatorios, al pasar su fecha de fin y con los resultados publicados.</p>
+    <div class="tbl-wrap"><table><thead><tr><th>Ronda</th><th>Estado</th><th>Acción</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
 function qualResAdmin(){
   const at=S.qual.results, pub=qualOut();
   const st=pub?'<span class="pill good">Públicos</span>':at!=null?`<span class="pill tbd">Ocultos hasta el ${dia(at)} · ${hora(at)}</span>`:'<span class="pill tbd">Ocultos, sin fecha</span>';
@@ -2207,6 +2242,11 @@ app.addEventListener('click',e=>{
     if(!confirm('¿Publicar ya los resultados de los clasificatorios? Los verá todo el mundo.')) return;
     return act(()=>post('/api/admin/qual-results',{now:true}),'Resultados de clasificatorios publicados.');
   }
+  if(a==='stats-pub'){
+    if(!confirm(`¿Publicar ya las estadísticas de ${b.dataset.name}? Las verá todo el mundo.`)) return;
+    return act(()=>post('/api/admin/stats-release',{round:b.dataset.round,publish:true}),'Estadísticas publicadas.');
+  }
+  if(a==='stats-hide') return act(()=>post('/api/admin/stats-release',{round:b.dataset.round,publish:false}),'Estadísticas ocultas: solo las ven los admins.');
   if(a==='qres-hide') return act(()=>post('/api/admin/qual-results',{hide:true}),'Resultados ocultos: solo los ven admins y árbitros.');
   if(a==='pv-open'){const g=UI.poolRead.groups[+b.dataset.i];g.open=!g.open;return keepRender()}
   if(a==='pv-close'){UI.poolRead=null;UI.flash=null;return keepRender()}

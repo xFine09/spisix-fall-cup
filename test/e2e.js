@@ -1471,16 +1471,32 @@ try {
 
   // ---------- Stats: GET /api/stats ----------
   // Octavos: U1-2 (P08 5–1 P09, todo 900k contra 500k, sin precisión) y U1-7 en juego (P07 contra P10, MP 557).
-  const stats = async (round, view, who = anon2) => (await who(`/api/stats?round=${round}${view ? '&view=' + view : ''}`));
+  // Los cálculos se comprueban con la vista previa de los admins; el público solo ve las rondas terminadas y publicadas.
+  const stats = async (round, view, who = adm2) => (await who(`/api/stats?round=${round}${view ? '&view=' + view : ''}`));
   const near = (a, b, what) => assert.ok(Math.abs(a - b) < 1e-6, `${what}: ${a} ≠ ${b}`);
+  const noLeak = (body, leaks, what) => { const txt = JSON.stringify(body); for (const x of leaks) assert.ok(!txt.includes(x), `${what}: no sale ${x}`); };
+  const statsRel = (round, publish) => adm2('/api/admin/stats-release', { method: 'POST', json: { round, publish } });
   games557.push(...GAMES557.slice(0, 3)); // warmup, NM1 y NM2
   r = await adm2('/api/admin/match', { method: 'POST', json: { id: 'u1-7', time: fakeNow - 1800e3, mp: '557' } });
   assert.equal(r.body.warning, null, JSON.stringify(r.body));
   games557.push(GAMES557[3]); // FM1 ya jugado, pero el MP aún no se ha vuelto a leer: no cuenta
+  // Público: la ronda no ha terminado ni se ha publicado, así que no hay nada.
+  for (const view of STATS_VIEWS) {
+    r = await stats('octavos', view, anon2);
+    assert.equal(r.status, 200);
+    assert.equal(r.headers.get('cache-control'), 'public, max-age=5');
+    assert.deepEqual([r.body.status, r.body.over, r.body.players, r.body.maps, r.body.preview], ['unpublished', false, [], [], undefined], `${view}: sin publicar`);
+    noLeak(r.body, ['101', 'Titulo', '900000', 'P07', 'P08', 'u1-7', 'pending'], view);
+  }
+  assert.deepEqual((await anon2('/api/state')).body.statsPublic, []);
   r = await stats('octavos');
-  assert.equal(r.status, 200);
-  assert.equal(r.headers.get('cache-control'), 'public, max-age=5');
-  assert.deepEqual([r.body.status, r.body.view, r.body.metric], ['ok', 'resultados-individuales', { key: 'matchCost', label: 'Match cost' }]);
+  assert.equal(r.headers.get('cache-control'), 'private, no-store', 'la vista previa de los admins no se guarda en caché');
+  assert.deepEqual([r.body.status, r.body.view, r.body.metric, r.body.preview], ['ok', 'resultados-individuales', { key: 'matchCost', label: 'Match cost' }, true]);
+  assert.deepEqual(r.body.publication, { published: null, over: false, pending: 6, visible: false }, 'quedan 6 partidos: U1-1 fue forfeit y U1-2 terminó');
+  r = await statsRel('octavos', true);
+  assert.equal(r.status, 400);
+  assert.match(r.body.error, /faltan 6 partidos/, 'no se puede publicar antes de que termine la ronda');
+  r = await stats('octavos');
   const row = (body, id) => body.players.find((x) => x.id === id);
   assert.equal(row(r.body, 607).maps, 2, 'partido en juego: solo los mapas leídos del MP, sin el warmup');
   near(row(r.body, 607).value, (800 / 775 + 600 / 650) / 2, 'match cost con dos mapas');
@@ -1507,42 +1523,67 @@ try {
   assert.deepEqual(r.body.maps[1].plays.slice(0, 2).map((x) => [x.username, x.rank, x.acc]), [['P08', null, null], ['P10', 'S', 0.97]], 'NM2');
   assert.deepEqual(r.body.maps[5].plays[0], { id: 610, username: 'P10', score: 990000, acc: 0.96, slot: 'FM1', mods: ['EZ'], rank: 'A', mult: 1.8, match: 'u1-7', mp: 557 }, 'FM1: gana el EZ');
   // Ronda sin partidos: aviso en vez de tabla. Parámetros que no existen: 400.
-  assert.equal((await stats('cuartos')).body.status, 'hidden', 'cuartos, antes de su showcase: oculta');
-  await adm2('/api/admin/pool/release', { method: 'POST', json: { round: 'cuartos', now: true } });
+  assert.equal((await stats('cuartos', null, anon2)).body.status, 'hidden', 'cuartos, antes de su showcase: oculta al público');
   r = await stats('cuartos');
-  assert.deepEqual([r.body.status, r.body.players], ['empty', []], 'cuartos: aún no hay resultados');
+  assert.deepEqual([r.body.status, r.body.players, r.body.publication.pending], ['empty', [], 8], 'cuartos: aún no hay resultados');
   assert.deepEqual([(await stats('cuartos', 'leaderboard-por-mapa')).body.status, (await stats('cuartos', 'leaderboard-por-mapa')).body.maps], ['empty', []]);
-  await adm2('/api/admin/pool/release', { method: 'POST', json: { round: 'cuartos', at: Date.parse('2026-11-22T23:00:00Z') } }); // su showcase
   assert.equal((await stats('registros')).status, 400, 'registros no es una ronda con estadísticas');
   assert.equal((await stats('nada')).status, 400);
   assert.equal((await anon2('/api/stats')).status, 400, 'sin ronda');
   assert.match((await stats('octavos', 'graficos')).body.error, /Vista desconocida/);
-  // Mappool sin publicar: ni mapas ni scores, tampoco para la organización (la respuesta es la misma para todos).
+  assert.equal((await statsRel('nada', true)).status, 400);
+  assert.equal((await anon2('/api/admin/stats-release', { method: 'POST', json: { round: 'octavos', publish: false } })).status, 401, 'publicar es cosa de admins');
+  assert.equal((await p01('/api/admin/stats-release', { method: 'POST', json: { round: 'octavos', publish: false } })).status, 403);
+  // Mappool sin publicar: el público no ve ni mapas ni scores.
   assert.equal((await adm2('/api/admin/pool/release', { method: 'POST', json: { round: 'octavos', at: fakeNow + 24 * 3600e3 } })).status, 200);
   for (const view of STATS_VIEWS) {
-    for (const who of [anon2, adm2]) {
-      r = await stats('octavos', view, who);
-      assert.equal(r.body.status, 'hidden', `${view}: oculta`);
-      const txt = JSON.stringify(r.body);
-      for (const leak of ['101', 'Titulo', '900000', '990000', 'P07', 'u1-7']) assert.ok(!txt.includes(leak), `${view}: no sale ${leak}`);
-    }
+    r = await stats('octavos', view, anon2);
+    assert.equal(r.body.status, 'hidden', `${view}: oculta`);
+    noLeak(r.body, ['101', 'Titulo', '900000', '990000', 'P07', 'u1-7'], view);
   }
+  assert.equal((await stats('octavos')).body.status, 'ok', 'los admins la ven como vista previa');
   assert.equal((await adm2('/api/admin/pool/release', { method: 'POST', json: { round: 'octavos', at: Date.parse('2026-11-15T23:00:00Z') } })).status, 200); // su showcase
-  assert.equal((await stats('octavos')).body.status, 'ok', 'publicada otra vez');
-  // Clasificatorios: ocultos hasta publicar los resultados; después, la métrica de la clasificación (Z-sum) y sin MP de los lobbies.
-  r = await stats('qualifiers');
+  // Clasificatorios: terminados (el reloj está en octavos), pero sin resultados publicados no se pueden publicar.
+  r = await stats('qualifiers', null, anon2);
   assert.deepEqual([r.body.status, r.body.players, r.body.metric], ['hidden-results', [], { key: 'zsum', label: 'Z-sum' }]);
-  assert.ok(!JSON.stringify((await stats('qualifiers', 'leaderboard-por-mapa')).body).includes('201'), 'sin publicar, no salen los mapas');
+  noLeak((await stats('qualifiers', 'leaderboard-por-mapa', anon2)).body, ['201', 'P01'], 'clasificatorios sin publicar');
+  assert.deepEqual((await stats('qualifiers')).body.publication, { published: null, over: true, pending: null, visible: false });
+  assert.match((await statsRel('qualifiers', true)).body.error, /resultados de los clasificatorios/);
   await adm2('/api/admin/qual-results', { method: 'POST', json: { now: true } });
-  r = await stats('qualifiers');
-  assert.equal(r.body.players.length, 16);
+  assert.deepEqual([(await stats('qualifiers', null, anon2)).body.status, (await stats('qualifiers', null, anon2)).body.over], ['unpublished', true], 'resultados públicos, estadísticas aún no');
+  r = await statsRel('qualifiers', true);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  r = await stats('qualifiers', null, anon2);
+  assert.deepEqual([r.body.status, r.body.players.length, r.body.preview], ['ok', 16, undefined], 'publicadas: el público las ve');
   assert.deepEqual(r.body.players.slice(0, 2).map((x) => [x.username, x.maps, x.avgScore]), [['P01', 2, 875000], ['P02', 2, 865000]], 'orden por Z-sum');
   assert.equal(r.body.players[0].value, Math.round(2 * 7.5 / Math.sqrt(255 / 12) * 1000) / 1000, 'Z-sum de P01');
   assert.deepEqual(r.body.players[0].best, { score: 900000, acc: null, slot: 'NM1', mods: [], rank: null, mult: null, match: null, mp: null });
-  r = await stats('qualifiers', 'leaderboard-por-mapa');
+  r = await stats('qualifiers', 'leaderboard-por-mapa', anon2);
   assert.deepEqual(r.body.maps.map((m) => [m.slot, m.plays.length, m.plays[0].username, m.plays[0].score]), [['NM1', 16, 'P01', 900000], ['NM2', 16, 'P01', 850000]]);
   assert.ok(!JSON.stringify(r.body).includes('901'), 'sin el MP de los lobbies');
+  assert.deepEqual((await anon2('/api/state')).body.statsPublic, ['qualifiers']);
+  assert.equal((await adm2('/api/state')).body.statsRelease.qualifiers.visible, true);
+  assert.equal((await anon2('/api/state')).body.statsRelease, undefined, 'el estado de la publicación es solo para admins');
   await adm2('/api/admin/qual-results', { method: 'POST', json: { hide: true } });
+  assert.equal((await stats('qualifiers', null, anon2)).body.status, 'hidden-results', 'si se ocultan los resultados, también sus estadísticas');
+  assert.equal((await statsRel('qualifiers', false)).status, 200);
+  assert.equal((await adm2('/api/state')).body.statsRelease.qualifiers.published, null, 'ocultas otra vez');
+  // Octavos terminado: U1-7 vuelve a estar sin MP ni resultado y el resto de partidos se dan por forfeit.
+  await adm2('/api/admin/match', { method: 'POST', json: { id: 'u1-7' } });
+  const rest = ['u1-3', 'u1-4', 'u1-5', 'u1-6', 'u1-7', 'u1-8'];
+  for (const id of rest) await adm2('/api/admin/match', { method: 'POST', json: { id, ff: 'a', ...(id === 'u1-3' ? { time: fakeNow + 3 * 3600e3 } : {}) } });
+  assert.deepEqual((await adm2('/api/state')).body.statsRelease.octavos, { published: null, over: true, pending: 0, visible: false });
+  r = await statsRel('octavos', true);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  r = await stats('octavos', null, anon2);
+  assert.deepEqual([r.body.status, r.body.players.map((x) => x.username)], ['ok', ['P08', 'P09']], 'publicadas: sin los forfeits');
+  assert.deepEqual((await anon2('/api/state')).body.statsPublic, ['octavos']);
+  // Si un partido deja de estar terminado (se corrige un forfeit), se vuelven a ocultar solas.
+  await adm2('/api/admin/match', { method: 'POST', json: { id: 'u1-8' } });
+  assert.equal((await stats('octavos', null, anon2)).body.status, 'unpublished', 'ronda sin terminar otra vez: oculta');
+  assert.equal((await statsRel('octavos', false)).status, 200);
+  for (const id of rest) await adm2('/api/admin/match', { method: 'POST', json: { id, ...(id === 'u1-3' ? { time: fakeNow + 3 * 3600e3 } : {}) } });
+  assert.deepEqual((await stats('octavos')).body.players.map((x) => x.username), ['P08', 'P09']);
   // La página: la dirección (#stats/<ronda>?view=…) y el formato de los números, con las funciones de la propia web.
   const html = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
   const pure = new Function(html.match(/\/\* stats:puros[^]*?\*\/([^]*?)\/\* \/stats:puros \*\//)[1] + '; return { statsRoute, fmtInt, fmt3, fmtAcc };')();
@@ -1554,10 +1595,7 @@ try {
   assert.deepEqual([pure.fmt3(1.062), pure.fmt3(0.8095238), pure.fmt3(1234.5)], ['1,062', '0,810', '1.234,500']);
   assert.deepEqual([pure.fmtAcc(0.9281), pure.fmtAcc(1)], ['92,81 %', '100,00 %'], 'precisión con coma y espacio antes del %');
   assert.ok(html.includes("['stats','Stats']"), 'Stats sigue en el menú');
-  // U1-7 se deja como estaba (sin MP ni resultado) para el resto de la prueba.
-  await adm2('/api/admin/match', { method: 'POST', json: { id: 'u1-7' } });
-  assert.deepEqual((await stats('octavos')).body.players.map((x) => x.username), ['P08', 'P09']);
-  console.log('✓ stats: match cost, medias, mejor score, leaderboard por mapa, ronda sin resultados, mappools y clasificatorios sin publicar, dirección y formato');
+  console.log('✓ stats: match cost, medias, mejor score, leaderboard por mapa, ronda sin resultados, publicación al terminar la ronda, vista previa de admins, mappools y clasificatorios sin publicar, dirección y formato');
 
   // ---------- Arbitraje con bot de IRC (Bancho simulado) ----------
   const refc = await login(s2.base, 503); // «Jugador C»: no juega el torneo
