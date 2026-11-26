@@ -41,7 +41,7 @@ export function createReferee(deps) {
   const loadState = (key) => { const r = q.getRefState.get(key); return r ? JSON.parse(r.data) : {}; };
   const saveState = (key, st) => q.setRefState.run(key, JSON.stringify(st), Date.now());
   const matchState = (key) => {
-    const st = { roll: null, order: null, actions: [], ...loadState(key) };
+    const st = { roll: null, roll2: null, order: null, actions: [], ...loadState(key) };
     st.bot = { ...newBot(), ...(st.bot || {}) };
     return st;
   };
@@ -745,18 +745,31 @@ export function createReferee(deps) {
     const side = (x) => (x === 'a' || x === 'b' ? x : null);
     let said = null, note = null, logText = null;
     if (type === 'roll') {
-      if (f.step !== 'roll') throw new HttpError(400, 'El roll ya está decidido. Usa «Deshacer» para cambiarlo.');
+      if (f.step !== 'roll') throw new HttpError(400, 'Ahora no toca un roll. Usa «Deshacer» para cambiar uno ya apuntado.');
       if (!side(b.winner)) throw new HttpError(400, 'Elige quién ha ganado el roll.');
-      remember(st, `roll (gana ${f[b.winner].username})`);
-      st.roll = { winner: b.winner };
-      said = `${f[b.winner].username} gana el roll y elige quién protege, banea y elige primero.`;
-      logText = `A mano: ${f[b.winner].username} gana el roll.`;
+      const pr = f.rollFor === 'protect';
+      const what = pr ? 'protects' : 'bans y picks';
+      remember(st, `roll de ${what} (gana ${f[b.winner].username})`);
+      st[pr ? 'roll' : 'roll2'] = { winner: b.winner };
+      // Los rolls leídos del chat para este roll no deben valer para el siguiente.
+      st.bot.sub.rolls = {}; delete st.bot.sub.rollReq; delete st.bot.sub.rollBad;
+      said = `${f[b.winner].username} gana el roll y elige ${pr ? 'quién protege primero' : 'quién banea primero y quién elige primero'}.`;
+      logText = `A mano: ${f[b.winner].username} gana el roll de ${what}.`;
     } else if (type === 'order') {
       if (f.step !== 'order') throw new HttpError(400, 'Ahora no toca elegir el orden.');
-      if (!side(b.protect) || !side(b.ban) || !side(b.pick)) throw new HttpError(400, 'Elige quién protege, banea y elige primero.');
-      remember(st, 'el orden de protects, bans y picks');
-      st.order = { protect: b.protect, ban: b.ban, pick: b.pick };
-      said = `Orden: protege primero ${f[b.protect].username}, banea primero ${f[b.ban].username} y elige primero ${f[b.pick].username}.`;
+      const o = { ...(st.order || {}) };
+      if (f.rollFor === 'protect') {
+        if (!side(b.protect)) throw new HttpError(400, 'Elige quién protege primero.');
+        remember(st, 'quién protege primero');
+        o.protect = b.protect;
+        said = `Protege primero ${f[b.protect].username}.`;
+      } else {
+        if (!side(b.ban) || !side(b.pick)) throw new HttpError(400, 'Elige quién banea primero y quién elige primero.');
+        remember(st, 'quién banea y elige primero');
+        o.ban = b.ban; o.pick = b.pick;
+        said = `Banea primero ${f[b.ban].username} y elige primero ${f[b.pick].username}.`;
+      }
+      st.order = o;
       logText = `A mano: ${said}`;
     } else if (TYPES[type]) {
       const slot = String(b.slot || '').toUpperCase().replace(/\s+/g, '');
@@ -783,22 +796,27 @@ export function createReferee(deps) {
       // Solo cambia lo apuntado en la web; en el lobby no se manda nada. En AUTO, el bot queda en pausa para revisar.
       const label = undoBot(st);
       if (label) note = `Deshecho: ${label}.`;
+      // Sin historial, en el orden inverso del partido: bans y picks, su orden, el roll de bans y picks,
+      // los protects, quién protege primero y el roll de protects.
+      else if (st.actions.some((x) => x.type !== 'protect')) note = `Deshecho: ${stepName(st.actions.pop(), f)}.`;
+      else if (st.order?.ban || st.order?.pick) { const { protect } = st.order; st.order = protect ? { protect } : null; note = 'Deshecho: quién banea y elige primero.'; }
+      else if (st.roll2) { st.roll2 = null; note = 'Deshecho: el roll de bans y picks.'; }
       else if (st.actions.length) note = `Deshecho: ${stepName(st.actions.pop(), f)}.`;
-      else if (st.order) { st.order = null; note = 'Deshecho: el orden de protects, bans y picks.'; }
-      else if (st.roll) { st.roll = null; note = 'Deshecho: el roll.'; }
+      else if (st.order) { st.order = null; note = 'Deshecho: quién protege primero.'; }
+      else if (st.roll) { st.roll = null; note = 'Deshecho: el roll de protects.'; }
       else throw new HttpError(400, 'No hay nada que deshacer.');
       if (st.bot.mode === 'auto' && setPaused(st.bot, true)) note += ' El bot queda en pausa: revisa y pulsa Reanudar.';
       logText = note;
     } else if (type === 'reset') {
-      if (!st.roll && !st.order && !st.actions.length) throw new HttpError(400, 'No hay nada apuntado.');
-      st.roll = null; st.order = null; st.actions = [];
+      if (!st.roll && !st.roll2 && !st.order && !st.actions.length) throw new HttpError(400, 'No hay nada apuntado.');
+      st.roll = null; st.roll2 = null; st.order = null; st.actions = [];
       // El bot vuelve a los rolls (lo del lobby y los warmups se conserva).
       const bt = st.bot;
       bt.done = Object.fromEntries(Object.entries(bt.done).filter(([k]) => k.startsWith('lobby:') || k.startsWith('wu:')));
       bt.sub = { pw: bt.sub.pw, wu: bt.sub.wu };
       delete bt.timers.pick; delete bt.timers.ready;
       bt.history = [];
-      note = 'Empezado de cero: se han borrado el roll, el orden, los protects, los bans y los picks (el marcador sale del MP).';
+      note = 'Empezado de cero: se han borrado los rolls, el orden, los protects, los bans y los picks (el marcador sale del MP).';
       logText = note;
     } else {
       throw new HttpError(400, 'Acción desconocida.');

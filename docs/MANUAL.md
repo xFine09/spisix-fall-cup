@@ -107,8 +107,8 @@ Qué manda cada botón de **Arbitrar** (el comando exacto sale al pasar el rató
 | Bot: Pausar, Deshacer, Saltar, Marcar incidencia, AUTO/SEMI | nada (al pasar a SEMI se quita de la cola lo que el bot aún no había mandado) |
 | Crear lobby (clasificatorios) | `!mp make`, `!mp set 0 3 <plazas>` e invitaciones |
 | Poner equipos | `!mp team #A red` y `!mp team #B blue` |
-| Gana A / Gana B | quién gana el roll y elige el orden |
-| Guardar el orden | quién protege, banea y elige primero |
+| Gana A / Gana B | quién gana el roll (el de protects o, tras los protects, el de bans y picks) y qué elige |
+| Guardar el orden | tras el primer roll, quién protege primero; tras el segundo, quién banea primero y quién elige primero |
 | Un mapa en protects o bans | «A protege NM1» o «B banea DT1» (y para el temporizador si estaba puesto) |
 | Un mapa en picks / Poner el TB | `!mp map`, `!mp mods` y el anuncio del mapa |
 | Empezar, Abortar, Temporizador, Parar temporizador | `!mp start 5`, `!mp abort`, `!mp timer <s>`, `!mp aborttimer` |
@@ -226,7 +226,7 @@ La importación busca los nombres exactos de 50 en 50 (`GET /users/lookup`) y lo
 
 Cada partido tiene su modo, guardado en `ref_state`. El interruptor **AUTO / SEMI** de la tarjeta lo cambia en cualquier momento, también a mitad de una fase, sin reiniciar nada:
 
-- **SEMI** (por defecto): cada paso que el bot haría solo sale como un botón grande con el texto exacto que se mandará, y no se manda nada al lobby hasta pulsarlo. Solo aparece el botón del paso siguiente válido. Lo que escriben los jugadores (rolls, «sí»/«no», `NM2`) solo prepara ese botón («Apuntar: B gana el roll (80 – 30)», «Rechazar NM9 de A: no está en la mappool»).
+- **SEMI** (por defecto): cada paso que el bot haría solo sale como un botón grande con el texto exacto que se mandará, y no se manda nada al lobby hasta pulsarlo. Solo aparece el botón del paso siguiente válido. Lo que escriben los jugadores (rolls, «sí»/«no», `NM2`) solo prepara ese botón («Apuntar: B gana el roll de protects (80 – 30)», «Rechazar NM9 de A: no está en la mappool»).
 - **AUTO**: el bot hace cada paso él solo, de uno en uno. La tarjeta dice qué va a hacer después.
 - De SEMI a AUTO, el bot sigue desde la fase y el paso actuales. De AUTO a SEMI, se quita de la cola lo que el bot aún no había mandado (los temporizadores siguen) y cada paso vuelve a ser un botón.
 
@@ -240,8 +240,8 @@ Fases:
 
 1. **LOBBY.** A0: **Iniciar partido** o, en AUTO, solo a la hora del partido si quien lo lleva está conectado a Bancho. A1: comprueba jugadores, BO, mappool y reglas. A2: crea el lobby `SPI6: (A) vs (B)`; si BanchoBot no responde, lo intenta otra vez y, si tampoco, abre una incidencia. A4: TeamVS, ScoreV2 y 2 plazas. A5: contraseña al azar (solo la ven los árbitros). A6: invita a A y B. Mientras falte alguno, lo reinvita cada «segundos entre invitaciones»; pasados los «minutos de ausencia» (contados desde la hora del partido, o desde la invitación si es más tarde), abre una incidencia y avisa al staff. A12: pone a A en rojo y a B en azul. Si hay alguien más en el lobby, la expulsión (`!mp kick`) la confirma el árbitro, también en AUTO: los jugadores se reconocen por su nombre y uno que lo haya cambiado parecería un intruso.
 2. **WARMUP.** Pregunta a A si quiere warmup. Si dice «sí», le da el host y espera a que termine su mapa (en SEMI, con el botón **Warmup terminado**). Lo mismo con B. Luego `!mp clearhost` y vuelve a poner la configuración oficial (`!mp set 2 3 2` y equipos). Los warmups no se leen del MP.
-3. **ROLL.** Pide los rolls y lee el de cada uno. Solo vale `!roll` sin número (si el bot ve `!roll 1000`, o el roll pasa de 100, pide repetirlo); vale el primero de cada jugador, y si empatan pide repetir los dos. Apunta quién gana (con los dos números) y le pregunta el orden. El orden lo apunta el árbitro en **Orden** (quién protege, banea y elige primero), como dicen las normas.
-4. **PROTECT, BAN y PICK.** El turno, las tandas ABBA, las reglas de mods y el Tiebreaker los decide `refFlow`, igual que con los botones de siempre. El bot anuncia el turno (en los picks, con `!mp timer` si la ronda tiene segundos para elegir), lee el código que escribe quien tiene el turno (`NM2`, `hd 1`) e ignora al otro. Si no vale (no existe, protegido, ya baneado o elegido, mismo mod que su anterior, el TB), lo rechaza diciendo por qué y espera otro, sin reiniciar el tiempo. Si vale, lo apunta y lo anuncia; los protects, los bans y los picks salen en `/api/overlay` al momento.
+3. **ROLL.** Hay dos rolls. El primero, al empezar, es el de protects: quien lo gana elige quién protege primero. El segundo, después de los protects, es el de bans y picks: quien lo gana elige quién banea primero y quién elige primero (First Pick). Si la ronda no tiene protects, solo hay el segundo. En cada uno, el bot pide los rolls y lee el de cada jugador. Solo vale `!roll` sin número (si el bot ve `!roll 1000`, o el roll pasa de 100, pide repetirlo); vale el primero de cada jugador, y si empatan pide repetir los dos. Apunta quién gana (con los dos números) y le pregunta qué elige. Lo apunta el árbitro en **Orden**, como dicen las normas. Al completar un partido después de jugarlo no se piden rolls: se escribe el orden directamente.
+4. **PROTECT, BAN y PICK.** Los protects van entre el primer roll y el segundo; los bans y los picks, después del segundo. El turno, las tandas ABBA, las reglas de mods y el Tiebreaker los decide `refFlow`, igual que con los botones de siempre. El bot anuncia el turno (en los picks, con `!mp timer` si la ronda tiene segundos para elegir), lee el código que escribe quien tiene el turno (`NM2`, `hd 1`) e ignora al otro. Si no vale (no existe, protegido, ya baneado o elegido, mismo mod que su anterior, el TB), lo rechaza diciendo por qué y espera otro, sin reiniciar el tiempo. Si vale, lo apunta y lo anuncia; los protects, los bans y los picks salen en `/api/overlay` al momento.
 5. **READY.** Carga el mapa con sus mods y comprueba que BanchoBot confirma el mapa, los mods y los equipos. Si no, lo intenta otra vez y, si sigue mal, abre una incidencia. Pide el ready con su temporizador. Con los dos listos, empieza el mapa (`!mp start 5`). Si se acaba el tiempo, mira con `!mp settings` quién no está listo y le da una advertencia. Al llegar a las advertencias de la regla, solo avisa al staff y sigue esperando: nunca sanciona.
 6. **PLAY.** Al terminar el mapa lee el resultado en la API de osu!, anuncia el marcador y vuelve a BAN (segunda tanda) o PICK. Al llegar alguien a la victoria, anuncia el ganador (FIN). El lobby no se cierra solo.
 
@@ -289,7 +289,7 @@ No se manda nada al lobby ni a Bancho. Si el partido ya tenía pasos apuntados, 
 
 En la tarjeta pública del partido, los protects y los bans salen con el color de quien los hizo, igual que los mapas jugados. Los bans escritos a mano en Admin, sin pasar por Arbitrar, salen sin color.
 
-Si la conexión se corta, la web reconecta y vuelve a entrar en los lobbies abiertos. Si se reinicia el servidor, basta con volver a conectar y pulsar **Volver a entrar al MP**. Sin conectar a Bancho, la página sirve para apuntar el roll, los protects, los bans y los picks de un partido arbitrado a mano.
+Si la conexión se corta, la web reconecta y vuelve a entrar en los lobbies abiertos. Si se reinicia el servidor, basta con volver a conectar y pulsar **Volver a entrar al MP**. Sin conectar a Bancho, la página sirve para apuntar los rolls, los protects, los bans y los picks de un partido arbitrado a mano.
 
 Los **lobbies de clasificatorios** se crean desde la misma página en HeadToHead con ScoreV2: los que preparó la organización, con sus plazas y sus jugadores aprobados invitados, o uno suelto con un nombre (`Lobby A`). Al volver a entrar en un lobby, si no está en HeadToHead con ScoreV2, la web lo corrige. El árbitro pulsa **Empezar la mappool**; al terminar cada mapa, la web pone el siguiente. Para repetir un mapa, se pulsa ese mapa.
 
@@ -395,7 +395,7 @@ Se hace como mucho una petición por segundo, como pide la documentación de osu
 
 **Comprobar en el lobby de prueba con Bancho real** (el bot solo se ha probado con un Bancho simulado). Estas líneas se han escrito según la documentación y bancho.js, y si Bancho las escribe distinto el bot se queda esperando o abre una incidencia, nunca hace nada de más:
 
-- «`<nombre>` rolls `<n>` point(s)» y que el `!roll` del jugador llegue al canal (si no llega, el roll se da por bueno);
+- «`<nombre>` rolls `<n>` point(s)» y que el `!roll` del jugador llegue al canal (si no llega, el roll se da por bueno), en los dos rolls: el de protects al empezar y el de bans y picks después de los protects;
 - la respuesta a `!mp mods`: «Enabled Hidden, NoFail, disabled FreeMod» o «Enabled FreeMod»; y la línea «Active mods: …» de `!mp settings`;
 - «Slot 1  Ready / Not Ready https://osu.ppy.sh/u/<id> <nombre> [Team Red]» en `!mp settings` (para saber quién no está listo);
 - que `!mp host #<id>`, `!mp clearhost`, `!mp password` y `!mp kick` funcionan con estos argumentos, y que un jugador invitado entra con la contraseña puesta;
@@ -454,7 +454,7 @@ La prueba fija su propio reloj (`TEST_NOW` en `test/e2e.js`: 14 de noviembre de 
 
 Y el bot por fases (con los temporizadores 20 veces más rápidos, `REF_TIME_SCALE=0.05`):
 
-- un partido completo en AUTO que empieza solo a su hora: lobby con un intruso expulsado, warmup de un jugador, un roll con número rechazado y un empate, protects, bans y picks con códigos no válidos rechazados con su motivo, cinco mapas con la segunda tanda de bans y el fin, y el rundown de `/api/overlay`;
+- un partido completo en AUTO que empieza solo a su hora: lobby con un intruso expulsado, warmup de un jugador, el roll de protects (con un roll con número rechazado y un empate), protects, el roll de bans y picks, bans y picks con códigos no válidos rechazados con su motivo, cinco mapas con la segunda tanda de bans y el fin, y el rundown de `/api/overlay`;
 - el mismo partido en SEMI avanzando solo con botones, comprobando antes de cada paso que no ha salido nada sin pulsar, con el cambio a AUTO y vuelta a SEMI a mitad sin perder ni repetir pasos;
 - un jugador ausente: reinvitaciones y aviso al staff al acabar el tiempo, sin forfeit;
 - un pick que agota el tiempo y espera al árbitro, sin autopick; tres advertencias de ready que solo avisan al staff;
@@ -478,7 +478,7 @@ server/otr.js        cliente de la API de o!TR (con su propia cola) y resumen de
 server/skills.js     skills del torneo: pesos de cada mapa, base con clasificatorios y Elo con el cuadro
 server/bracket.js    seeds y cruces en el servidor, para el arbitraje (misma lógica que compute() de la web)
 server/irc.js        cliente IRC de Bancho (con cola para el límite de mensajes)
-server/refflow.js    turnos del partido: roll, orden, protects, bans ABBA, picks y TB
+server/refflow.js    turnos del partido: roll de protects, protects, roll de bans y picks, bans ABBA, picks y TB
 server/refbot.js     bot por fases (sin E/S): el paso siguiente de cada partido, temporizadores e incidencias
 server/referee.js    bot de arbitraje: conexiones de los árbitros, mensajes de BanchoBot, modos AUTO/SEMI y comandos !mp
 server/db.js         SQLite y copias de seguridad

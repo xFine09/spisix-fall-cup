@@ -1536,8 +1536,9 @@ function defaultNormas(){
     '- Puedes elegir cualquier lobby disponible, o pedir una extra si hay árbitro libre.',
     '',
     '## Protects, bans y picks',
-    '- Al empezar, ambos jugadores hacen `!roll` cuando lo diga el árbitro. Si empatan, se repite.',
-    '- Quien gana el roll decide el orden de protects, bans y picks.',
+    '- Hay dos rolls: ambos jugadores hacen `!roll` cuando lo diga el árbitro. Si empatan, se repite.',
+    '- Al empezar, quien gana el primer roll decide quién protege primero.',
+    '- Después de los protects, quien gana el segundo roll decide quién banea primero y quién elige primero (First Pick).',
     '- Un mapa protegido no se puede banear, y cualquiera puede elegirlo en su turno de pick.',
     '- No se puede banear ni elegir el mismo mod dos veces seguidas (por ejemplo, banear NM1 y NM2, o elegir HR1 y HR3).',
     ...banLines(),
@@ -1641,7 +1642,7 @@ function rulesAdmin(){
 
 /* ---------------- arbitraje ---------------- */
 // El estado llega por Server-Sent Events: el servidor lo manda cada vez que algo cambia (chat, roll, picks, resultado).
-const REF_STEP={roll:'Roll',order:'Orden de protects, bans y picks',protect:'Protects',ban:'Bans',pick:'Picks',play:'Jugando',tb:'Tiebreaker',done:'Partido terminado'};
+const REF_STEP={roll:'Roll',order:'Orden',protect:'Protects',ban:'Bans',pick:'Picks',play:'Jugando',tb:'Tiebreaker',done:'Partido terminado'};
 const REF_VERB={protect:'protege',ban:'banea',pick:'elige'};
 const IRC_URL='https://osu.ppy.sh/home/account/edit#legacy-api';
 let ES=null, R=null, lastRef='', refPending=false, refErr='';
@@ -1922,7 +1923,7 @@ function botCard(f,l,on){
   }
   const always=idle?'':`<div class="row" style="align-items:center">
       <button class="btn btn-ghost btn-sm" type="button" data-act="bot" data-do="pause" data-on="${B.paused?0:1}">${B.paused?'Reanudar bot':'Pausar bot'}</button>
-      <button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="undo" ${B.canUndo||f.roll||f.order||f.protects.length||f.bans.length||f.picks.length?'':'disabled'} title="Solo en la web: no manda nada al lobby">Deshacer último paso</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-act="ref-do" data-type="undo" ${B.canUndo||f.roll||f.roll2||f.order||f.protects.length||f.bans.length||f.picks.length?'':'disabled'} title="Solo en la web: no manda nada al lobby">Deshacer último paso</button>
       <button class="btn btn-ghost btn-sm" type="button" data-act="bot" data-do="skip" data-at="${esc(B.at)}" ${B.skip?'':'disabled'} title="${esc(B.skip?'Saltar: '+B.skip:'Este paso no se puede saltar')}">Saltar paso</button>
     </div>
     <form class="row" data-form="bot-note"><input type="text" id="r-note" maxlength="300" placeholder="Incidencia: qué ha pasado" style="flex:1 1 200px" aria-label="Nota de la incidencia"><button class="btn btn-ghost btn-sm" type="submit">Marcar incidencia</button></form>`;
@@ -1956,8 +1957,8 @@ function refMatch(f){
   let step='';
   if(f.noPool) step='<p class="note">Esta ronda aún no tiene mappool en la web: añádela en Admin.</p>';
   else if(pool===null) step='<p class="note">La mappool de esta ronda todavía no es pública.</p>';
-  else if(f.step==='roll') step=rgrp('Roll',`<div class="row">${rcmd('roll',`Gana ${n('a')}`,`«${nm('a')} gana el roll…»`,'data-winner="a"')}${rcmd('roll',`Gana ${n('b')}`,`«${nm('b')} gana el roll…»`,'data-winner="b"')}</div>`);
-  else if(f.step==='order') step=rgrp('Orden',`<form class="row" data-form="ref-order">${[['protect','Protege primero'],['ban','Banea primero'],['pick','Elige primero']].map(([k,t])=>`<div class="field"><label for="r-o-${k}">${t}</label><select id="r-o-${k}"><option value="a" ${f.by==='a'?'selected':''}>${n('a')}</option><option value="b" ${f.by==='b'?'selected':''}>${n('b')}</option></select></div>`).join('')}<button class="btn btn-ghost btn-sm" type="submit" title="Anuncia el orden en el lobby">Guardar el orden</button></form>`);
+  else if(f.step==='roll') step=rgrp(f.rollFor==='protect'?'Roll de protects':'Roll de bans y picks',`<div class="row">${rcmd('roll',`Gana ${n('a')}`,`«${nm('a')} gana el roll…»`,'data-winner="a"')}${rcmd('roll',`Gana ${n('b')}`,`«${nm('b')} gana el roll…»`,'data-winner="b"')}</div>`);
+  else if(f.step==='order') step=rgrp(f.rollFor==='protect'?'Orden de protects':'Orden de bans y picks',`<form class="row" data-form="ref-order">${(f.rollFor==='protect'?[['protect','Protege primero']]:[['ban','Banea primero'],['pick','Elige primero']]).map(([k,t])=>`<div class="field"><label for="r-o-${k}">${t}</label><select id="r-o-${k}"><option value="a" ${f.by==='a'?'selected':''}>${n('a')}</option><option value="b" ${f.by==='b'?'selected':''}>${n('b')}</option></select></div>`).join('')}<button class="btn btn-ghost btn-sm" type="submit" title="Anuncia el orden en el lobby">Guardar el orden</button></form>`);
   else if(f.step==='tb') step=rgrp('Tiebreaker',`<div>${rcmd('tb','Poner el TB','!mp map · !mp mods Freemod')}</div>`);
   else if(f.step==='done') step=`<p><b class="${f.winner==='a'?'ta':'tb'}">${n(f.winner)}</b> gana ${f.ff?'por forfeit':`${f.score[f.winner]} – ${f.score[f.winner==='a'?'b':'a']}`}.</p>`;
 
@@ -1969,7 +1970,7 @@ function refMatch(f){
   const forceSel=force?`<div class="row"><div class="field"><label for="r-ftype">Apuntar</label><select id="r-ftype">${[['protect','Protect'],['ban','Ban'],['pick','Pick']].map(([k,t])=>`<option value="${k}" ${k===(turn?f.step:'pick')?'selected':''}>${t}</option>`).join('')}</select></div><div class="field"><label for="r-by">Jugador</label><select id="r-by"><option value="a" ${f.by!=='b'?'selected':''}>${n('a')}</option><option value="b" ${f.by==='b'?'selected':''}>${n('b')}</option></select></div></div>`:'';
   const mapsTitle=turn?`${REF_STEP[f.step]} · turno de <span class="${f.by==='a'?'ta':'tb'}">${n(f.by)}</span>${f.step==='ban'?` (tanda ${Math.floor(f.bans.length/2)+1} de ${f.rules.bans})`:''}`:f.step==='play'?`Toca jugar ${esc(f.current)}`:'Mapas';
   const maps=grid||forceSel?rgrp(mapsTitle,`${forceSel}${grid}`):f.step==='play'?rgrp(mapsTitle,''):'';
-  const any=f.roll||f.order||f.protects.length||f.bans.length||f.picks.length;
+  const any=f.roll||f.roll2||f.order||f.protects.length||f.bans.length||f.picks.length;
   const fix=f.noPool||pool===null?'':rgrp('Corregir',`<div class="row" style="align-items:center"><button class="btn btn-ghost btn-sm" type="button" data-act="ref-reset" ${any?'':'disabled'} title="Solo en la web: no manda nada al lobby">Empezar de cero</button>${f.step!=='done'?`<span class="checks"><label><input type="checkbox" id="r-force" data-keep="no" ${force?'checked':''}>Apuntar a mano</label></span>`:''}</div>`);
 
   // Completar después del partido: protects, bans y picks de un partido que no se arbitró con los botones.
@@ -1994,7 +1995,8 @@ function refMatch(f){
 
   const side=x=>x.by==='a'?'wa':x.by==='b'?'wb':'';
   const chips=(list,cls)=>list.map(x=>`<span class="slot ${esc(x.slot.slice(0,2))} ${cls} ${side(x)}" title="${n(x.by)}">${esc(x.slot)}</span>`).join('');
-  const tl=`<div class="picks">${f.roll?`<span class="lbl">Roll</span><span style="font-size:.85rem">${f.roll.a!=null?`${f.roll.a} – ${f.roll.b} · `:''}gana ${n(f.roll.winner)}</span>`:''}${f.protects.length?`<span class="lbl">Protects</span>${chips(f.protects,'')}`:''}${f.bans.length?`<span class="lbl">Bans</span>${chips(f.bans,'ban')}`:''}${f.picks.length?`<span class="lbl">Picks</span>${chips(f.picks,'')}`:''}</div>`;
+  const rollTl=(r,t)=>r?`<span class="lbl">${t}</span><span style="font-size:.85rem">${r.a!=null?`${r.a} – ${r.b} · `:''}gana ${n(r.winner)}</span>`:'';
+  const tl=`<div class="picks">${rollTl(f.roll,'Roll de protects')}${f.protects.length?`<span class="lbl">Protects</span>${chips(f.protects,'')}`:''}${rollTl(f.roll2,'Roll de bans y picks')}${f.bans.length?`<span class="lbl">Bans</span>${chips(f.bans,'ban')}`:''}${f.picks.length?`<span class="lbl">Picks</span>${chips(f.picks,'')}`:''}</div>`;
   const table=f.maps.length?`<div class="tbl-wrap"><table><thead><tr><th>Mapa</th><th class="n">${n('a')}</th><th class="n">${n('b')}</th><th>Gana</th></tr></thead><tbody>${f.maps.map(x=>`<tr><td><span class="slot ${esc(x.slot.slice(0,2))}">${esc(x.slot)}</span></td><td class="n">${x.a!=null?nf.format(x.a):'Sin score'}</td><td class="n">${x.b!=null?nf.format(x.b):'Sin score'}</td><td class="${x.w==='a'?'ta':'tb'}">${n(x.w)}</td></tr>`).join('')}</tbody></table></div>`:'';
   const btns=`<div class="card adm rbtns"><h3>Botones</h3>${flashHtml()}${l?rgrp('Lobby',lobbyBtns(l,f)):''}${rgrp('Mensajes',msgs)}${step}${maps}${fix}${fill}</div>`;
   return `<div class="card adm">${head}${lob}</div>

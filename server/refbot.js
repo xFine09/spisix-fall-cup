@@ -1,4 +1,5 @@
-// Bot de arbitraje por fases: LOBBY → WARMUP → ROLL → PROTECT → BAN → PICK → READY → PLAY → (BAN | PICK) … → FIN.
+// Bot de arbitraje por fases: LOBBY → WARMUP → ROLL (protects) → PROTECT → ROLL (bans y picks) → BAN → PICK → READY
+// → PLAY → (BAN | PICK) … → FIN.
 // Módulo sin E/S: con el estado guardado del partido (ref_state), el turno que calcula refFlow y lo que se ve en el
 // lobby, dice cuál es el paso siguiente (con los mensajes y comandos exactos que mandaría) y qué se está esperando.
 // referee.js lo ejecuta solo en modo AUTO o lo enseña como botón en modo SEMI.
@@ -56,7 +57,7 @@ export const blocked = (bot) => bot.incidents.some((i) => i.open && i.block);
 const SNAP = ['stage', 'sub', 'done', 'timers', 'warnings'];
 export function remember(st, label, now = Date.now()) {
   const b = st.bot;
-  const snap = JSON.parse(JSON.stringify({ roll: st.roll ?? null, order: st.order ?? null, actions: st.actions || [], ...Object.fromEntries(SNAP.map((k) => [k, b[k]])) }));
+  const snap = JSON.parse(JSON.stringify({ roll: st.roll ?? null, roll2: st.roll2 ?? null, order: st.order ?? null, actions: st.actions || [], ...Object.fromEntries(SNAP.map((k) => [k, b[k]])) }));
   b.history.push({ label, at: now, snap });
   if (b.history.length > HISTORY_MAX) b.history.splice(0, b.history.length - HISTORY_MAX);
 }
@@ -65,7 +66,7 @@ export function undo(st) {
   const h = st.bot.history.pop();
   if (!h) return null;
   const s = h.snap;
-  st.roll = s.roll; st.order = s.order; st.actions = s.actions;
+  st.roll = s.roll; st.roll2 = s.roll2 ?? null; st.order = s.order; st.actions = s.actions;
   for (const k of SNAP) st.bot[k] = s[k];
   return h.label;
 }
@@ -345,10 +346,16 @@ function matchPlan(ctx) {
     return { phase: 'PLAY', step: 'P3', actions: [{ id: `score#${f.played}`, label: 'Anunciar el marcador', out: [ctx.scoreLine], done: `score#${f.played}` }] };
   }
 
+  // Dos rolls: el de protects (quien gana elige quién protege primero) y, tras los protects, el de bans y picks
+  // (quien gana elige quién banea primero y quién elige primero). Sin protects en la ronda, solo el segundo.
+  const RF = f.rollFor === 'protect'
+    ? { key: 'roll', ask: 'roll:ask', oask: 'order:ask', what: 'los protects', label: 'protects', chooses: 'quién protege primero' }
+    : { key: 'roll2', ask: 'roll2:ask', oask: 'order2:ask', what: 'bans y picks', label: 'bans y picks', chooses: 'quién banea primero y quién elige primero' };
+
   if (f.step === 'roll') {
     const R = (step, x) => ({ phase: 'ROLL', step, actions: [], ...x });
     const r = bot.sub.rolls || {};
-    if (!on(bot, 'roll:ask')) return R('R1', { actions: [{ id: 'roll:ask', label: 'Pedir los rolls', out: ['Haced !roll los dos (solo «!roll», sin número). Gana el más alto.'], done: 'roll:ask' }] });
+    if (!on(bot, RF.ask)) return R('R1', { actions: [{ id: RF.ask, label: `Pedir los rolls de ${RF.label}`, out: [`Roll para ${RF.what}: haced !roll los dos (solo «!roll», sin número). Gana el más alto.`], done: RF.ask }] });
     if (bot.sub.rollBad) {
       const s = bot.sub.rollBad.side;
       return R('R3', { actions: [{ id: `roll:bad:${bot.sub.rollBad.n}`, label: `Rechazar el roll de ${n(s)}`, out: [`${n(s)}: solo vale «!roll», sin número. Repítelo.`], run: (c) => { delete c.bot.sub.rollBad; } }] });
@@ -356,19 +363,19 @@ function matchPlan(ctx) {
     if (r.a != null && r.b != null) {
       if (r.a === r.b) return R('R5', { actions: [{ id: `roll:tie:${r.n}`, label: 'Empate: repetir los rolls', out: [`Empate a ${r.a}. Repetid el !roll los dos.`], run: (c) => { c.bot.sub.rolls = {}; } }] });
       const w = r.a > r.b ? 'a' : 'b';
-      return R('R6', { skip: null, actions: [{ id: `roll:win:${r.n}`, decision: true, label: `Apuntar: ${n(w)} gana el roll (${r[w]} – ${r[other(w)]})`,
-        out: [`${n(w)} gana el roll (${r[w]} – ${r[other(w)]}) y elige quién protege, banea y elige primero.`],
-        run: (c) => { c.st.roll = { winner: w, a: r.a, b: r.b }; c.bot.sub.rolls = {}; } }] });
+      return R('R6', { skip: null, actions: [{ id: `roll:win:${r.n}`, decision: true, label: `Apuntar: ${n(w)} gana el roll de ${RF.label} (${r[w]} – ${r[other(w)]})`,
+        out: [`${n(w)} gana el roll (${r[w]} – ${r[other(w)]}) y elige ${RF.chooses}.`],
+        run: (c) => { c.st[RF.key] = { winner: w, a: r.a, b: r.b }; c.bot.sub.rolls = {}; } }] });
     }
-    return R('R2', { skip: null, wait: `Esperando el !roll de ${['a', 'b'].filter((s) => r[s] == null).map(n).join(' y ')}.` });
+    return R('R2', { skip: null, wait: `Esperando el !roll de ${['a', 'b'].filter((s) => r[s] == null).map(n).join(' y ')} (roll de ${RF.label}).` });
   }
 
   if (f.step === 'order') {
     const w = f.by;
-    if (!on(bot, 'order:ask')) {
-      return { phase: 'ROLL', step: 'R7', actions: [{ id: 'order:ask', label: `Preguntar a ${n(w)} el orden`, out: [`${n(w)}: di en el chat quién protege, banea y elige primero.`], done: 'order:ask' }] };
+    if (!on(bot, RF.oask)) {
+      return { phase: 'ROLL', step: 'R7', actions: [{ id: RF.oask, label: `Preguntar a ${n(w)} ${RF.chooses}`, out: [`${n(w)}: di en el chat ${RF.chooses}.`], done: RF.oask }] };
     }
-    return { phase: 'ROLL', step: 'R8', actions: [], skip: null, waitRef: `${n(w)} elige el orden. Apúntalo en «Orden»: quién protege, banea y elige primero.` };
+    return { phase: 'ROLL', step: 'R8', actions: [], skip: null, waitRef: `${n(w)} elige ${RF.chooses}. Apúntalo en «Orden».` };
   }
 
   if (VERB[f.step]) {

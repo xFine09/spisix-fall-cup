@@ -1,7 +1,10 @@
 // Orden de un partido del cuadro según las normas (pestaña Info) y las reglas de la ronda:
-// roll → quien lo gana elige quién protege, banea y elige primero → protects alternos → bans por tandas
-// (uno cada jugador; la tanda siguiente tras rules.banEvery mapas jugados, con el orden invertido: ABBA)
-// → picks alternos desde el First Pick → tiebreaker si los dos se quedan a un mapa de ganar.
+// roll de protects → quien lo gana elige quién protege primero → protects alternos → roll de bans y picks → quien
+// lo gana elige quién banea primero y quién elige primero → bans por tandas (uno cada jugador; la tanda siguiente
+// tras rules.banEvery mapas jugados, con el orden invertido: ABBA) → picks alternos desde el First Pick →
+// tiebreaker si los dos se quedan a un mapa de ganar. Sin protects en la ronda, solo hay el segundo roll.
+// Cada roll solo hace falta mientras falte lo que decide: con el orden ya apuntado (al completar un partido
+// después de jugarlo, o en partidos guardados con un solo roll), no se pide.
 // No se puede banear ni elegir el mismo mod que en el ban o pick anterior propio, ni banear un mapa protegido.
 
 // pickTimer y readyTimer en segundos (pickTimer 0: sin temporizador), absentLimit en minutos, reinviteEvery en segundos,
@@ -17,20 +20,24 @@ export function modsFor(slot) {
   return mod === 'NM' ? 'NF' : 'NF ' + mod;
 }
 
-// st: { roll: { a, b, winner }, order: { protect, ban, pick }, actions: [{ type, by, slot }] }
+// st: { roll: { a, b, winner } (roll de protects), roll2: { a, b, winner } (roll de bans y picks),
+//       order: { protect, ban, pick }, actions: [{ type, by, slot }] }
+// En los pasos 'roll' y 'order', rollFor dice cuál de los dos toca: 'protect' o 'banpick'.
 // slots: slots de la mappool de la ronda · played: slots ya jugados (del MP) · score: { a, b } · need: mapas para ganar
 export function refFlow({ rules, st, slots, played, score, need }) {
   const acts = st.actions || [];
   const protects = acts.filter((x) => x.type === 'protect');
   const bans = acts.filter((x) => x.type === 'ban');
   const picks = acts.filter((x) => x.type === 'pick');
-  const base = { protects, bans, picks, score, need, played: played.length, roll: st.roll || null, order: st.order || null };
+  const base = { protects, bans, picks, score, need, played: played.length, roll: st.roll || null, roll2: st.roll2 || null, order: st.order || null };
   if (score.a >= need || score.b >= need) return { ...base, step: 'done', winner: score.a >= need ? 'a' : 'b' };
   const last = picks.at(-1);
   if (last && !played.includes(last.slot)) return { ...base, step: 'play', current: last.slot, by: last.by };
-  if (!st.roll?.winner) return { ...base, step: 'roll' };
   const o = st.order || {};
-  if (!o.protect || !o.ban || !o.pick) return { ...base, step: 'order', by: st.roll.winner };
+  if (rules.protects > 0 && !o.protect) {
+    if (!st.roll?.winner) return { ...base, step: 'roll', rollFor: 'protect' };
+    return { ...base, step: 'order', rollFor: 'protect', by: st.roll.winner };
+  }
 
   const lastOf = (type, by) => acts.filter((x) => x.type === type && x.by === by).at(-1);
   const allowed = (type, by) => {
@@ -58,6 +65,10 @@ export function refFlow({ rules, st, slots, played, score, need }) {
   if (protects.length < rules.protects * 2) {
     const by = protects.length % 2 === 0 ? o.protect : other(o.protect);
     return { ...base, step: 'protect', by, allowed: allowed('protect', by) };
+  }
+  if (!o.ban || !o.pick) {
+    if (!st.roll2?.winner) return { ...base, step: 'roll', rollFor: 'banpick' };
+    return { ...base, step: 'order', rollFor: 'banpick', by: st.roll2.winner };
   }
   const tanda = Math.floor(bans.length / 2);
   if (tanda < rules.bans && played.length >= tanda * rules.banEvery) {
@@ -87,7 +98,7 @@ export function buildActions({ rules, order, protects, bans, picks, slots, winne
     }
   }
   for (const slot of picks) if (!(slot in winners)) return { error: `${slot} no se jugó en el MP: quítalo de los picks.` };
-  const st = { roll: { winner: order.protect }, order, actions: [] };
+  const st = { order, actions: [] };
   const played = [];
   const score = { a: 0, b: 0 };
   for (let guard = 0; guard < 100; guard++) {

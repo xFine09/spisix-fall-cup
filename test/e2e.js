@@ -1695,11 +1695,14 @@ try {
   r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'roll', winner: 'b' } });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   await until(() => live.last.flows['u1-3'].step === 'order', 'roll apuntado');
+  assert.equal(live.last.flows['u1-3'].rollFor, 'protect', 'el primer roll es el de protects');
   assert.deepEqual(live.last.flows['u1-3'].roll, { winner: 'b' });
-  await until(() => sentTo(CH).includes(`${B} gana el roll y elige quién protege, banea y elige primero.`), 'anuncio del roll al pulsarlo');
-  r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'order', protect: 'a', ban: 'b', pick: 'b' } });
+  await until(() => sentTo(CH).includes(`${B} gana el roll y elige quién protege primero.`), 'anuncio del roll al pulsarlo');
+  r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'order', ban: 'b', pick: 'b' } });
+  assert.equal(r.status, 400, 'tras el roll de protects solo se elige quién protege primero');
+  r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'order', protect: 'a' } });
   assert.equal(r.status, 200, JSON.stringify(r.body));
-  await until(() => sentTo(CH).includes(`Orden: protege primero ${A}, banea primero ${B} y elige primero ${B}.`), 'orden anunciado');
+  await until(() => sentTo(CH).includes(`Protege primero ${A}.`), 'orden de protects anunciado');
   assert.ok(!sentTo(CH).includes('!mp timer 30'), 'el temporizador no se pone solo');
   await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'timer', seconds: 30 } });
   await until(() => sentTo(CH).includes('!mp timer 30'), 'temporizador con el botón');
@@ -1713,6 +1716,20 @@ try {
   await until(() => sentTo(CH).includes(`${A} protege NM1.`) && sentTo(CH).includes('!mp aborttimer'), 'protect anunciado y temporizador parado');
   r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'protect', slot: 'hd1' } });
   assert.equal(r.status, 200, JSON.stringify(r.body));
+  // Segundo roll, tras los protects: quien lo gana elige quién banea y quién elige primero
+  await until(() => live.last.flows['u1-3'].step === 'roll', 'segundo roll tras los protects');
+  assert.equal(live.last.flows['u1-3'].rollFor, 'banpick');
+  r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'ban', slot: 'DT1' } });
+  assert.equal(r.status, 400, 'sin el segundo roll no se banea');
+  r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'roll', winner: 'a' } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  await until(() => sentTo(CH).includes(`${A} gana el roll y elige quién banea primero y quién elige primero.`), 'anuncio del segundo roll');
+  await until(() => live.last.flows['u1-3'].step === 'order', 'segundo roll apuntado');
+  assert.deepEqual([live.last.flows['u1-3'].roll, live.last.flows['u1-3'].roll2], [{ winner: 'b' }, { winner: 'a' }], 'los dos rolls, cada uno con su ganador');
+  assert.equal(live.last.flows['u1-3'].by, 'a', 'elige el orden quien gana el segundo roll');
+  r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-3', type: 'order', ban: 'b', pick: 'b' } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  await until(() => sentTo(CH).includes(`Banea primero ${B} y elige primero ${B}.`), 'orden de bans y picks anunciado');
   // Bans: no se puede banear un mapa protegido; la primera tanda la abre B (orden elegido)
   await until(() => live.last.flows['u1-3'].step === 'ban', 'turno de bans');
   assert.equal(live.last.flows['u1-3'].by, 'b');
@@ -2158,22 +2175,22 @@ try {
     ircSay(CH, B, 'no');
     await g.out(['!mp clearhost']);
     await g.out(['!mp set 2 3 2', `!mp team #${ids.a} red`, `!mp team #${ids.b} blue`]);
-    // ROLL: «!roll 1000» no vale, empate a 40, gana B 80 – 30
-    await g.out(['Haced !roll los dos (solo «!roll», sin número). Gana el más alto.']);
+    // ROLL de protects: «!roll 1000» no vale, empate a 40, gana B 80 – 30
+    await g.out(['Roll para los protects: haced !roll los dos (solo «!roll», sin número). Gana el más alto.']);
     ircSay(CH, A, '!roll 1000');
     ircSay(CH, 'BanchoBot', `${A} rolls 734 point(s)`);
     await g.out([`${A}: solo vale «!roll», sin número. Repítelo.`]);
     for (const [who, n] of [[A, 40], [B, 40]]) { ircSay(CH, who, '!roll'); ircSay(CH, 'BanchoBot', `${who} rolls ${n} point(s)`); }
     await g.out(['Empate a 40. Repetid el !roll los dos.']);
     for (const [who, n] of [[A, 30], [B, 80]]) { ircSay(CH, who, '!roll'); ircSay(CH, 'BanchoBot', `${who} rolls ${n} point(s)`); }
-    await g.out([`${B} gana el roll (80 – 30) y elige quién protege, banea y elige primero.`]);
-    await g.out([`${B}: di en el chat quién protege, banea y elige primero.`]);
+    await g.out([`${B} gana el roll (80 – 30) y elige quién protege primero.`]);
+    await g.out([`${B}: di en el chat quién protege primero.`]);
     await untilLong(() => botOf(g.key)?.waitRef?.includes('Apúntalo en «Orden»'), 'el bot espera al árbitro para el orden');
     assert.deepEqual(live.last.flows[g.key].roll, { winner: 'b', a: 30, b: 80 });
-    r = await refc('/api/ref/act', { method: 'POST', json: { key: g.key, type: 'order', protect: 'a', ban: 'b', pick: 'b' } });
+    r = await refc('/api/ref/act', { method: 'POST', json: { key: g.key, type: 'order', protect: 'a' } });
     assert.equal(r.status, 200, JSON.stringify(r.body));
-    await g.saw(`Orden: protege primero ${A}, banea primero ${B} y elige primero ${B}.`);
-    await untilLong(() => botOf(g.key)?.log.some((x) => x.by === 'Jugador C' && x.text.startsWith('A mano: Orden')), 'lo apuntado a mano también va al log');
+    await g.saw(`Protege primero ${A}.`);
+    await untilLong(() => botOf(g.key)?.log.some((x) => x.by === 'Jugador C' && x.text === `A mano: Protege primero ${A}.`), 'lo apuntado a mano también va al log');
     // PROTECT: B escribe fuera de turno (se ignora), A un mapa que no existe, B uno ya protegido
     await g.out([`${A}, protege un mapa: escríbelo en el chat (p. ej. NM2).`]);
     ircSay(CH, B, 'nm2');
@@ -2186,6 +2203,16 @@ try {
     await g.out([`${B}: NM1 no vale (ya está protegido). Escribe otro mapa.`]);
     ircSay(CH, B, 'hd 1');
     await g.out([`${B} protege HD1.`]);
+    // ROLL de bans y picks, tras los protects: gana A 70 – 20 y elige el orden (lo apunta el árbitro)
+    await g.out(['Roll para bans y picks: haced !roll los dos (solo «!roll», sin número). Gana el más alto.']);
+    for (const [who, n] of [[A, 70], [B, 20]]) { ircSay(CH, who, '!roll'); ircSay(CH, 'BanchoBot', `${who} rolls ${n} point(s)`); }
+    await g.out([`${A} gana el roll (70 – 20) y elige quién banea primero y quién elige primero.`]);
+    await g.out([`${A}: di en el chat quién banea primero y quién elige primero.`]);
+    await untilLong(() => botOf(g.key)?.waitRef?.includes('quién banea primero y quién elige primero. Apúntalo en «Orden»'), 'el bot espera al árbitro para el orden de bans y picks');
+    assert.deepEqual([live.last.flows[g.key].roll, live.last.flows[g.key].roll2], [{ winner: 'b', a: 30, b: 80 }, { winner: 'a', a: 70, b: 20 }], 'dos rolls');
+    r = await refc('/api/ref/act', { method: 'POST', json: { key: g.key, type: 'order', ban: 'b', pick: 'b' } });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    await g.saw(`Banea primero ${B} y elige primero ${B}.`);
     await hooks.ban?.();
     // BAN, tanda 1 (abre B): no se puede banear un mapa protegido
     await g.out([`${B}, banea un mapa (tanda 1 de 2): escríbelo en el chat (p. ej. NM2).`]);
@@ -2329,7 +2356,7 @@ try {
   assert.equal(botOf('u1-7').stage, 'match', 'warmups saltados');
   r = await botAct('u1-7', { do: 'skip', at: 'otro:paso' });
   assert.equal(r.status, 409, 'saltar un paso que ya no es el actual');
-  for (const json of [{ type: 'roll', winner: 'a' }, { type: 'order', protect: 'a', ban: 'a', pick: 'a' }, { type: 'protect', slot: 'NM1' }, { type: 'protect', slot: 'HD1' }, { type: 'ban', slot: 'DT1' }, { type: 'ban', slot: 'HR1' }]) {
+  for (const json of [{ type: 'roll', winner: 'a' }, { type: 'order', protect: 'a' }, { type: 'protect', slot: 'NM1' }, { type: 'protect', slot: 'HD1' }, { type: 'roll', winner: 'a' }, { type: 'order', ban: 'a', pick: 'a' }, { type: 'ban', slot: 'DT1' }, { type: 'ban', slot: 'HR1' }]) {
     r = await refc('/api/ref/act', { method: 'POST', json: { key: 'u1-7', ...json } });
     assert.equal(r.status, 200, JSON.stringify(json) + JSON.stringify(r.body));
   }
@@ -2427,10 +2454,10 @@ try {
       await untilLong(() => sentTo(CH8).includes(`${who}, ¿quieres warmup? Responde «sí» o «no» en el chat.`), 'pregunta de warmup');
       ircSay(CH8, who, 'no');
     }
-    await untilLong(() => sentTo(CH8).includes('Haced !roll los dos (solo «!roll», sin número). Gana el más alto.'), 'rolls');
+    await untilLong(() => sentTo(CH8).includes('Roll para los protects: haced !roll los dos (solo «!roll», sin número). Gana el más alto.'), 'rolls');
     for (const [who, n] of [[A8, 50], [B8, 60]]) { ircSay(CH8, who, '!roll'); ircSay(CH8, 'BanchoBot', `${who} rolls ${n} point(s)`); }
-    await untilLong(() => sentTo(CH8).includes(`${B8}: di en el chat quién protege, banea y elige primero.`), 'pregunta el orden');
-    await ref8('/api/ref/act', { method: 'POST', json: { key: 'u1-8', type: 'order', protect: 'a', ban: 'b', pick: 'b' } });
+    await untilLong(() => sentTo(CH8).includes(`${B8}: di en el chat quién protege primero.`), 'pregunta el orden');
+    await ref8('/api/ref/act', { method: 'POST', json: { key: 'u1-8', type: 'order', protect: 'a' } });
     const turn8 = `${A8}, protege un mapa: escríbelo en el chat (p. ej. NM2).`;
     await untilLong(() => sentTo(CH8).includes(turn8), 'turno de protect de A');
     live8.close();
