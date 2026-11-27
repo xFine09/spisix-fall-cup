@@ -69,8 +69,15 @@ function points(game, score, mult) {
 
 // Resultado de un partido 1v1: solo cuentan los mapas del pool de esa ronda
 // (los warmups no están en el pool). Si un mapa se repite, vale el último.
-export function parseMatch(data, poolBySlot, mult) {
+// Los mapas se cuentan en el orden del MP: en cuanto un jugador llega a need victorias, el partido está decidido
+// y lo que se juegue después en el lobby (el TB u otros mapas, como showmatch) no cuenta.
+export function parseMatch(data, poolBySlot, mult, need = Infinity) {
   const byBeatmap = new Map();
+  const count = () => {
+    const wins = {};
+    for (const m of byBeatmap.values()) wins[m.w] = (wins[m.w] || 0) + 1;
+    return wins;
+  };
   for (const ev of data.events || []) {
     const g = ev.game;
     if (!g || !g.end_time || !g.scores?.length) continue;
@@ -82,11 +89,9 @@ export function parseMatch(data, poolBySlot, mult) {
     const ids = Object.keys(scores).sort((a, b) => scores[b] - scores[a]);
     if (ids.length < 2 || scores[ids[0]] === scores[ids[1]]) continue;
     byBeatmap.set(g.beatmap_id, { bid: g.beatmap_id, slot, w: +ids[0], scores, stats });
+    if (Object.values(count()).some((w) => w >= need)) break;
   }
-  const maps = [...byBeatmap.values()];
-  const wins = {};
-  for (const m of maps) wins[m.w] = (wins[m.w] || 0) + 1;
-  return { wins, maps, name: data.match?.name || null, updated: Date.now() };
+  return { wins: count(), maps: [...byBeatmap.values()], name: data.match?.name || null, updated: Date.now() };
 }
 
 // Clasificatorios: mejor score de cada jugador en cada mapa del pool. Solo cuentan los mapas jugados

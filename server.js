@@ -613,7 +613,7 @@ async function syncMatch(id) {
   const pool = poolBySlot(phaseOfMatch(id));
   if (!pool.size) throw new HttpError(400, 'Añade antes el mappool de esta ronda: sin él no se distinguen los warmups.');
   const data = await readMatch(rec.mp);
-  const result = parseMatch(data, pool, CONFIG.multiplicadores);
+  const result = parseMatch(data, pool, CONFIG.multiplicadores, (bestOf(id) + 1) / 2);
   q.setResult.run(JSON.stringify(result), Date.now(), id);
   return result;
 }

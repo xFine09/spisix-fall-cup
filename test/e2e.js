@@ -86,12 +86,13 @@ function qual901() {
   const events = [201, 202].map((bid, k) => ({ id: k + 1, detail: { type: 'other' }, game: { ...game(bid, sc(900000 - k * 50000)), team_type: 'head-to-head' } }));
   return { match: { id: 901, name: 'SPI: (Clasificatorios) Lobby B' }, events, first_event_id: 1, latest_event_id: 2 };
 }
-// U1-2 (seed 8 vs seed 9): P08 gana 5–1.
+// U1-2 (seed 8 vs seed 9): P08 gana 5–1. Después, dos mapas del pool de showmatch, que no cuentan
+// (si contaran, NM1 pasaría a P08 y NM2 a P09).
 function match556() {
-  const events = [[101, 609], [102, 608], [103, 608], [104, 608], [105, 608], [106, 608]].map(([bid, w], k) => ({
+  const events = [[101, 609], [102, 608], [103, 608], [104, 608], [105, 608], [106, 608], [101, 608], [102, 609]].map(([bid, w], k) => ({
     id: k + 1, detail: { type: 'other' }, game: game(bid, [[608, w === 608 ? 900000 : 500000], [609, w === 609 ? 900000 : 500000]])
   }));
-  return { match: { id: 556, name: 'SPI: (P08) vs (P09)' }, events, first_event_id: 1, latest_event_id: 6 };
+  return { match: { id: 556, name: 'SPI: (P08) vs (P09)' }, events, first_event_id: 1, latest_event_id: events.length };
 }
 // MP 557: U1-7 (P07 contra P10) en juego, con precisión y 300/100/50/fallos en cada score (para Stats).
 // Los mapas se añaden a games557 a medida que se «juegan». En FM1, P10 gana con EZ (550k × 1,8 = 990k > 900k).
@@ -1428,9 +1429,11 @@ try {
   // U1-2 (P08 vs P09) desde el MP: 5–1
   r = await adm2('/api/admin/match', { method: 'POST', json: { id: 'u1-2', time: fakeNow - 3600e3, mp: '556' } });
   assert.equal(r.body.warning, null, JSON.stringify(r.body));
+  assert.deepEqual(r.body.result.wins, { 608: 5, 609: 1 }, 'los mapas jugados después de decidirse el partido no cuentan');
+  assert.deepEqual(r.body.result.maps.map((m) => [m.bid, m.w]), [[101, 609], [102, 608], [103, 608], [104, 608], [105, 608], [106, 608]], 'sin los mapas de showmatch');
   await adm2('/api/admin/sync', { method: 'POST', json: { id: 'u1-2' } });
   await adm2('/api/admin/match', { method: 'POST', json: { id: 'u1-2', time: fakeNow - 3600e3, mp: '556', ref: 'otro' } });
-  console.log('✓ partidos de octavos: forfeit y resultado desde el MP');
+  console.log('✓ partidos de octavos: forfeit y resultado desde el MP (sin los mapas de showmatch del final)');
 
   // Skills del torneo: base con los clasificatorios (901: P01 el mejor en los dos mapas) y Elo con el cuadro (U1-2).
   const prof2 = async (c, id) => (await c('/api/profile?id=' + id)).body;
